@@ -1,0 +1,447 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+:root {
+  --primary-glow: conic-gradient(from 180deg at 50% 50%, #ff4b4b55 0deg, #ff8c0055 180deg, #ff4b4b55 360deg);
+  --secondary-glow: radial-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+  
+  --bg-gradient: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+  --card-bg: rgba(20, 20, 35, 0.5);
+  --bg-main: #0f172a;
+  --bg-panel: rgba(30, 41, 59, 0.7);
+  --text-main: #ffffff;
+  --text-muted: #94a3b8;
+  --primary-glow: rgba(56, 189, 248, 0.15);
+  --accent-color: #38bdf8;
+  --card-border: rgba(255, 255, 255, 0.1);
+  --sidebar-bg: rgba(15, 23, 42, 0.95);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-hover: rgba(255, 255, 255, 0.1);
+  --danger: #ef4444;
+  --success: #10b981;
+}
+
+[data-theme="light"] {
+  --bg-main: #f1f5f9;
+  --bg-panel: rgba(255, 255, 255, 0.9);
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --primary-glow: rgba(56, 189, 248, 0.05);
+  --accent-color: #0284c7;
+  --card-border: rgba(0, 0, 0, 0.1);
+  --sidebar-bg: #ffffff;
+  --sidebar-border: rgba(0, 0, 0, 0.1);
+  --sidebar-hover: rgba(0, 0, 0, 0.05);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.6); }
+  100% { box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+}
+
+/* Shared UI Components */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  color: var(--text-main);
+}
+
+.btn-dynamic {
+  background: linear-gradient(90deg, #38bdf8, #0284c7);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-dynamic:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(56, 189, 248, 0.3);
+}
+
+.btn-dynamic:active {
+  transform: translateY(1px);
+}
+
+.btn-primary, .btn-cancel {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:hover, .btn-cancel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(59, 130, 246, 0.5);
+}
+
+.btn-cancel {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+}
+
+.btn-cancel:hover {
+  box-shadow: 0 8px 15px rgba(239, 68, 68, 0.5);
+}
+
+.input-dynamic {
+  width: 100%;
+  padding: 12px 15px;
+  background: rgba(0,0,0,0.05);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+[data-theme="dark"] .input-dynamic {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.input-dynamic:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+/* Panel de Capas QGIS Style */
+.layer-category {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.layer-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
+}
+
+.layer-item.active {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+/* Dashboard Layout */
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  pointer-events: auto;
+  margin: 15px 20px;
+  padding: 12px 20px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--text-main), var(--accent-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  font-size: 0.8rem;
+  color: var(--accent-color);
+  letter-spacing: 1px;
+}
+
+.controls-section {
+  pointer-events: auto;
+  margin: 0 20px 20px 20px;
+  width: 320px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.sidebar-section {
+  margin-bottom: 25px;
+}
+
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* Map Container */
+.map-container {
+  width: 100%;
+  height: 100dvh;
+  z-index: 1;
+}
+
+/* Global Sidebar Styles */
+.global-sidebar {
+  width: 250px;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  height: 100dvh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+}
+
+.global-sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar-header {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 20px 10px;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: 8px;
+  margin-bottom: 5px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.nav-item:hover, .nav-item.active {
+  background-color: var(--sidebar-hover);
+  color: var(--accent-color);
+}
+
+.nav-item svg {
+  margin-right: 15px;
+}
+
+.global-sidebar.collapsed .nav-item span {
+  display: none;
+}
+
+.global-sidebar.collapsed .nav-item svg {
+  margin-right: 0;
+}
+
+.sidebar-footer {
+  padding: 20px;
+  border-top: 1px solid var(--sidebar-border);
+}
+
+.main-content {
+  margin-left: 250px;
+  min-height: 100dvh;
+  transition: margin-left 0.3s ease;
+  position: relative;
+  background-color: var(--bg-main);
+}
+
+.main-content.collapsed {
+  margin-left: 70px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent-color);
+  border-radius: 10px;
+}
+
+/* Utilities */
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+.qgis-status-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: var(--card-bg);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--card-border);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  gap: 20px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.qgis-status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.qgis-input {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+}
+
+.qgis-input-scale {
+  background: transparent;
+  border: none;
+  color: white;
+  width: 60px;
+  outline: none;
+}
+  @media (max-width: 768px) {
+    .qgis-hide-mobile { display: none !important; }
+    .qgis-status-bar { 
+      gap: 5px; 
+      padding: 5px; 
+      flex-direction: column;
+      height: auto;
+      align-items: center;
+      justify-content: center;
+    }
+    .qgis-input.scale-input { width: 70px !important; }
+    .qgis-status-bar .qgis-input { width: 140px !important; }
+    
+    .global-sidebar {
+    z-index: 2000;
+  }
+  
+  .main-content {
+    margin-left: 250px;
+  }
+  
+  .main-content.collapsed {
+    margin-left: 70px;
+  }
+  
+  /* When sidebar is open on mobile, don't push the map, just overlay it */
+  .main-content {
+    margin-left: 70px !important;
+  }
+}

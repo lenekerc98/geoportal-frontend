@@ -1,0 +1,124 @@
+import React, { useState, useEffect } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings } from 'lucide-react';
+
+export default function SidebarLayout() {
+  const [collapsed, setCollapsed] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('catastro_theme') || 'dark');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('catastro_theme', theme);
+  }, [theme]);
+
+  // Protección de Rutas (Validar Token JWT)
+  useEffect(() => {
+    const token = localStorage.getItem('catastro_token');
+    if (!token) {
+      navigate('/');
+      return;
+    }
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const exp = payload.exp;
+      if (Date.now() >= exp * 1000) {
+         localStorage.removeItem('catastro_token');
+         navigate('/');
+      }
+    } catch (e) {
+      localStorage.removeItem('catastro_token');
+      navigate('/');
+    }
+  }, [navigate]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('catastro_token');
+    navigate('/');
+  };
+
+  return (
+    <div>
+      <aside className={`global-sidebar ${collapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-header">
+          {!collapsed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
+                C
+              </div>
+              <span className="title" style={{ fontSize: '18px' }}>Catastro 2026</span>
+            </div>
+          )}
+          <button 
+            onClick={() => setCollapsed(!collapsed)} 
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px', marginLeft: collapsed ? '0' : 'auto' }}
+          >
+            <Menu size={20} />
+          </button>
+        </div>
+
+        <nav className="sidebar-nav">
+          <NavLink to="/geoportal" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Map size={20} />
+            <span>Geoportal</span>
+          </NavLink>
+
+          <NavLink to="/dashboard" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <BarChart2 size={20} />
+            <span>Dashboard</span>
+          </NavLink>
+          
+          <NavLink to="/usuarios" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Users size={20} />
+            <span>Usuarios</span>
+          </NavLink>
+
+          <div className="nav-group" style={{ marginTop: '15px' }}>
+            <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default' }}>
+              <span>Sistema</span>
+            </div>
+            <NavLink to="/sistema/parametros" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+              <Settings size={18} />
+              <span>Parámetros Generales</span>
+            </NavLink>
+            <NavLink to="/sistema/logs" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+              <Shield size={18} />
+              <span>Logs y Auditoría</span>
+            </NavLink>
+          </div>
+        </nav>
+
+        <div className="sidebar-footer">
+          <button 
+            onClick={toggleTheme} 
+            className="nav-item" 
+            style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', justifyContent: 'flex-start' }}
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            <span>Tema {theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
+          </button>
+
+          <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid var(--sidebar-border)' }}>
+            <button 
+              onClick={handleLogout} 
+              className="nav-item" 
+              style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', color: 'var(--danger)', justifyContent: 'flex-start' }}
+            >
+              <LogOut size={20} />
+              <span>Cerrar Sesión</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
+        <Outlet />
+      </main>
+    </div>
+  );
+}

@@ -1,0 +1,153 @@
+.logs-container {
+  padding: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: var(--text-color);
+}
+
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+}
+
+.logs-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  color: var(--accent-color);
+}
+
+.logs-subtitle {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.logs-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--card-border);
+  padding: 10px 20px;
+  border-radius: 20px;
+  width: 350px;
+  backdrop-filter: blur(10px);
+}
+
+.logs-search input {
+  background: transparent;
+  border: none;
+  color: white;
+  outline: none;
+  width: 100%;
+}
+
+.logs-tabs {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.tab-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.tab-btn.active {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.tab-btn.success.active {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.tab-btn.error.active {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.logs-table-container {
+  background: var(--bg-panel);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.logs-table th {
+  text-align: left;
+  padding: 15px 20px;
+  background: rgba(0,0,0,0.2);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.logs-table td {
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 0.95rem;
+}
+
+.log-row:last-child td {
+  border-bottom: none;
+}
+
+.log-row:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+.log-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.log-row.info .log-type span { color: #10b981; }
+.log-row.warning .log-type span { color: #f59e0b; }
+.log-row.error .log-type span { color: #ef4444; }
+
+.badge {
+  background: rgba(148, 163, 184, 0.2);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-color);
+}
+
+.log-user, .log-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.loading-state, .empty-state {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+}

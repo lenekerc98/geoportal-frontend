@@ -1,0 +1,260 @@
+.gdal-progress-tracker {
+  position: relative;
+  width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent-color);
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.gdal-progress-tracker.minimized {
+  width: auto;
+  padding: 10px 15px;
+}
+
+.tracker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tracker-title {
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tracker-minimize, .tracker-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.tracker-minimize:hover, .tracker-close:hover {
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+
+.tracker-body {
+  margin-top: 15px;
+}
+
+.progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent-color);
+  transition: width 0.3s ease;
+}
+
+.progress-bar-fill.procesando {
+  background: #3b82f6;
+  box-shadow: 0 0 10px #3b82f6;
+}
+
+.progress-bar-fill.completado {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+}
+
+.progress-bar-fill.error {
+  background: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+}
+
+.tracker-details {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive Floating Dock */
+.floating-dock {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50px;
+  display: flex;
+  padding: 8px 12px;
+  gap: 10px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+  pointer-events: auto;
+  align-items: center;
+  max-width: 95vw;
+}
+
+.dock-button {
+  background: transparent;
+  color: #94a3b8;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.dock-button.active {
+  color: white;
+}
+
+.dock-button.navegar.active { background: rgba(59, 130, 246, 0.25); color: #60a5fa; }
+.dock-button.agregar.active { background: rgba(16, 185, 129, 0.25); color: #34d399; }
+.dock-button.medir.active { background: rgba(245, 158, 11, 0.25); color: #fbbf24; }
+.dock-button.ubicacion { color: #a855f7; }
+.dock-button.ubicacion.active { background: rgba(168, 85, 247, 0.25); color: #c084fc; }
+
+.dock-button-text {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.dock-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .floating-dock {
+    bottom: 50px;
+    gap: 5px;
+    padding: 6px 10px;
+  }
+  .dock-button {
+    padding: 12px;
+    border-radius: 50%;
+    justify-content: center;
+  }
+  .dock-button-text {
+    display: none;
+  }
+  .gdal-progress-tracker {
+    width: 90vw !important;
+    right: 5vw !important;
+  }
+  .map-sidebar {
+    width: calc(100vw - 80px) !important;
+    right: 10px !important;
+    top: 10px !important;
+    max-height: calc(100vh - 20px) !important;
+    z-index: 3000 !important;
+  }
+}
+
+.map-sidebar {
+  pointer-events: auto;
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(20px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  z-index: 900;
+}
+.map-sidebar.open {
+  transform: translateX(0);
+  opacity: 1;
+}
+.map-sidebar:not(.open) {
+  transform: translateX(120%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- LIGHT THEME OVERRIDES --- */
+[data-theme="light"] .gdal-progress-tracker {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: #e2e8f0;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+[data-theme="light"] .gdal-progress-tracker .tracker-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .gdal-progress-tracker .tracker-minimize,
+[data-theme="light"] .gdal-progress-tracker .tracker-close {
+  color: #64748b;
+}
+
+[data-theme="light"] .gdal-progress-tracker .tracker-minimize:hover,
+[data-theme="light"] .gdal-progress-tracker .tracker-close:hover {
+  background: rgba(0,0,0,0.05);
+  color: #0f172a;
+}
+
+[data-theme="light"] .gdal-progress-tracker .tracker-details {
+  color: #64748b;
+}
+
+[data-theme="light"] .gdal-progress-tracker .progress-bar-bg {
+  background: rgba(0,0,0,0.05);
+}
+
+[data-theme="light"] .floating-dock {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+}
+
+[data-theme="light"] .dock-button {
+  color: #64748b;
+}
+
+[data-theme="light"] .dock-button.active {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dock-divider {
+  background: rgba(0,0,0,0.1);
+}
+
+.sidebar-input { flex: 1; padding: 6px 10px; background: var(--bg-main); border: 1px solid var(--card-border); color: var(--text-main); border-radius: 4px; outline: none; transition: border-color 0.3s ease; }
+.sidebar-input:focus { border-color: var(--accent-color); }
+
+.predio-form-header { display: flex; gap: 15px; margin-bottom: 20px; }
+@media (max-width: 768px) { .predio-form-header { flex-direction: column; gap: 10px; } .predio-table-container { overflow-x: auto; width: 100%; } .predio-table-wrapper { min-width: 350px; } }
+
+.table-footer { padding: 10px; background: var(--bg-main); border-top: 1px solid var(--card-border); text-align: center; }
+.btn-add-vertex { background: transparent; color: var(--accent-color); border: 1px dashed var(--accent-color); padding: 6px 15px; border-radius: 4px; font-size: 13px; cursor: pointer; width: 100%; }
