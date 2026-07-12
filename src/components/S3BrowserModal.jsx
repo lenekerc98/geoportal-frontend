@@ -36,8 +36,9 @@ export default function S3BrowserModal({ isOpen, onClose, onSelect, authToken })
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
-    }}>
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      pointerEvents: 'auto'
+    }} onClick={(e) => e.stopPropagation()}>
       <div style={{
         background: 'var(--bg-secondary)', border: '1px solid var(--card-border)',
         borderRadius: '12px', width: '90%', maxWidth: '600px', maxHeight: '80vh',
@@ -84,7 +85,15 @@ export default function S3BrowserModal({ isOpen, onClose, onSelect, authToken })
                       <CheckCircle size={14} /> Catalogada
                     </span>
                   ) : (
-                    <button className="btn-primary" onClick={() => onSelect(f.filename)} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+                    <button 
+                      className="btn-primary" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelect(f.filename);
+                      }} 
+                      style={{ padding: '6px 12px', fontSize: '0.85rem', cursor: 'pointer', position: 'relative', zIndex: 10001, pointerEvents: 'auto' }}
+                    >
                       Procesar
                     </button>
                   )}
