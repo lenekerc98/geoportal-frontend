@@ -1690,6 +1690,9 @@ export default function Geoportal() {
                 maxNativeZoom={20}
                 zIndex={20}
                 opacity={ortofotoOpacity}
+                keepBuffer={2}
+                updateWhenIdle={true}
+                updateWhenZooming={false}
               />
             );
           }
