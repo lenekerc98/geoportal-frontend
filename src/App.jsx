@@ -5,6 +5,7 @@ import Geoportal from './pages/Geoportal/Geoportal';
 import AnalyticsDashboard from './pages/Dashboard/AnalyticsDashboard';
 import SystemLogs from './pages/System/SystemLogs';
 import SystemParams from './pages/System/SystemParams';
+import EmpresasManager from './pages/System/EmpresasManager';
 import Users from './pages/Users/Users';
 import SidebarLayout from './components/Layout/SidebarLayout';
 
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/usuarios" element={<Users />} />
           <Route path="/sistema/parametros" element={<SystemParams />} />
           <Route path="/sistema/logs" element={<SystemLogs />} />
+          <Route path="/empresas" element={<EmpresasManager />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" replace />} />

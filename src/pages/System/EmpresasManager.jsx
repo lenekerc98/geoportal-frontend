@@ -1,0 +1,221 @@
+import React, { useState, useEffect } from 'react';
+import { Building2, Plus, Edit2, Trash2, Loader2, Calendar } from 'lucide-react';
+import { API_URL } from '../../services/api';
+
+export default function EmpresasManager() {
+  const [empresas, setEmpresas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [formData, setFormData] = useState({ nombre: '', ruc: '' });
+
+  const fetchEmpresas = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('catastro_token');
+      const res = await fetch(`${API_URL}/api/empresas`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Error al cargar empresas');
+      const data = await res.json();
+      setEmpresas(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmpresas();
+  }, []);
+
+  const openModal = (emp = null) => {
+    if (emp) {
+      setFormData({ 
+        nombre: emp.nombre, 
+        ruc: emp.ruc || '',
+        telefono: emp.telefono || '',
+        correo: emp.correo || '',
+        direccion: emp.direccion || '',
+        parametros: emp.parametros ? JSON.stringify(emp.parametros, null, 2) : '{}'
+      });
+      setEditingId(emp.id);
+    } else {
+      setFormData({ nombre: '', ruc: '', telefono: '', correo: '', direccion: '', parametros: '{}' });
+      setEditingId(null);
+    }
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('catastro_token');
+      const url = editingId ? `${API_URL}/api/empresas/${editingId}` : `${API_URL}/api/empresas`;
+      const method = editingId ? 'PUT' : 'POST';
+      
+      let parsedParams = {};
+      try {
+        parsedParams = JSON.parse(formData.parametros || '{}');
+      } catch (err) {
+        throw new Error('Parámetros JSON inválido');
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          parametros: parsedParams
+        })
+      });
+      
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.detail || 'Error al guardar empresa');
+      }
+      
+      setShowModal(false);
+      fetchEmpresas();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  if (loading && empresas.length === 0) return <div style={{padding:'20px', color:'white'}}><Loader2 className="spin" /> Cargando empresas...</div>;
+
+  return (
+    <div className="system-logs-container" style={{ padding: '20px', color: 'white', minHeight: '100vh', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2><Building2 style={{ verticalAlign: 'middle', marginRight: '10px' }}/> Gestión de Empresas</h2>
+        <button onClick={() => openModal()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 15px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+          <Plus size={18} /> Nueva Empresa
+        </button>
+      </div>
+
+      {error && <div style={{ color: '#ff4444', marginBottom: '15px' }}>{error}</div>}
+
+      <div className="logs-table-container glass-panel">
+        <table className="logs-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>RUC</th>
+              <th>Contacto</th>
+              <th>Fecha Creación</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {empresas.map(emp => (
+              <tr key={emp.id}>
+                <td>{emp.id}</td>
+                <td style={{ fontWeight: 'bold' }}>{emp.nombre}</td>
+                <td>{emp.ruc || '-'}</td>
+                <td>
+                  <div style={{ fontSize: '0.8rem' }}>{emp.correo || '-'}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.telefono || '-'}</div>
+                </td>
+                <td><Calendar size={14} style={{marginRight:5, verticalAlign:'middle', color:'gray'}}/> {new Date(emp.fecha_creacion).toLocaleString()}</td>
+                <td>
+                  <button onClick={() => openModal(emp)} style={{ background: 'transparent', border: '1px solid gray', color: 'white', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
+                    <Edit2 size={14} />
+                  </button>
+                  <button onClick={() => handleDelete(emp.id)} style={{ background: 'rgba(255,50,50,0.2)', border: '1px solid #ff4444', color: '#ff4444', padding: '5px', cursor: 'pointer', borderRadius: '3px' }}>
+                    <Trash2 size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {empresas.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay empresas registradas</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, overflowY: 'auto' }}>
+          <div className="glass-panel" style={{ width: '500px', padding: '20px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ marginTop: 0 }}>{editingId ? 'Editar Empresa' : 'Nueva Empresa'}</h3>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Nombre</label>
+                  <input 
+                    type="text" 
+                    value={formData.nombre} 
+                    onChange={e => setFormData({...formData, nombre: e.target.value})}
+                    required
+                    style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>RUC</label>
+                  <input 
+                    type="text" 
+                    value={formData.ruc} 
+                    onChange={e => setFormData({...formData, ruc: e.target.value})}
+                    style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Teléfono</label>
+                  <input 
+                    type="text" 
+                    value={formData.telefono} 
+                    onChange={e => setFormData({...formData, telefono: e.target.value})}
+                    style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Correo</label>
+                  <input 
+                    type="email" 
+                    value={formData.correo} 
+                    onChange={e => setFormData({...formData, correo: e.target.value})}
+                    style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Dirección</label>
+                <input 
+                  type="text" 
+                  value={formData.direccion} 
+                  onChange={e => setFormData({...formData, direccion: e.target.value})}
+                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Parámetros Adicionales (JSON)</label>
+                <textarea 
+                  value={formData.parametros} 
+                  onChange={e => setFormData({...formData, parametros: e.target.value})}
+                  rows="4"
+                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px', fontFamily: 'monospace' }}
+                  placeholder='{"color_primario": "#ff0000", "logo": "url_imagen"}'
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 15px', background: 'transparent', color: 'white', border: '1px solid gray', borderRadius: '5px', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button type="submit" style={{ padding: '10px 15px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

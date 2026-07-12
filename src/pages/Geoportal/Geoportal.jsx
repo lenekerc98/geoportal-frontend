@@ -312,6 +312,8 @@ export default function Geoportal() {
 
   // Filtros y Visibilidad
   const [selectedYear, setSelectedYear] = useState('Todos');
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
   const [hiddenFeatureIds, setHiddenFeatureIds] = useState([]);
   const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo' o 'nombre'
 
@@ -449,6 +451,25 @@ export default function Geoportal() {
     };
   }, [map]);
 
+  const fetchMapData = async () => {
+    let url = `${API_URL}/api/gis/predios`;
+    if (fechaInicio || fechaFin) {
+      const params = new URLSearchParams();
+      if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
+      if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
+      url += `?${params.toString()}`;
+    }
+    try {
+      const prediosRes = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (prediosRes.ok) {
+        const prediosGeoJSON = await prediosRes.json();
+        setPrediosData(prediosGeoJSON);
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleSavePredio = async (predioData) => {
     const isUpdate = !!editingPredio;
     const url = isUpdate ? `${API_URL}/api/gis/predios/${editingPredio.id}` : `${API_URL}/api/gis/predios`;
@@ -547,7 +568,10 @@ export default function Geoportal() {
     if (!window.confirm('¿Iniciar la catalogación masiva de toda la carpeta de ortofotos? Esto podría tardar varios minutos.')) return;
     try {
       setToastMsg({ type: 'info', title: 'Catalogación', message: 'Iniciando...' });
-      const res = await fetch(`${API_URL}/api/gis/ortofotos/catalogar-masivo`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/api/gis/ortofotos/catalogar-masivo`, { 
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
       const data = await res.json();
       if (res.ok) {
         setToastMsg({ type: 'success', title: 'Éxito', message: 'Catalogación en curso' });
@@ -573,12 +597,7 @@ export default function Geoportal() {
     const newState = !showPredios;
     setShowPredios(newState);
     if (newState && !prediosData && authToken) {
-      try {
-        const res = await fetch(`${API_URL}/api/gis/predios`, {
-          headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        setPrediosData(await res.json());
-      } catch (err) { console.error(err); }
+      fetchMapData();
     }
   };
 
@@ -1196,19 +1215,33 @@ export default function Geoportal() {
               </div>
               {showPredios && (
                 <div style={{ padding: '5px 10px 10px 30px', backgroundColor: 'var(--bg-main)' }}>
-                  <div style={{ marginBottom: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Filtro de Año:</label>
-                    <select 
-                      value={selectedYear} 
-                      onChange={e => setSelectedYear(e.target.value)}
-                      className="sidebar-input"
-                      style={{ padding: '2px 4px', fontSize: '0.8rem', height: 'auto' }}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Desde:</label>
+                      <input 
+                        type="date" 
+                        value={fechaInicio} 
+                        onChange={(e) => setFechaInicio(e.target.value)}
+                        className="sidebar-input"
+                        style={{ padding: '2px 4px', fontSize: '0.8rem', width: '100%' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Hasta:</label>
+                      <input 
+                        type="date" 
+                        value={fechaFin} 
+                        onChange={(e) => setFechaFin(e.target.value)}
+                        className="sidebar-input"
+                        style={{ padding: '2px 4px', fontSize: '0.8rem', width: '100%' }}
+                      />
+                    </div>
+                    <button 
+                      onClick={fetchMapData}
+                      style={{ padding: '4px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem', marginTop: '5px' }}
                     >
-                      <option value="Todos">Todos</option>
-                      <option value="2024">2024</option>
-                      <option value="2025">2025</option>
-                      <option value="2026">2026</option>
-                    </select>
+                      Filtrar Fechas
+                    </button>
                   </div>
 
                   <div style={{ marginBottom: '5px', display: 'flex', gap: '10px', alignItems: 'center' }}>

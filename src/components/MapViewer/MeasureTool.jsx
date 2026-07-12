@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useMapEvents } from 'react-leaflet';
+import { useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 export default function MeasureTool({ isMeasuring, measurePoints, setMeasurePoints, setMousePos }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
-  const map = useMapEvents({
+  
+  const map = useMap();
+  
+  useMapEvents({
     click(e) {
       if (isMeasuring) {
         const pointToAdd = snappedLatLng ? snappedLatLng : e.latlng;

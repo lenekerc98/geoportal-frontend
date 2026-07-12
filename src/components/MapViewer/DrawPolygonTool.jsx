@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { useMapEvents } from 'react-leaflet';
+import { useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, setMousePos, onFinish, verticesData }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
 
-  const map = useMapEvents({
+  const map = useMap();
+
+  useMapEvents({
     click(e) {
       if (isDrawing) {
         // Usa el punto con snap si existe, sino el punto del clic

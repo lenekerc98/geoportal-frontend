@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings } from 'lucide-react';
+import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings, Building2 } from 'lucide-react';
 
 export default function SidebarLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [userRole, setUserRole] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('catastro_theme') || 'dark');
   const navigate = useNavigate();
 
@@ -23,6 +24,7 @@ export default function SidebarLayout() {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const exp = payload.exp;
+      setUserRole(payload.role || '');
       if (Date.now() >= exp * 1000) {
          localStorage.removeItem('catastro_token');
          navigate('/');
@@ -40,6 +42,14 @@ export default function SidebarLayout() {
   const handleLogout = () => {
     localStorage.removeItem('catastro_token');
     navigate('/');
+  };
+
+  const hasAccess = (allowedRoles) => {
+    if (!userRole) return false;
+    // Convierte el rol del usuario a minúsculas para evitar problemas de case
+    const roleLower = userRole.toLowerCase();
+    if (roleLower === 'superadmin') return true;
+    return allowedRoles.includes(roleLower);
   };
 
   return (
@@ -73,24 +83,34 @@ export default function SidebarLayout() {
             <span>Dashboard</span>
           </NavLink>
           
-          <NavLink to="/usuarios" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Users size={20} />
-            <span>Usuarios</span>
-          </NavLink>
+          {hasAccess(['admin']) && (
+            <NavLink to="/usuarios" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Users size={20} />
+              <span>Usuarios</span>
+            </NavLink>
+          )}
 
-          <div className="nav-group" style={{ marginTop: '15px' }}>
-            <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default' }}>
-              <span>Sistema</span>
+          {hasAccess(['admin']) && (
+            <div className="nav-group" style={{ marginTop: '15px' }}>
+              <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default' }}>
+                <span>Sistema</span>
+              </div>
+              <NavLink to="/sistema/parametros" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                <Settings size={18} />
+                <span>Parámetros Generales</span>
+              </NavLink>
+              <NavLink to="/sistema/logs" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                <Shield size={18} />
+                <span>Logs y Auditoría</span>
+              </NavLink>
+              {userRole?.toLowerCase() === 'superadmin' && (
+                <NavLink to="/empresas" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                  <Building2 size={18} />
+                  <span>Gestión de Empresas</span>
+                </NavLink>
+              )}
             </div>
-            <NavLink to="/sistema/parametros" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
-              <Settings size={18} />
-              <span>Parámetros Generales</span>
-            </NavLink>
-            <NavLink to="/sistema/logs" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
-              <Shield size={18} />
-              <span>Logs y Auditoría</span>
-            </NavLink>
-          </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
