@@ -14,6 +14,7 @@ import AttributeTable from '../../components/AttributeTable';
 import MeasureTool from '../../components/MapViewer/MeasureTool';
 import DrawPolygonTool from '../../components/MapViewer/DrawPolygonTool';
 import QgisStatusBar from '../../components/MapViewer/QgisStatusBar';
+import S3BrowserModal from '../../components/S3BrowserModal';
 
 // --- NEW COMPONENT FOR BOX ZOOM ---
 const BoxZoomHandler = ({ isActive, setIsActive }) => {
@@ -530,36 +531,32 @@ export default function Geoportal() {
   // Estados del Modal de Procesamiento
   const [toastMsg, setToastMsg] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isS3ModalOpen, setIsS3ModalOpen] = useState(false);
 
 
 
-  const handleProcesarClick = async () => {
-    setToastMsg({ type: 'info', title: 'Aviso', message: 'Abriendo selector de archivos de Windows (revisa tu barra de tareas)...' });
+  const handleProcesarClick = () => {
+    setIsS3ModalOpen(true);
+  };
+
+  const handleS3FileSelect = async (filename) => {
+    setIsS3ModalOpen(false);
+    setToastMsg({ type: 'info', title: 'Procesando', message: 'Iniciando generación de pirámides...' });
     try {
-      const res = await fetch(`${API_URL}/api/gis/seleccionar-archivo`);
-      if (!res.ok) {
-        setToastMsg({ type: 'warning', title: 'Cancelado', message: 'No se seleccionó ningún archivo' });
-        return;
-      }
-      const data = await res.json();
-      if (data.ruta) {
-        setToastMsg({ type: 'info', title: 'Procesando', message: 'Iniciando generación de pirámides...' });
-        const processRes = await fetch(`${API_URL}/api/gis/ortofotos/procesar`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre_archivo: data.ruta })
-        });
-        const processData = await processRes.json();
-        if (processRes.ok) {
-          const filename = data.ruta.split(/[/\\]/).pop();
-          setToastMsg({ type: 'success', title: 'Éxito', message: 'Procesando en segundo plano' });
-          setActiveTasks(prev => [...prev, { id: processData.task_id, progress: 0, status: 'procesando', minimized: false, filename }]);
-        } else {
-          setToastMsg({ type: 'error', title: 'Error', message: processData.detail || 'Fallo al procesar' });
-        }
+      const processRes = await fetch(`${API_URL}/api/gis/ortofotos/procesar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ nombre_archivo: filename })
+      });
+      const processData = await processRes.json();
+      if (processRes.ok) {
+        setToastMsg({ type: 'success', title: 'Éxito', message: 'Procesando en segundo plano' });
+        setActiveTasks(prev => [...prev, { id: processData.task_id, progress: 0, status: 'procesando', minimized: false, filename }]);
+      } else {
+        setToastMsg({ type: 'error', title: 'Error', message: processData.detail || 'Fallo al procesar' });
       }
     } catch(e) {
-      setToastMsg({ type: 'error', title: 'Error', message: 'Fallo de conexión al buscar archivo' });
+      setToastMsg({ type: 'error', title: 'Error', message: 'Fallo de conexión al enviar archivo' });
     }
   };
 
@@ -1150,6 +1147,13 @@ export default function Geoportal() {
             <Navigation size={18} /> <span className="dock-button-text">Mi Ubicación</span>
           </button>
         </div>
+
+        <S3BrowserModal 
+          isOpen={isS3ModalOpen} 
+          onClose={() => setIsS3ModalOpen(false)} 
+          onSelect={handleS3FileSelect} 
+          authToken={authToken} 
+        />
 
         {/* INFO WINDOW PARA LA REGLA */}
         {isMeasuring && (
