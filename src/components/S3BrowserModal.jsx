@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Cloud, RefreshCw, CheckCircle, File as FileIcon } from 'lucide-react';
-import { API_URL } from '../../services/api';
+import { API_URL } from '../services/api';
 
 export default function S3BrowserModal({ isOpen, onClose, onSelect, authToken }) {
   const [files, setFiles] = useState([]);
