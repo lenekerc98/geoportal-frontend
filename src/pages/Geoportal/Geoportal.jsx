@@ -535,8 +535,27 @@ export default function Geoportal() {
 
 
 
-  const handleProcesarClick = () => {
-    setIsS3ModalOpen(true);
+  const storageMode = import.meta.env.VITE_STORAGE_MODE || 's3';
+
+  const handleProcesarClick = async () => {
+    if (storageMode === 'local') {
+      setToastMsg({ type: 'info', title: 'Aviso', message: 'Abriendo selector de archivos de Windows (revisa tu barra de tareas)...' });
+      try {
+        const res = await fetch(`${API_URL}/api/gis/seleccionar-archivo`);
+        if (!res.ok) {
+          setToastMsg({ type: 'warning', title: 'Cancelado', message: 'No se seleccionó ningún archivo' });
+          return;
+        }
+        const data = await res.json();
+        if (data.ruta) {
+          handleS3FileSelect(data.ruta);
+        }
+      } catch(e) {
+        setToastMsg({ type: 'error', title: 'Error', message: 'Fallo de conexión al buscar archivo' });
+      }
+    } else {
+      setIsS3ModalOpen(true);
+    }
   };
 
   const handleS3FileSelect = async (filename) => {
