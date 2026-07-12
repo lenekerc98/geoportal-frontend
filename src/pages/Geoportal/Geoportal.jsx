@@ -295,7 +295,7 @@ export default function Geoportal() {
       });
       if (res.ok) {
         setToastMsg({ type: 'success', title: 'Eliminado', message: `${filename} borrado` });
-        const catRes = await fetch(`${API_URL}/api/gis/catalog`);
+        const catRes = await fetch(`${API_URL}/api/gis/catalog`, { headers: { 'Authorization': `Bearer ${authToken}` } });
         setCatalogData(await catRes.json());
       } else {
         setToastMsg({ type: 'error', title: 'Error', message: 'No se pudo borrar' });
@@ -765,7 +765,7 @@ export default function Geoportal() {
                       setIndividualOrthophotos(prevOrto => ({ ...prevOrto, [t.filename]: true }));
                     }
                     
-                    fetch(`${API_URL}/api/gis/catalog`).then(r => r.json()).then(d => {
+                    fetch(`${API_URL}/api/gis/catalog`, { headers: { 'Authorization': `Bearer ${authToken}` } }).then(r => r.json()).then(d => {
                       if (d.type === 'FeatureCollection') setCatalogData(d);
                     });
                   } else if (data.estado === 'error') {
@@ -789,7 +789,8 @@ export default function Geoportal() {
   }, [activeTasks]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/gis/catalog`)
+    if (!authToken) return;
+    fetch(`${API_URL}/api/gis/catalog`, { headers: { 'Authorization': `Bearer ${authToken}` } })
       .then(res => res.json())
       .then(data => {
         if (data.type === 'FeatureCollection') {
@@ -797,7 +798,7 @@ export default function Geoportal() {
         }
       })
       .catch(err => console.error("Error fetching catalog:", err));
-  }, []);
+  }, [authToken]);
 
   let totalDistance = 0;
   for (let i = 1; i < measurePoints.length; i++) {
