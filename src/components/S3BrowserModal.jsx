@@ -57,7 +57,25 @@ export default function S3BrowserModal({ isOpen, onClose, onSelect, authToken })
         <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
             <span style={{ color: 'var(--text-muted)' }}>Selecciona una ortofoto no procesada para generarle pirámides (.ovr).</span>
-            <button className="btn-secondary" onClick={fetchFiles} disabled={loading} style={{ padding: '5px 10px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+            <button 
+              onClick={fetchFiles} 
+              disabled={loading} 
+              style={{ 
+                background: 'rgba(56, 189, 248, 0.1)', 
+                color: 'var(--accent-color)', 
+                border: '1px solid var(--accent-color)',
+                padding: '6px 12px', 
+                borderRadius: '8px',
+                display: 'flex', 
+                gap: '8px', 
+                alignItems: 'center',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.2)' }}
+              onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)' }}
+            >
               <RefreshCw size={14} className={loading ? 'spin' : ''} /> Actualizar
             </button>
           </div>
