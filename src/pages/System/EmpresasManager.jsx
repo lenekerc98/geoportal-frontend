@@ -17,14 +17,20 @@ export default function EmpresasManager() {
   const [ciudadesList, setCiudadesList] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/system/dpa/provincias`).then(r => r.json()).then(setProvinciasList).catch(() => {});
+    const token = localStorage.getItem('catastro_token');
+    fetch(`${API_URL}/api/system/dpa/provincias`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(r => r.json()).then(setProvinciasList).catch(() => {});
   }, []);
 
   // Fetch cantones when provincia changes
   const selectedProvObj = provinciasList.find(p => p.nombre === formData.provincia);
   useEffect(() => {
     if (selectedProvObj) {
-      fetch(`${API_URL}/api/system/dpa/cantones?provincia_id=${selectedProvObj.id}`)
+      const token = localStorage.getItem('catastro_token');
+      fetch(`${API_URL}/api/system/dpa/cantones?provincia_id=${selectedProvObj.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
         .then(r => r.json()).then(setCantonesList).catch(() => {});
     } else {
       setCantonesList([]);
@@ -35,7 +41,10 @@ export default function EmpresasManager() {
   const selectedCantObj = cantonesList.find(c => c.nombre === formData.canton);
   useEffect(() => {
     if (selectedCantObj) {
-      fetch(`${API_URL}/api/system/dpa/ciudades?canton_id=${selectedCantObj.id}`)
+      const token = localStorage.getItem('catastro_token');
+      fetch(`${API_URL}/api/system/dpa/ciudades?canton_id=${selectedCantObj.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
         .then(r => r.json()).then(setCiudadesList).catch(() => {});
     } else {
       setCiudadesList([]);
