@@ -15,6 +15,7 @@ import MeasureTool from '../../components/MapViewer/MeasureTool';
 import DrawPolygonTool from '../../components/MapViewer/DrawPolygonTool';
 import QgisStatusBar from '../../components/MapViewer/QgisStatusBar';
 import S3BrowserModal from '../../components/S3BrowserModal';
+import ShapefileUploader from '../../components/MapViewer/ShapefileUploader';
 
 // --- NEW COMPONENT FOR BOX ZOOM ---
 const BoxZoomHandler = ({ isActive, setIsActive }) => {
@@ -245,6 +246,26 @@ export default function Geoportal() {
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null);
   const [map, setMap] = useState(null);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
+  const [showShapefileUploader, setShowShapefileUploader] = useState(false);
+  
+  // Current user info might be stored in localStorage or available via context/props
+  // Attempting to decode JWT token to get user info if not passed down:
+  const getDecodedUser = () => {
+    try {
+      const token = localStorage.getItem('catastro_token');
+      if (!token) return null;
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  };
+  
+  const [currentUser] = useState(getDecodedUser());
 
   useEffect(() => {
     if (window.innerWidth < 768) {
@@ -1214,13 +1235,22 @@ export default function Geoportal() {
         {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
         <div className="sidebar-section">
           <div className="section-title">
-            <Layers size={16} />
-            Árbol de Capas
-          </div>
           
-          <div className="layer-category" onClick={() => toggleCategory('vectores')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Catastro (Vectores)</span>
-            {collapsedCategories.vectores ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+          <div className="section-header" onClick={() => toggleCategory('vectores')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Layers size={16} color="var(--primary)" />
+              <span className="section-title">Capas Vectoriales</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowShapefileUploader(true); }}
+                style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 'bold' }}
+                title="Subir Shapefile Dinámico"
+              >
+                <Upload size={12} /> SHP
+              </button>
+              {collapsedCategories.vectores ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+            </div>
           </div>
           
           {!collapsedCategories.vectores && (
@@ -1916,6 +1946,23 @@ export default function Geoportal() {
               mouseX: e.clientX,
               mouseY: e.clientY
             });
+          }}
+        />
+      )}
+
+      {/* Modal Carga Shapefile Dinámico */}
+      {showShapefileUploader && (
+        <ShapefileUploader
+          onClose={() => setShowShapefileUploader(false)}
+          authToken={authToken}
+          user={currentUser}
+          onSuccess={() => {
+            setShowShapefileUploader(false);
+            setPrediosData(null);
+            if (showPredios) togglePredios();
+            // Refrescar vértices y líneas si están activos
+            if (showVertices) { setVerticesData(null); toggleVertices(); setTimeout(toggleVertices, 500); }
+            if (showLineas) { setLineasData(null); toggleLineas(); setTimeout(toggleLineas, 500); }
           }}
         />
       )}
