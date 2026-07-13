@@ -12,6 +12,36 @@ export default function EmpresasManager() {
   const [formData, setFormData] = useState({ nombre: '', ruc: '', proyecto_id: '' });
   const [proyectos, setProyectos] = useState([]);
 
+  const [provinciasList, setProvinciasList] = useState([]);
+  const [cantonesList, setCantonesList] = useState([]);
+  const [ciudadesList, setCiudadesList] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/system/dpa/provincias`).then(r => r.json()).then(setProvinciasList).catch(() => {});
+  }, []);
+
+  // Fetch cantones when provincia changes
+  const selectedProvObj = provinciasList.find(p => p.nombre === formData.provincia);
+  useEffect(() => {
+    if (selectedProvObj) {
+      fetch(`${API_URL}/api/system/dpa/cantones?provincia_id=${selectedProvObj.id}`)
+        .then(r => r.json()).then(setCantonesList).catch(() => {});
+    } else {
+      setCantonesList([]);
+    }
+  }, [selectedProvObj]);
+
+  // Fetch ciudades when canton changes
+  const selectedCantObj = cantonesList.find(c => c.nombre === formData.canton);
+  useEffect(() => {
+    if (selectedCantObj) {
+      fetch(`${API_URL}/api/system/dpa/ciudades?canton_id=${selectedCantObj.id}`)
+        .then(r => r.json()).then(setCiudadesList).catch(() => {});
+    } else {
+      setCiudadesList([]);
+    }
+  }, [selectedCantObj, cantonesList]);
+
   const fetchEmpresas = async () => {
     try {
       setLoading(true);
@@ -232,17 +262,26 @@ export default function EmpresasManager() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Provincia</label>
-                  <input type="text" className="input-dynamic" value={formData.provincia || ''} onChange={e => setFormData({...formData, provincia: e.target.value})} />
+                  <select className="input-dynamic" value={formData.provincia || ''} onChange={e => setFormData({...formData, provincia: e.target.value, canton: '', ciudad: ''})}>
+                    <option value="">Seleccionar...</option>
+                    {provinciasList.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Cantón</label>
-                  <input type="text" className="input-dynamic" value={formData.canton || ''} onChange={e => setFormData({...formData, canton: e.target.value})} />
+                  <select className="input-dynamic" value={formData.canton || ''} onChange={e => setFormData({...formData, canton: e.target.value, ciudad: ''})}>
+                    <option value="">Seleccionar...</option>
+                    {cantonesList.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                  </select>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Ciudad</label>
-                  <input type="text" className="input-dynamic" value={formData.ciudad || ''} onChange={e => setFormData({...formData, ciudad: e.target.value})} />
+                  <select className="input-dynamic" value={formData.ciudad || ''} onChange={e => setFormData({...formData, ciudad: e.target.value})}>
+                    <option value="">Seleccionar...</option>
+                    {ciudadesList.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Sector</label>
