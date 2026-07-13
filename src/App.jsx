@@ -12,7 +12,7 @@ import SidebarLayout from './components/Layout/SidebarLayout';
 
 export default function App() {
   useEffect(() => {
-    const savedTheme = localStorage.getItem('catastro_theme') || 'light';
+    const savedTheme = localStorage.getItem('catastro_theme_v2') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
   }, []);
 
