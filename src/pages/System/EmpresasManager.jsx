@@ -110,7 +110,7 @@ export default function EmpresasManager() {
     <div className="system-logs-container" style={{ padding: '20px', color: 'var(--text-main)', minHeight: '100vh', overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2><Building2 style={{ verticalAlign: 'middle', marginRight: '10px' }}/> Gestión de Empresas</h2>
-        <button onClick={() => openModal()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 15px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+        <button onClick={() => openModal()} className="btn-dynamic" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <Plus size={18} /> Nueva Empresa
         </button>
       </div>
@@ -237,7 +237,7 @@ export default function EmpresasManager() {
                 <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 15px', background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--card-border)', borderRadius: '5px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
-                <button type="submit" style={{ padding: '10px 15px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                <button type="submit" className="btn-dynamic" style={{ padding: '10px 15px', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
                   Guardar
                 </button>
               </div>
