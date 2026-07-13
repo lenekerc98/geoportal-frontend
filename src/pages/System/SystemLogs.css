@@ -98,12 +98,14 @@
 
 .logs-table th {
   text-align: left;
-  padding: 15px 20px;
-  background: rgba(0,0,0,0.2);
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.9rem;
-  border-bottom: 1px solid var(--card-border);
+  padding: 16px 20px;
+  background: var(--table-header-bg);
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--card-border);
 }
 
 .logs-table td {
@@ -117,7 +119,8 @@
 }
 
 .log-row:hover, .logs-table tbody tr:hover {
-  background: var(--sidebar-hover);
+  background: var(--table-row-hover);
+  transition: background-color 0.2s ease;
 }
 
 .log-type {
