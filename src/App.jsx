@@ -11,7 +11,7 @@ import SidebarLayout from './components/Layout/SidebarLayout';
 
 export default function App() {
   useEffect(() => {
-    const savedTheme = localStorage.getItem('catastro_theme') || 'dark';
+    const savedTheme = localStorage.getItem('catastro_theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
   }, []);
 

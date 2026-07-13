@@ -5,7 +5,7 @@ import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings, Build
 export default function SidebarLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [userRole, setUserRole] = useState('');
-  const [theme, setTheme] = useState(localStorage.getItem('catastro_theme') || 'dark');
+  const [theme, setTheme] = useState(localStorage.getItem('catastro_theme') || 'light');
   const navigate = useNavigate();
 
   useEffect(() => {

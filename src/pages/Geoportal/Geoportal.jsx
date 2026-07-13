@@ -244,7 +244,7 @@ export default function Geoportal() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null);
   const [map, setMap] = useState(null);
-  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark');
+  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
 
   useEffect(() => {
     if (window.innerWidth < 768) {
@@ -255,7 +255,7 @@ export default function Geoportal() {
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'data-theme') {
-          setTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+          setTheme(document.documentElement.getAttribute('data-theme') || 'light');
         }
       });
     });
