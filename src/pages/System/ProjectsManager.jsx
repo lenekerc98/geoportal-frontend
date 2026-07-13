@@ -95,7 +95,7 @@ export default function ProjectsManager() {
   if (loading && proyectos.length === 0) return <div style={{padding:'20px', color:'white'}}><Loader2 className="spin" /> Cargando proyectos...</div>;
 
   return (
-    <div className="system-logs-container" style={{ padding: '20px', color: 'white', minHeight: '100vh', overflowY: 'auto' }}>
+    <div className="system-logs-container" style={{ padding: '20px', color: 'var(--text-main)', minHeight: '100vh', overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2><FolderGit2 style={{ verticalAlign: 'middle', marginRight: '10px' }}/> Gestión de Proyectos</h2>
         <button onClick={() => openModal()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 15px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -124,7 +124,7 @@ export default function ProjectsManager() {
                 <td>{proj.descripcion || '-'}</td>
                 <td><Calendar size={14} style={{marginRight:5, verticalAlign:'middle', color:'gray'}}/> {new Date(proj.fecha_creacion).toLocaleString()}</td>
                 <td>
-                  <button onClick={() => openModal(proj)} style={{ background: 'transparent', border: '1px solid gray', color: 'white', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
+                  <button onClick={() => openModal(proj)} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
                     <Edit2 size={14} />
                   </button>
                   <button onClick={() => handleDelete(proj.id)} style={{ background: 'rgba(255,50,50,0.2)', border: '1px solid #ff4444', color: '#ff4444', padding: '5px', cursor: 'pointer', borderRadius: '3px' }}>
@@ -150,7 +150,7 @@ export default function ProjectsManager() {
                   value={formData.nombre} 
                   onChange={e => setFormData({...formData, nombre: e.target.value})}
                   required
-                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                  className="input-dynamic"
                 />
               </div>
               <div>
@@ -159,12 +159,12 @@ export default function ProjectsManager() {
                   value={formData.descripcion} 
                   onChange={e => setFormData({...formData, descripcion: e.target.value})}
                   rows="3"
-                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                  className="input-dynamic"
                 />
               </div>
               
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 15px', background: 'transparent', color: 'white', border: '1px solid gray', borderRadius: '5px', cursor: 'pointer' }}>
+                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 15px', background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--card-border)', borderRadius: '5px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
                 <button type="submit" style={{ padding: '10px 15px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>

@@ -164,8 +164,8 @@ export default function Users() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => { setIsCreating(false); setIsEditing(false); }} style={{ padding: '12px 20px', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '8px' }}>
-                <X size={18} /> Cancelar
+              <button type="button" onClick={() => { setIsCreating(false); setIsEditing(false); }} style={{ padding: '12px 20px', backgroundColor: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '8px' }}>
+                <X size={20} /> Cancelar
               </button>
               <button type="submit" className="btn-dynamic">
                 <Save size={18} /> {isCreating ? 'Guardar' : 'Actualizar'}
@@ -197,7 +197,7 @@ export default function Users() {
                     </span>
                   </td>
                   <td style={{ padding: '15px 20px', textAlign: 'right' }}>
-                    <button onClick={() => { setFormData({ username: u.username, password: '', id_rol: u.id_rol, id_empresa: u.id_empresa || '' }); setEditingId(u.id_usuario); setIsEditing(true); }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', cursor: 'pointer', padding: '8px', borderRadius: '6px', marginRight: '10px' }} title="Editar">
+                    <button onClick={() => { setFormData({ username: u.username, password: '', id_rol: u.id_rol, id_empresa: u.id_empresa || '' }); setEditingId(u.id_usuario); setIsEditing(true); }} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '8px', borderRadius: '6px', marginRight: '10px' }} title="Editar">
                       <Edit size={16} />
                     </button>
                     <button onClick={() => handleDelete(u.id_usuario, u.username)} style={{ background: 'rgba(239, 68, 68, 0.2)', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '8px', borderRadius: '6px' }} title="Eliminar">
