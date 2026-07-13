@@ -48,12 +48,16 @@ export default function EmpresasManager() {
         telefono: emp.telefono || '',
         correo: emp.correo || '',
         direccion: emp.direccion || '',
+        provincia: emp.provincia || '',
+        canton: emp.canton || '',
+        ciudad: emp.ciudad || '',
+        sector: emp.sector || '',
         parametros: emp.parametros ? JSON.stringify(emp.parametros, null, 2) : '{}',
         proyecto_id: emp.proyecto_id || ''
       });
       setEditingId(emp.id);
     } else {
-      setFormData({ nombre: '', ruc: '', telefono: '', correo: '', direccion: '', parametros: '{}', proyecto_id: '' });
+      setFormData({ nombre: '', ruc: '', telefono: '', correo: '', direccion: '', provincia: '', canton: '', ciudad: '', sector: '', parametros: '{}', proyecto_id: '' });
       setEditingId(null);
     }
     setShowModal(true);
@@ -125,8 +129,9 @@ export default function EmpresasManager() {
               <th>Nombre</th>
               <th>RUC</th>
               <th>Contacto</th>
-              <th>Fecha Creación</th>
-              <th>Acciones</th>
+              <th>Ubicación</th>
+              <th>Proyecto</th>
+              <th style={{ textAlign: 'right' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -139,18 +144,19 @@ export default function EmpresasManager() {
                   <div style={{ fontSize: '0.8rem' }}>{emp.correo || '-'}</div>
                   <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.telefono || '-'}</div>
                 </td>
-                <td><Calendar size={14} style={{marginRight:5, verticalAlign:'middle', color:'gray'}}/> {new Date(emp.fecha_creacion).toLocaleString()}</td>
                 <td>
+                  <div>{emp.canton || '-'}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.sector || '-'}</div>
+                </td>
+                <td>{emp.proyecto_id ? proyectos.find(p => p.id === emp.proyecto_id)?.nombre || emp.proyecto_id : '-'}</td>
+                <td style={{ textAlign: 'right' }}>
                   <button onClick={() => openModal(emp)} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
                     <Edit2 size={14} />
-                  </button>
-                  <button onClick={() => handleDelete(emp.id)} style={{ background: 'rgba(255,50,50,0.2)', border: '1px solid #ff4444', color: '#ff4444', padding: '5px', cursor: 'pointer', borderRadius: '3px' }}>
-                    <Trash2 size={14} />
                   </button>
                 </td>
               </tr>
             ))}
-            {empresas.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay empresas registradas</td></tr>}
+            {empresas.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center' }}>No hay empresas registradas</td></tr>}
           </tbody>
         </table>
       </div>
@@ -222,6 +228,31 @@ export default function EmpresasManager() {
                   onChange={e => setFormData({...formData, direccion: e.target.value})}
                   className="input-dynamic"
                 />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Provincia</label>
+                  <input type="text" className="input-dynamic" value={formData.provincia || ''} onChange={e => setFormData({...formData, provincia: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Cantón</label>
+                  <input type="text" className="input-dynamic" value={formData.canton || ''} onChange={e => setFormData({...formData, canton: e.target.value})} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Ciudad</label>
+                  <input type="text" className="input-dynamic" value={formData.ciudad || ''} onChange={e => setFormData({...formData, ciudad: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Sector</label>
+                  <select className="input-dynamic" value={formData.sector || ''} onChange={e => setFormData({...formData, sector: e.target.value})}>
+                    <option value="">Seleccionar...</option>
+                    <option value="Rural">Rural</option>
+                    <option value="Urbano">Urbano</option>
+                    <option value="Ambos">Ambos</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Parámetros Adicionales (JSON)</label>
