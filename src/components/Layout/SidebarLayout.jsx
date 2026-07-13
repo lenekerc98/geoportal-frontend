@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings, Building2 } from 'lucide-react';
+import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings, Building2, FolderGit2 } from 'lucide-react';
 
 export default function SidebarLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -104,10 +104,16 @@ export default function SidebarLayout() {
                 <span>Logs y Auditoría</span>
               </NavLink>
               {userRole?.toLowerCase() === 'superadmin' && (
-                <NavLink to="/empresas" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
-                  <Building2 size={18} />
-                  <span>Gestión de Empresas</span>
-                </NavLink>
+                <>
+                  <NavLink to="/empresas" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                    <Building2 size={18} />
+                    <span>Gestión de Empresas</span>
+                  </NavLink>
+                  <NavLink to="/proyectos" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                    <FolderGit2 size={18} />
+                    <span>Gestión de Proyectos</span>
+                  </NavLink>
+                </>
               )}
             </div>
           )}

@@ -9,7 +9,8 @@ export default function EmpresasManager() {
   
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ nombre: '', ruc: '' });
+  const [formData, setFormData] = useState({ nombre: '', ruc: '', proyecto_id: '' });
+  const [proyectos, setProyectos] = useState([]);
 
   const fetchEmpresas = async () => {
     try {
@@ -21,6 +22,13 @@ export default function EmpresasManager() {
       if (!res.ok) throw new Error('Error al cargar empresas');
       const data = await res.json();
       setEmpresas(data);
+      
+      const pRes = await fetch(`${API_URL}/api/proyectos`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (pRes.ok) {
+        setProyectos(await pRes.json());
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,11 +48,12 @@ export default function EmpresasManager() {
         telefono: emp.telefono || '',
         correo: emp.correo || '',
         direccion: emp.direccion || '',
-        parametros: emp.parametros ? JSON.stringify(emp.parametros, null, 2) : '{}'
+        parametros: emp.parametros ? JSON.stringify(emp.parametros, null, 2) : '{}',
+        proyecto_id: emp.proyecto_id || ''
       });
       setEditingId(emp.id);
     } else {
-      setFormData({ nombre: '', ruc: '', telefono: '', correo: '', direccion: '', parametros: '{}' });
+      setFormData({ nombre: '', ruc: '', telefono: '', correo: '', direccion: '', parametros: '{}', proyecto_id: '' });
       setEditingId(null);
     }
     setShowModal(true);
@@ -64,16 +73,23 @@ export default function EmpresasManager() {
         throw new Error('Parámetros JSON inválido');
       }
 
+      const payload = {
+        ...formData,
+        parametros: parsedParams
+      };
+      if (payload.proyecto_id === '') {
+        payload.proyecto_id = null;
+      } else {
+        payload.proyecto_id = parseInt(payload.proyecto_id);
+      }
+
       const res = await fetch(url, {
         method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          ...formData,
-          parametros: parsedParams
-        })
+        body: JSON.stringify(payload)
       });
       
       if (!res.ok) {
@@ -184,6 +200,19 @@ export default function EmpresasManager() {
                     style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
                   />
                 </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Proyecto Vinculado</label>
+                <select 
+                  value={formData.proyecto_id} 
+                  onChange={e => setFormData({...formData, proyecto_id: e.target.value})}
+                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '5px' }}
+                >
+                  <option value="">Ninguno</option>
+                  {proyectos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Dirección</label>

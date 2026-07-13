@@ -6,6 +6,7 @@ import AnalyticsDashboard from './pages/Dashboard/AnalyticsDashboard';
 import SystemLogs from './pages/System/SystemLogs';
 import SystemParams from './pages/System/SystemParams';
 import EmpresasManager from './pages/System/EmpresasManager';
+import ProjectsManager from './pages/System/ProjectsManager';
 import Users from './pages/Users/Users';
 import SidebarLayout from './components/Layout/SidebarLayout';
 
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/sistema/parametros" element={<SystemParams />} />
           <Route path="/sistema/logs" element={<SystemLogs />} />
           <Route path="/empresas" element={<EmpresasManager />} />
+          <Route path="/proyectos" element={<ProjectsManager />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" replace />} />
