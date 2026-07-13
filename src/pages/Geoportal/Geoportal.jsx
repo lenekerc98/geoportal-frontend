@@ -1685,7 +1685,7 @@ export default function Geoportal() {
             return (
               <TileLayer
                 key={filename}
-                url={`${API_URL}/api/gis/tiles/{z}/{x}/{y}.png?filename=${encodeURIComponent(filename)}&v=4`}
+                url={`${API_URL}/api/gis/tiles/{z}/{x}/{y}.png?filename=${encodeURIComponent(filename)}&v=5`}
                 maxZoom={22}
                 maxNativeZoom={20}
                 zIndex={20}
