@@ -49,7 +49,7 @@ export default function Login() {
           <div style={{ display: 'inline-block', padding: '15px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '50%', marginBottom: '15px', animation: 'pulse-glow 2s infinite' }}>
             <Map size={42} color="var(--accent-color)" />
           </div>
-          <h1 className="title" style={{ fontSize: '28px' }}>Catastro 2026</h1>
+          <h1 className="title" style={{ fontSize: '28px' }}>Catastro Rural Cantón Urdaneta 2026</h1>
           <p className="subtitle">Acceso Seguro al Geoportal</p>
         </div>
 

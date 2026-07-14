@@ -61,7 +61,7 @@ export default function SidebarLayout() {
               <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
                 C
               </div>
-              <span className="title" style={{ fontSize: '18px' }}>Catastro 2026</span>
+              <span className="title" style={{ fontSize: '18px' }}>Catastro Rural Cantón Urdaneta 2026</span>
             </div>
           )}
           <button 
