@@ -155,17 +155,18 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
               <Eye size={18} color="var(--primary)" /> Previsualización y Mapeo de Columnas
             </h3>
             
-            <table className="logs-table" style={{width: '100%', fontSize: '0.9rem'}}>
-              <thead>
-                <tr>
-                  <th style={{textAlign: 'left'}}>Columna Original</th>
-                  <th style={{textAlign: 'left'}}>Valor de Ejemplo</th>
-                  <th style={{textAlign: 'left'}}>Vincular A (Sistema)</th>
-                  <th style={{textAlign: 'left'}}>Renombrar como (Opcional)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {previewColumns.map((col, idx) => (
+            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '6px' }}>
+              <table className="logs-table" style={{width: '100%', fontSize: '0.9rem', margin: 0}}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 1 }}>
+                  <tr>
+                    <th style={{textAlign: 'left', padding: '10px'}}>Columna Original</th>
+                    <th style={{textAlign: 'left', padding: '10px'}}>Valor de Ejemplo</th>
+                    <th style={{textAlign: 'left', padding: '10px'}}>Vincular A (Sistema)</th>
+                    <th style={{textAlign: 'left', padding: '10px'}}>Renombrar como (Opcional)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewColumns.map((col, idx) => (
                   <tr key={idx}>
                     <td style={{fontWeight: 'bold', color: 'var(--primary)'}}>{col.original}</td>
                     <td style={{color: 'var(--text-muted)'}}>{String(col.sample).substring(0, 30)}</td>
@@ -202,7 +203,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
                       <input 
                         type="text" 
                         className="input-dynamic" 
-                        style={{padding: '5px'}} 
+                        style={{padding: '5px', width: '100%'}} 
                         placeholder={col.original}
                         value={renames[col.original] || ''}
                         onChange={(e) => setRenames({...renames, [col.original]: e.target.value})}
@@ -212,6 +213,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
