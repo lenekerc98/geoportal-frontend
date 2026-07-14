@@ -433,6 +433,7 @@ export default function Geoportal() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [selectedPredioId, setSelectedPredioId] = useState(null);
+  const activePredioLayerRef = useRef(null);
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
@@ -1905,7 +1906,7 @@ export default function Geoportal() {
         {/* VECTOR: Predios */}
         {showPredios && prediosData && prediosData.features && (
           <GeoJSON 
-            key={`predios-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedPredioId}`}
+            key={`predios-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}`}
             data={{...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)))}}
             style={(feature) => {
               const isSelected = selectedPredioId === feature.properties.id || (searchResults && searchResults.includes(feature.properties.id));
@@ -1928,7 +1929,20 @@ export default function Geoportal() {
                 `);
 
                 layer.on('click', () => {
-                  setSelectedPredioId(prev => prev === feature.properties.id ? null : feature.properties.id);
+                  setSelectedPredioId(prev => {
+                    if (prev === feature.properties.id) {
+                      layer.setStyle({ color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 });
+                      if (activePredioLayerRef.current === layer) activePredioLayerRef.current = null;
+                      return null;
+                    } else {
+                      if (activePredioLayerRef.current) {
+                        activePredioLayerRef.current.setStyle({ color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 });
+                      }
+                      layer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.4 });
+                      activePredioLayerRef.current = layer;
+                      return feature.properties.id;
+                    }
+                  });
                 });
 
                 layer.on('contextmenu', (e) => {
