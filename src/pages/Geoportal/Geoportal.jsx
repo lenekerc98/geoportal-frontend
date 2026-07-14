@@ -432,6 +432,7 @@ export default function Geoportal() {
   // Búsqueda
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
+  const [selectedPredioId, setSelectedPredioId] = useState(null);
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
@@ -1904,14 +1905,17 @@ export default function Geoportal() {
         {/* VECTOR: Predios */}
         {showPredios && prediosData && prediosData.features && (
           <GeoJSON 
-            key={`predios-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}`}
+            key={`predios-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedPredioId}`}
             data={{...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)))}}
-            style={() => ({
-              color: '#3b82f6', // Borde azul
-              weight: 2,
-              fillColor: '#3b82f6', // Relleno azul
-              fillOpacity: 0.15
-            })}
+            style={(feature) => {
+              const isSelected = selectedPredioId === feature.properties.id || (searchResults && searchResults.includes(feature.properties.id));
+              return {
+                color: isSelected ? '#00ffff' : '#3b82f6', // Borde cyan claro o azul
+                weight: isSelected ? 4 : 2,
+                fillColor: isSelected ? '#00ffff' : '#3b82f6', // Relleno cyan claro o azul
+                fillOpacity: isSelected ? 0.4 : 0.15
+              };
+            }}
             onEachFeature={(feature, layer) => {
               if (feature.properties) {
                 const { cod_catastral, area_ha, nombre_posesionario } = feature.properties;
@@ -1922,6 +1926,10 @@ export default function Geoportal() {
                     <p style="margin:0; font-size: 13px;"><b>Propietario:</b> ${nombre_posesionario || 'N/A'}</p>
                   </div>
                 `);
+
+                layer.on('click', () => {
+                  setSelectedPredioId(prev => prev === feature.properties.id ? null : feature.properties.id);
+                });
 
                 layer.on('contextmenu', (e) => {
                   L.DomEvent.stopPropagation(e);
