@@ -19,6 +19,10 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
   const [renames, setRenames] = useState({});
   const [isParsing, setIsParsing] = useState(false);
 
+  // Custom Layer state
+  const [importType, setImportType] = useState('catastro_base');
+  const [nombreCapa, setNombreCapa] = useState('');
+
   useEffect(() => {
     if (isSuperAdmin) {
       fetch(`${API_URL}/api/system/empresas`, {
@@ -92,6 +96,8 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("import_type", importType);
+    if (nombreCapa) formData.append("nombre_capa", nombreCapa);
     
     // Si no es superadmin, se usa 0 y el backend debería usar el del current_user
     const empId = isSuperAdmin ? selectedEmpresa : (user?.id_empresa || 0);
@@ -130,7 +136,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
         {isSuperAdmin && (
           <div className="form-group" style={{marginBottom: '15px'}}>
             <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Asignar a Empresa:</label>
-            <select className="input-dynamic" value={selectedEmpresa} onChange={(e) => setSelectedEmpresa(e.target.value)}>
+            <select className="input-dynamic" value={selectedEmpresa} onChange={(e) => setSelectedEmpresa(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--card-border)' }}>
               <option value="">-- Seleccionar Empresa --</option>
               {empresas.map(emp => (
                 <option key={emp.id} value={emp.id}>
@@ -141,6 +147,19 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
           </div>
         )}
 
+        <div className="form-group" style={{marginBottom: '15px'}}>
+          <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Tipo de Importación:</label>
+          <select 
+            className="input-dynamic" 
+            value={importType} 
+            onChange={(e) => setImportType(e.target.value)}
+            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
+          >
+            <option value="catastro_base">Módulo Catastral Base (Predios, Linderos, Vértices)</option>
+            <option value="capa_adicional">Capa Adicional (Visualización genérica)</option>
+          </select>
+        </div>
+
         <div className="upload-box" style={{ border: file ? '2px solid var(--primary)' : '2px dashed var(--card-border)', padding: '30px', textAlign: 'center', borderRadius: '8px', marginBottom: '15px', position: 'relative' }}>
           <UploadCloud size={40} color={file ? "var(--primary)" : "gray"} style={{marginBottom: '10px'}} />
           <p style={{margin: 0}}>{file ? file.name : "1. Selecciona el archivo ZIP aquí"}</p>
@@ -149,7 +168,21 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
 
         {isParsing && <div style={{textAlign: 'center', margin: '20px 0'}}><Loader2 className="spin" size={24} /> Analizando Shapefile...</div>}
 
-        {previewColumns.length > 0 && (
+        {importType === 'capa_adicional' && file && !isParsing && (
+          <div className="form-group" style={{marginBottom: '20px', background: 'var(--bg-lighter)', padding: '15px', borderRadius: '8px'}}>
+            <label style={{display: 'block', marginBottom: '8px', fontWeight: 'bold'}}>Nombre de la Capa:</label>
+            <input 
+              type="text" 
+              className="input-dynamic" 
+              placeholder="Ej: Postes de Luz, Vías Principales..." 
+              value={nombreCapa}
+              onChange={(e) => setNombreCapa(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
+            />
+          </div>
+        )}
+
+        {importType === 'catastro_base' && previewColumns.length > 0 && (
           <div className="mapping-section" style={{marginBottom: '20px', background: 'var(--bg-lighter)', padding: '15px', borderRadius: '8px'}}>
             <h3 style={{marginBottom: '15px', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px'}}>
               <Eye size={18} color="var(--primary)" /> Previsualización y Mapeo de Columnas
