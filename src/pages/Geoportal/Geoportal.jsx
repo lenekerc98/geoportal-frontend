@@ -695,7 +695,7 @@ export default function Geoportal() {
     } catch(e) { console.error(e); }
   };
   
-  const defaultCenter = [-1.439, -79.468]; 
+  const defaultCenter = [-1.5833, -79.4667]; // Cantón Urdaneta (Catarama)
   const defaultZoom = 14;
 
   const zoomToFeature = (feature) => {
