@@ -10,6 +10,8 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 20px;
 }
 
 .logs-title {
@@ -29,18 +31,19 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0,0,0,0.3);
+  background: var(--bg-panel);
   border: 1px solid var(--card-border);
   padding: 10px 20px;
   border-radius: 20px;
-  width: 350px;
-  backdrop-filter: blur(10px);
+  width: 100%;
+  max-width: 350px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
 }
 
 .logs-search input {
   background: transparent;
   border: none;
-  color: white;
+  color: var(--text-main);
   outline: none;
   width: 100%;
 }
