@@ -294,6 +294,57 @@ export default function Geoportal() {
   const [catalogData, setCatalogData] = useState(null);
   const [activeTableData, setActiveTableData] = useState(null);
   
+  // Custom Layers State
+  const [capasAdicionales, setCapasAdicionales] = useState([]);
+  const [activeCapasAdicionales, setActiveCapasAdicionales] = useState({});
+  const [geoJsonCacheAdicionales, setGeoJsonCacheAdicionales] = useState({});
+
+  const fetchCapasAdicionales = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/gis/capas-adicionales`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCapasAdicionales(data);
+      }
+    } catch (err) {
+      console.error("Error fetching capas adicionales", err);
+    }
+  };
+
+  useEffect(() => {
+    if (authToken) {
+      fetchCapasAdicionales();
+    }
+  }, [authToken]);
+
+  const toggleCapaAdicional = async (tabla_db) => {
+    const isCurrentlyActive = activeCapasAdicionales[tabla_db];
+    
+    setActiveCapasAdicionales(prev => ({
+      ...prev,
+      [tabla_db]: !isCurrentlyActive
+    }));
+    
+    if (!isCurrentlyActive && !geoJsonCacheAdicionales[tabla_db]) {
+      try {
+        const res = await fetch(`${API_URL}/api/gis/capa-adicional/${tabla_db}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+          const geojson = await res.json();
+          setGeoJsonCacheAdicionales(prev => ({
+            ...prev,
+            [tabla_db]: geojson
+          }));
+        }
+      } catch (err) {
+        console.error("Error fetching capa adicional GeoJSON", err);
+      }
+    }
+  };
+
   const [collapsedCategories, setCollapsedCategories] = useState({
     vectores: false,
     raster: false,
@@ -1220,16 +1271,37 @@ export default function Geoportal() {
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
         
-        {/* PANEL: HERRAMIENTAS RÁPIDAS */}
+        {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
         <div className="sidebar-section">
-          <button className="btn-primary" onClick={handleProcesarClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', marginBottom: '10px' }}>
-            Procesar Nueva Ortofoto
-            <UploadCloud size={18} />
-          </button>
-          <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ backgroundColor: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%' }}>
-            Catalogar Carpeta Entera
-            <Layers size={18} />
-          </button>
+          <div className="section-header" style={{ cursor: 'default' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Layers size={16} color="var(--primary)" />
+              <span className="section-title">Gestión de Datos</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
+            <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
+              <UploadCloud size={16} /> Ortofoto
+            </button>
+            <input 
+              type="file" 
+              accept=".zip" 
+              style={{ display: 'none' }} 
+              ref={shapefileInputRef} 
+              onChange={handleImportShapefile} 
+            />
+            <button className="btn-secondary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none' }} title="Subir Shapefile (Catastro o Adicional)">
+              <UploadCloud size={16} /> Shapefile
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            <button className="btn-secondary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+              <DownloadCloud size={16} /> Descargar DB
+            </button>
+            <button className="btn-secondary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
+              <FolderSearch size={16} /> Catalogar
+            </button>
+          </div>
         </div>
 
         {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
@@ -1240,13 +1312,6 @@ export default function Geoportal() {
               <span className="section-title">Capas Vectoriales</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <button 
-                onClick={(e) => { e.stopPropagation(); setShowShapefileUploader(true); }}
-                style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 'bold' }}
-                title="Subir Shapefile Dinámico"
-              >
-                <Upload size={12} /> SHP
-              </button>
               {collapsedCategories.vectores ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </div>
           </div>
@@ -1310,19 +1375,6 @@ export default function Geoportal() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', marginTop: '10px' }}>
-                    <button className="btn-secondary" onClick={handleExportAll} style={{ flex: 1, padding: '4px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                      <DownloadCloud size={14} /> Descargar
-                    </button>
-                    <input 
-                      type="file" 
-                      accept=".zip" 
-                      style={{ display: 'none' }} 
-                      ref={shapefileInputRef} 
-                      onChange={handleImportShapefile} 
-                    />
-                    <button className="btn-secondary" onClick={() => shapefileInputRef.current.click()} style={{ flex: 1, padding: '4px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                      <UploadCloud size={14} /> Subir Shape
-                    </button>
                   </div>
                   
                   {/* LISTA INDIVIDUAL DE PREDIOS */}
@@ -1412,6 +1464,25 @@ export default function Geoportal() {
                 <span onClick={toggleVertices} style={{ flex: 1 }}>Vértices (Puntos)</span>
                 <span onClick={toggleVertices} style={{ cursor: 'pointer' }}>{showVertices ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
               </div>
+              
+              {/* CAPAS ADICIONALES (GENERICAS) */}
+              {capasAdicionales.length > 0 && (
+                <>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
+                  <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Adicionales</div>
+                  {capasAdicionales.map(capa => (
+                    <div 
+                      key={capa.tabla_db}
+                      className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
+                    >
+                      <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ flex: 1, fontSize: '0.85rem' }}>{capa.nombre_capa}</span>
+                      <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ cursor: 'pointer' }}>
+                        {activeCapasAdicionales[capa.tabla_db] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
             </>
           )}
 
@@ -1818,6 +1889,50 @@ export default function Geoportal() {
             }}
           />
         )}
+
+        {/* VECTOR: Capas Adicionales (Genéricas) */}
+        {capasAdicionales.map(capa => {
+          if (activeCapasAdicionales[capa.tabla_db] && geoJsonCacheAdicionales[capa.tabla_db]) {
+            return (
+              <GeoJSON 
+                key={capa.tabla_db}
+                data={geoJsonCacheAdicionales[capa.tabla_db]}
+                style={() => ({
+                  color: '#a855f7', // Purple
+                  weight: 2,
+                  fillColor: '#a855f7',
+                  fillOpacity: 0.3
+                })}
+                pointToLayer={(feature, latlng) => {
+                  return L.circleMarker(latlng, {
+                    radius: 5,
+                    fillColor: "#a855f7",
+                    color: "#ffffff",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                  });
+                }}
+                onEachFeature={(feature, layer) => {
+                  if (feature.properties) {
+                    let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 200px; overflow-y: auto;">
+                      <h4 style="margin:0 0 8px 0; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">${capa.nombre_capa}</h4>`;
+                    
+                    Object.entries(feature.properties).forEach(([key, value]) => {
+                      if (key !== 'id' && value !== null && value !== '') {
+                        popupContent += `<p style="margin:0 0 4px 0; font-size: 12px;"><b>${key}:</b> ${value}</p>`;
+                      }
+                    });
+                    
+                    popupContent += `</div>`;
+                    layer.bindPopup(popupContent);
+                  }
+                }}
+              />
+            );
+          }
+          return null;
+        })}
 
         {/* VECTOR: Catálogo de Ortofotos (Footprints) */}
         {showFootprints && catalogData && (
