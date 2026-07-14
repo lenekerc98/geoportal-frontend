@@ -695,8 +695,28 @@ export default function Geoportal() {
     } catch(e) { console.error(e); }
   };
   
-  const defaultCenter = [-1.5833, -79.4667]; // Cantón Urdaneta (Catarama)
-  const defaultZoom = 14;
+  const defaultCenter = currentUser?.defaultCenter || [-1.5833, -79.4667]; 
+  const defaultZoom = currentUser?.defaultZoom || 14;
+
+  const handleDeleteCapaAdicional = async (tabla_db) => {
+    if (!window.confirm("¿Estás seguro de eliminar esta capa? Esta acción no se puede deshacer.")) return;
+    try {
+      const res = await fetch(`${API_URL}/gis/capa-adicional/${tabla_db}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        setToastMsg({ type: 'success', title: 'Éxito', message: 'Capa eliminada' });
+        fetchCapasAdicionales();
+      } else {
+        const errorData = await res.json();
+        setToastMsg({ type: 'error', title: 'Error', message: errorData.detail || 'No se pudo eliminar la capa' });
+      }
+    } catch (e) {
+      console.error(e);
+      setToastMsg({ type: 'error', title: 'Error', message: 'Fallo al conectar con el servidor' });
+    }
+  };
 
   const zoomToFeature = (feature) => {
     if (map && feature) {
@@ -1056,6 +1076,24 @@ export default function Geoportal() {
             >
               <Target size={16} color="#fbbf24" /> Acercar a la Capa
             </div>
+            
+            {sidebarContextMenu.isAdicional && (
+              <>
+                <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
+                <div 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    handleDeleteCapaAdicional(sidebarContextMenu.layerType);
+                    setSidebarContextMenu(null); 
+                  }}
+                  style={{ padding: '10px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Trash2 size={16} color="var(--danger)" /> Eliminar Capa
+                </div>
+              </>
+            )}
           </div>
         )}
 
