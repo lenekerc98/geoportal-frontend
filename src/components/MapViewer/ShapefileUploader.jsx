@@ -11,7 +11,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
   const [empresas, setEmpresas] = useState([]);
   const [selectedEmpresa, setSelectedEmpresa] = useState('');
   
-  const isSuperAdmin = user?.rol === 'Superadministrador';
+  const isSuperAdmin = user?.role?.toLowerCase() === 'superadministrador' || user?.role?.toLowerCase() === 'superadmin';
 
   // Mapping state
   const [previewColumns, setPreviewColumns] = useState([]);
@@ -100,7 +100,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
     if (nombreCapa) formData.append("nombre_capa", nombreCapa);
     
     // Si no es superadmin, se usa 0 y el backend debería usar el del current_user
-    const empId = isSuperAdmin ? selectedEmpresa : (user?.id_empresa || 0);
+    const empId = isSuperAdmin ? selectedEmpresa : (user?.empresa_id || 0);
 
     // Enviar mapping y renames
     const url = `${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}&renames=${encodeURIComponent(JSON.stringify(renames))}`;
