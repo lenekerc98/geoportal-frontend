@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UploadCloud, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle, Loader2, X, Eye } from 'lucide-react';
 import { API_URL } from '../../services/api';
+import shp from 'shpjs';
 import './ShapefileUploader.css';
 
 export default function ShapefileUploader({ onClose, onSuccess, authToken, user }) {
@@ -13,9 +14,10 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
   const isSuperAdmin = user?.rol === 'Superadministrador';
 
   // Mapping state
-  const [colCedula, setColCedula] = useState('NUMERO_IDE');
-  const [colNombre, setColNombre] = useState('NOMBRE_PRO');
-  const [colCodigo, setColCodigo] = useState('CLAVE_CATA');
+  const [previewColumns, setPreviewColumns] = useState([]);
+  const [mapping, setMapping] = useState({ cedula: '', nombre_posesionario: '', cod_catastral: '' });
+  const [renames, setRenames] = useState({});
+  const [isParsing, setIsParsing] = useState(false);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -35,9 +37,46 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
     if (selected && selected.name.endsWith('.zip')) {
       setFile(selected);
       setUploadStatus(null);
+      setPreviewColumns([]);
+      setRenames({});
+      setIsParsing(true);
+      
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const buffer = evt.target.result;
+          const geojson = await shp(buffer);
+          if (geojson && geojson.features && geojson.features.length > 0) {
+            const props = geojson.features[0].properties;
+            const cols = Object.keys(props).map(key => ({
+              original: key,
+              sample: props[key]
+            }));
+            setPreviewColumns(cols);
+            
+            // Auto-detect common names
+            const newMap = { cedula: '', nombre_posesionario: '', cod_catastral: '' };
+            cols.forEach(c => {
+               const k = c.original.toUpperCase();
+               if (k.includes('CEDULA') || k === 'NUMERO_IDE') newMap.cedula = c.original;
+               if (k.includes('NOMBRE') || k === 'NOMBRE_PRO') newMap.nombre_posesionario = c.original;
+               if (k.includes('CLAVE') || k.includes('CATAST')) newMap.cod_catastral = c.original;
+            });
+            setMapping(newMap);
+          }
+        } catch (err) {
+          console.error("Error parsing SHP", err);
+          alert("Error leyendo el Shapefile para previsualización.");
+        } finally {
+          setIsParsing(false);
+        }
+      };
+      reader.readAsArrayBuffer(selected);
     } else {
       alert("Por favor selecciona un archivo .zip que contenga el shapefile.");
       setFile(null);
+      setPreviewColumns([]);
+      setIsParsing(false);
     }
   };
 
@@ -54,17 +93,14 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
     const formData = new FormData();
     formData.append("file", file);
     
-    // Si no es superadmin, se usa 0 y el backend debería usar el del current_user (pero para evitar errores le mandamos el de user.id_empresa)
+    // Si no es superadmin, se usa 0 y el backend debería usar el del current_user
     const empId = isSuperAdmin ? selectedEmpresa : (user?.id_empresa || 0);
 
-    const mapping = {
-      cedula: colCedula,
-      nombre_posesionario: colNombre,
-      cod_catastral: colCodigo
-    };
+    // Enviar mapping y renames
+    const url = `${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}&renames=${encodeURIComponent(JSON.stringify(renames))}`;
 
     try {
-      const response = await fetch(`${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authToken}` },
         body: formData
@@ -97,35 +133,87 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
             <select className="input-dynamic" value={selectedEmpresa} onChange={(e) => setSelectedEmpresa(e.target.value)}>
               <option value="">-- Seleccionar Empresa --</option>
               {empresas.map(emp => (
-                <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                <option key={emp.id} value={emp.id}>
+                  {emp.nombre} {emp.sector ? `(${emp.sector})` : ''}
+                </option>
               ))}
             </select>
           </div>
         )}
 
-        <div className="mapping-section">
-          <h3 style={{marginBottom: '10px', fontSize: '1rem'}}>Mapeo de Columnas (Atributos Originales)</h3>
-          <div className="mapping-grid" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '15px'}}>
-            <div className="mapping-item">
-              <label style={{display: 'block', fontSize: '0.8rem', color: 'gray', marginBottom: '3px'}}>Para Cédula:</label>
-              <input type="text" className="input-dynamic" value={colCedula} onChange={e => setColCedula(e.target.value)} placeholder="Ej: NUMERO_IDE" />
-            </div>
-            <div className="mapping-item">
-              <label style={{display: 'block', fontSize: '0.8rem', color: 'gray', marginBottom: '3px'}}>Para Propietario:</label>
-              <input type="text" className="input-dynamic" value={colNombre} onChange={e => setColNombre(e.target.value)} placeholder="Ej: NOMBRE_PRO" />
-            </div>
-            <div className="mapping-item">
-              <label style={{display: 'block', fontSize: '0.8rem', color: 'gray', marginBottom: '3px'}}>Para Cód. Catastral:</label>
-              <input type="text" className="input-dynamic" value={colCodigo} onChange={e => setColCodigo(e.target.value)} placeholder="Ej: CLAVE_CATA" />
-            </div>
-          </div>
-        </div>
-
         <div className="upload-box" style={{ border: file ? '2px solid var(--primary)' : '2px dashed var(--card-border)', padding: '30px', textAlign: 'center', borderRadius: '8px', marginBottom: '15px', position: 'relative' }}>
           <UploadCloud size={40} color={file ? "var(--primary)" : "gray"} style={{marginBottom: '10px'}} />
-          <p style={{margin: 0}}>{file ? file.name : "Selecciona el archivo ZIP aquí"}</p>
+          <p style={{margin: 0}}>{file ? file.name : "1. Selecciona el archivo ZIP aquí"}</p>
           <input type="file" accept=".zip" onChange={handleFileChange} style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer'}} />
         </div>
+
+        {isParsing && <div style={{textAlign: 'center', margin: '20px 0'}}><Loader2 className="spin" size={24} /> Analizando Shapefile...</div>}
+
+        {previewColumns.length > 0 && (
+          <div className="mapping-section" style={{marginBottom: '20px', background: 'var(--bg-lighter)', padding: '15px', borderRadius: '8px'}}>
+            <h3 style={{marginBottom: '15px', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              <Eye size={18} color="var(--primary)" /> Previsualización y Mapeo de Columnas
+            </h3>
+            
+            <table className="logs-table" style={{width: '100%', fontSize: '0.9rem'}}>
+              <thead>
+                <tr>
+                  <th style={{textAlign: 'left'}}>Columna Original</th>
+                  <th style={{textAlign: 'left'}}>Valor de Ejemplo</th>
+                  <th style={{textAlign: 'left'}}>Vincular A (Sistema)</th>
+                  <th style={{textAlign: 'left'}}>Renombrar como (Opcional)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewColumns.map((col, idx) => (
+                  <tr key={idx}>
+                    <td style={{fontWeight: 'bold', color: 'var(--primary)'}}>{col.original}</td>
+                    <td style={{color: 'var(--text-muted)'}}>{String(col.sample).substring(0, 30)}</td>
+                    <td>
+                      <select 
+                        className="input-dynamic" 
+                        style={{padding: '5px'}}
+                        value={
+                          mapping.cedula === col.original ? 'cedula' : 
+                          mapping.nombre_posesionario === col.original ? 'nombre_posesionario' : 
+                          mapping.cod_catastral === col.original ? 'cod_catastral' : ''
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newMap = { ...mapping };
+                          if (val === 'cedula') { newMap.cedula = col.original; }
+                          else if (val === 'nombre_posesionario') { newMap.nombre_posesionario = col.original; }
+                          else if (val === 'cod_catastral') { newMap.cod_catastral = col.original; }
+                          else {
+                            if (newMap.cedula === col.original) newMap.cedula = '';
+                            if (newMap.nombre_posesionario === col.original) newMap.nombre_posesionario = '';
+                            if (newMap.cod_catastral === col.original) newMap.cod_catastral = '';
+                          }
+                          setMapping(newMap);
+                        }}
+                      >
+                        <option value="">-- No vincular --</option>
+                        <option value="cedula">Cédula</option>
+                        <option value="nombre_posesionario">Nombre Propietario</option>
+                        <option value="cod_catastral">Código Catastral</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input 
+                        type="text" 
+                        className="input-dynamic" 
+                        style={{padding: '5px'}} 
+                        placeholder={col.original}
+                        value={renames[col.original] || ''}
+                        onChange={(e) => setRenames({...renames, [col.original]: e.target.value})}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {uploadStatus && (
           <div className={`status-banner ${uploadStatus.type}`} style={{padding: '15px', borderRadius: '8px', display: 'flex', gap: '15px', alignItems: 'flex-start', marginBottom: '15px', background: uploadStatus.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: uploadStatus.type === 'success' ? '#10b981' : '#ef4444', border: `1px solid ${uploadStatus.type === 'success' ? '#10b981' : '#ef4444'}`}}>
