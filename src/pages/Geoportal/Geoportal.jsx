@@ -1504,10 +1504,10 @@ export default function Geoportal() {
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
                   <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Adicionales</div>
                   {capasAdicionales.map(capa => (
-                    <div 
-                      key={capa.tabla_db}
-                      className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
-                      onContextMenu={(e) => {
+                    <React.Fragment key={capa.tabla_db}>
+                      <div 
+                        className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
+                        onContextMenu={(e) => {
                         if (activeCapasAdicionales[capa.tabla_db]) {
                           e.preventDefault();
                           setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: capa.tabla_db, isAdicional: true });
@@ -1522,7 +1522,26 @@ export default function Geoportal() {
                         {activeCapasAdicionales[capa.tabla_db] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
                       </span>
                     </div>
-                  ))}
+                    {activeCapasAdicionales[capa.tabla_db] && geoJsonCacheAdicionales[capa.tabla_db] && (
+                      <div className="feature-list" style={{ marginLeft: '10px', marginTop: '5px', maxHeight: '150px', overflowY: 'auto' }}>
+                        {geoJsonCacheAdicionales[capa.tabla_db].features.map((f, i) => {
+                          const name = f.properties.nombre || f.properties.name || f.properties.codigo || f.properties.cod_catastral || `Elemento ${i+1}`;
+                          return (
+                            <div key={i} className="feature-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '5px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem' }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }} title={name}>{name}</span>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <Target size={14} style={{ cursor: 'pointer', color: '#fbbf24' }} onClick={() => zoomToFeature(f)} />
+                                <TableProperties size={14} style={{ cursor: 'pointer', color: '#eab308' }} onClick={() => {
+                                  if (f.layer && f.layer.openPopup) f.layer.openPopup();
+                                }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
                 </>
               )}
             </>
@@ -2104,11 +2123,23 @@ export default function Geoportal() {
           </div>
         ))}
       </div>
-      {activeTableData && (
-        <AttributeTable 
-          layerName={activeTableData === 'predios' ? 'Predios' : activeTableData === 'lineas' ? 'Linderos' : 'Vértices'} 
-          data={activeTableData === 'predios' ? prediosData : activeTableData === 'lineas' ? lineasData : verticesData} 
-          onClose={() => setActiveTableData(null)}
+      {activeTableData && (() => {
+        let name = 'Vértices';
+        let layerData = verticesData;
+        if (activeTableData === 'predios') { name = 'Predios'; layerData = prediosData; }
+        else if (activeTableData === 'lineas') { name = 'Linderos'; layerData = lineasData; }
+        else if (activeTableData !== 'vertices') {
+          const capa = capasAdicionales.find(c => c.tabla_db === activeTableData);
+          if (capa) {
+            name = capa.nombre_capa;
+            layerData = geoJsonCacheAdicionales[activeTableData];
+          }
+        }
+        return (
+          <AttributeTable 
+            layerName={name} 
+            data={layerData} 
+            onClose={() => setActiveTableData(null)}
           hiddenFeatureIds={hiddenFeatureIds}
           setHiddenFeatureIds={setHiddenFeatureIds}
           onRowContextMenu={(e, feature) => {
@@ -2119,7 +2150,8 @@ export default function Geoportal() {
             });
           }}
         />
-      )}
+        );
+      })()}
 
       {/* Modal Carga Shapefile Dinámico */}
       {showShapefileUploader && (
