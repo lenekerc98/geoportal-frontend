@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, Polyline, CircleMarker, Polygon, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan } from 'lucide-react';
+import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin } from 'lucide-react';
 import proj4 from 'proj4';
 import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
@@ -16,6 +16,14 @@ import DrawPolygonTool from '../../components/MapViewer/DrawPolygonTool';
 import QgisStatusBar from '../../components/MapViewer/QgisStatusBar';
 import S3BrowserModal from '../../components/S3BrowserModal';
 import ShapefileUploader from '../../components/MapViewer/ShapefileUploader';
+const getGeometryIcon = (tipo) => {
+  if (!tipo) return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
+  const t = tipo.toUpperCase();
+  if (t.includes('POLYGON')) return <Hexagon size={14} style={{ marginRight: '6px', color: '#10b981' }} />;
+  if (t.includes('LINE')) return <Minus size={14} style={{ marginRight: '6px', color: '#3b82f6' }} />;
+  if (t.includes('POINT')) return <MapPin size={14} style={{ marginRight: '6px', color: '#ef4444' }} />;
+  return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
+};
 
 // --- NEW COMPONENT FOR BOX ZOOM ---
 const BoxZoomHandler = ({ isActive, setIsActive }) => {
@@ -178,59 +186,59 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
         flexDirection: 'column',
         pointerEvents: 'auto'
       }}>
-        <div style={{ padding: '5px 15px', fontSize: '0.8rem', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '5px' }}>
+        <div style={{ padding: '5px 15px', fontSize: '0.8rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '5px' }}>
           Predio: {context.feature.properties.cod_catastral || 'N/A'}
         </div>
         <div 
           onClick={(e) => { e.stopPropagation(); onAction('zoom', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
           <Target size={16} color="#fbbf24" /> Acercar al Predio
         </div>
         <div 
           onClick={(e) => { e.stopPropagation(); onAction('table', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
           <TableProperties size={16} color="#eab308" /> Tabla de Atributos
         </div>
 
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '5px 0' }}></div>
+        <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
         <div 
           onClick={(e) => { e.stopPropagation(); onAction('edit', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
           <Edit size={16} color="#3b82f6" /> Editar Predio
         </div>
         <div 
           onClick={(e) => { e.stopPropagation(); onAction('hide', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
           <EyeOff size={16} color="#94a3b8" /> Ocultar Predio
         </div>
         <div 
           onClick={(e) => { e.stopPropagation(); onAction('export', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
+          style={{ padding: '10px 15px', color: 'var(--success)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
-          <DownloadCloud size={16} color="#10b981" /> Exportar a Shapefile
+          <DownloadCloud size={16} color="var(--success)" /> Exportar a Shapefile
         </div>
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '5px 0' }}></div>
+        <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
         <div 
           onClick={(e) => { e.stopPropagation(); onAction('delete', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,0,0,0.1)'}
+          style={{ padding: '10px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
-          <Trash2 size={16} color="#ef4444" /> Eliminar Predio
+          <Trash2 size={16} color="var(--danger)" /> Eliminar Predio
         </div>
       </div>
     </>
@@ -1475,7 +1483,10 @@ export default function Geoportal() {
                       key={capa.tabla_db}
                       className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
                     >
-                      <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ flex: 1, fontSize: '0.85rem' }}>{capa.nombre_capa}</span>
+                      <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
+                        {getGeometryIcon(capa.tipo_geometria)}
+                        {capa.nombre_capa}
+                      </span>
                       <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ cursor: 'pointer' }}>
                         {activeCapasAdicionales[capa.tabla_db] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
                       </span>
