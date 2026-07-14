@@ -37,7 +37,7 @@ export default function Users() {
       setUserRole(role.toLowerCase());
       
       // Si es superadmin, obtener empresas
-      if (role.toLowerCase() === 'superadmin') {
+      if (role.toLowerCase() === 'superadministrador' || role.toLowerCase() === 'superadmin') {
         const empRes = await fetch(`${API_URL}/api/empresas`, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
@@ -147,7 +147,7 @@ export default function Users() {
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>ID de Rol (1=Superadmin, 2=Admin, 3=Usuario)</label>
               <input type="number" value={formData.id_rol} onChange={e => setFormData({...formData, id_rol: parseInt(e.target.value)})} required className="input-dynamic" />
             </div>
-            {userRole === 'superadmin' && (
+            {(userRole === 'superadministrador' || userRole === 'superadmin') && (
               <div style={{ marginBottom: '30px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Empresa (Opcional, dejar vacío para Superadmin)</label>
                 <select 
