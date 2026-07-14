@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UploadCloud, CheckCircle2, AlertCircle, Loader2, X, Eye } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import shp from 'shpjs';
+import { showSuccess } from '../../utils/swal';
 import './ShapefileUploader.css';
 
 export default function ShapefileUploader({ onClose, onSuccess, authToken, user }) {
@@ -114,7 +115,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
 
       const data = await response.json();
       if (response.ok) {
-        setUploadStatus({ type: 'success', message: 'Shapefile importado correctamente.', details: data.data });
+        showSuccess('Shapefile importado correctamente.');
         if (onSuccess) onSuccess();
       } else {
         setUploadStatus({ type: 'error', message: data.detail || 'Error al importar shapefile.' });
