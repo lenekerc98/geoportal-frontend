@@ -162,6 +162,8 @@ function MapInteractionHandler({ onInteraction }) {
 
 function FeatureContextMenuComponent({ context, onClose, onAction }) {
   if (!context) return null;
+  const isPredio = context.type !== 'generico';
+  const title = isPredio ? `Predio: ${context.feature.properties.cod_catastral || 'N/A'}` : `Elemento: ${context.layerName || 'Capa'}`;
 
   return (
     <>
@@ -187,7 +189,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
         pointerEvents: 'auto'
       }}>
         <div style={{ padding: '5px 15px', fontSize: '0.8rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '5px' }}>
-          Predio: {context.feature.properties.cod_catastral || 'N/A'}
+          {title}
         </div>
         <div 
           onClick={(e) => { e.stopPropagation(); onAction('zoom', context.feature); onClose(); }}
@@ -195,51 +197,66 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
           onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
-          <Target size={16} color="#fbbf24" /> Acercar al Predio
+          <Target size={16} color="#fbbf24" /> Acercar al {isPredio ? 'Predio' : 'Elemento'}
         </div>
-        <div 
-          onClick={(e) => { e.stopPropagation(); onAction('table', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <TableProperties size={16} color="#eab308" /> Tabla de Atributos
-        </div>
+        
+        {!isPredio && (
+          <div 
+            onClick={(e) => { e.stopPropagation(); onAction('popup', context.feature); onClose(); }}
+            style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <TableProperties size={16} color="#eab308" /> Ver Atributos
+          </div>
+        )}
 
-        <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
-        <div 
-          onClick={(e) => { e.stopPropagation(); onAction('edit', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <Edit size={16} color="#3b82f6" /> Editar Predio
-        </div>
-        <div 
-          onClick={(e) => { e.stopPropagation(); onAction('hide', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <EyeOff size={16} color="#94a3b8" /> Ocultar Predio
-        </div>
-        <div 
-          onClick={(e) => { e.stopPropagation(); onAction('export', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: 'var(--success)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <DownloadCloud size={16} color="var(--success)" /> Exportar a Shapefile
-        </div>
-        <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
-        <div 
-          onClick={(e) => { e.stopPropagation(); onAction('delete', context.feature); onClose(); }}
-          style={{ padding: '10px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <Trash2 size={16} color="var(--danger)" /> Eliminar Predio
-        </div>
+        {isPredio && (
+          <>
+            <div 
+              onClick={(e) => { e.stopPropagation(); onAction('table', context.feature); onClose(); }}
+              style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <TableProperties size={16} color="#eab308" /> Tabla de Atributos
+            </div>
+            <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
+            <div 
+              onClick={(e) => { e.stopPropagation(); onAction('edit', context.feature); onClose(); }}
+              style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <Edit size={16} color="#3b82f6" /> Editar Predio
+            </div>
+            <div 
+              onClick={(e) => { e.stopPropagation(); onAction('hide', context.feature); onClose(); }}
+              style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <EyeOff size={16} color="#94a3b8" /> Ocultar Predio
+            </div>
+            <div 
+              onClick={(e) => { e.stopPropagation(); onAction('export', context.feature); onClose(); }}
+              style={{ padding: '10px 15px', color: 'var(--success)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <DownloadCloud size={16} color="var(--success)" /> Exportar a Shapefile
+            </div>
+            <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
+            <div 
+              onClick={(e) => { e.stopPropagation(); onAction('delete', context.feature); onClose(); }}
+              style={{ padding: '10px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <Trash2 size={16} color="var(--danger)" /> Eliminar Predio
+            </div>
+          </>
+        )}
       </div>
     </>
   );
@@ -1044,6 +1061,10 @@ export default function Geoportal() {
           onAction={(action, feature) => {
             if (action === 'zoom') {
               zoomToFeature(feature);
+            } else if (action === 'popup') {
+              if (featureContextMenu?.layer && featureContextMenu.layer.openPopup) {
+                featureContextMenu.layer.openPopup();
+              }
             } else if (action === 'table') {
               setActiveTableData('predios');
             } else if (action === 'edit') {
@@ -1630,6 +1651,10 @@ export default function Geoportal() {
           onAction={(action, feature) => {
             if (action === 'zoom') {
               zoomToFeature(feature);
+            } else if (action === 'popup') {
+              if (featureContextMenu?.layer && featureContextMenu.layer.openPopup) {
+                featureContextMenu.layer.openPopup();
+              }
             } else if (action === 'table') {
               setActiveTableData('predios');
             } else if (action === 'edit') {
@@ -1938,6 +1963,18 @@ export default function Geoportal() {
                     popupContent += `</div>`;
                     layer.bindPopup(popupContent);
                   }
+                  
+                  layer.on('contextmenu', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    setFeatureContextMenu({
+                      mouseX: e.originalEvent.clientX,
+                      mouseY: e.originalEvent.clientY,
+                      feature: feature,
+                      layer: layer,
+                      type: 'generico',
+                      layerName: capa.nombre_capa
+                    });
+                  });
                 }}
               />
             );
