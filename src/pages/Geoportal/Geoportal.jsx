@@ -1031,23 +1031,27 @@ export default function Geoportal() {
             flexDirection: 'column',
             pointerEvents: 'auto'
           }}>
-            <div 
-              onClick={(e) => { e.stopPropagation(); setActiveTableData(sidebarContextMenu.layerType); setSidebarContextMenu(null); }}
-              style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <TableProperties size={16} color="#3b82f6" /> Ver Tabla de Atributos
-            </div>
+            {!sidebarContextMenu.isAdicional && (
+              <div 
+                onClick={(e) => { e.stopPropagation(); setActiveTableData(sidebarContextMenu.layerType); setSidebarContextMenu(null); }}
+                style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <TableProperties size={16} color="#3b82f6" /> Ver Tabla de Atributos
+              </div>
+            )}
             <div 
               onClick={(e) => { 
                 e.stopPropagation(); 
-                const data = sidebarContextMenu.layerType === 'predios' ? prediosData : sidebarContextMenu.layerType === 'lineas' ? lineasData : verticesData;
+                const data = sidebarContextMenu.isAdicional 
+                  ? geoJsonCacheAdicionales[sidebarContextMenu.layerType]
+                  : sidebarContextMenu.layerType === 'predios' ? prediosData : sidebarContextMenu.layerType === 'lineas' ? lineasData : verticesData;
                 zoomToVectorLayer(data); 
                 setSidebarContextMenu(null); 
               }}
-              style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
               <Target size={16} color="#fbbf24" /> Acercar a la Capa
@@ -1503,6 +1507,12 @@ export default function Geoportal() {
                     <div 
                       key={capa.tabla_db}
                       className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
+                      onContextMenu={(e) => {
+                        if (activeCapasAdicionales[capa.tabla_db]) {
+                          e.preventDefault();
+                          setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: capa.tabla_db, isAdicional: true });
+                        }
+                      }}
                     >
                       <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
                         {getGeometryIcon(capa.tipo_geometria)}
