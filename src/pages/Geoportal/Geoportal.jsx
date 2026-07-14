@@ -1234,8 +1234,6 @@ export default function Geoportal() {
 
         {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
         <div className="sidebar-section">
-          <div className="section-title">
-          
           <div className="section-header" onClick={() => toggleCategory('vectores')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers size={16} color="var(--primary)" />
