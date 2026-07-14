@@ -105,18 +105,24 @@ export default function SystemLogs() {
               {filteredLogs.map(log => (
                 <tr key={log.id_log} className={`log-row ${log.tipo.toLowerCase()}`}>
                   <td className="log-type">
-                    {getLogIcon(log.tipo)}
-                    <span>{log.tipo}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {getLogIcon(log.tipo)}
+                      <span>{log.tipo}</span>
+                    </div>
                   </td>
                   <td className="log-action">
                     <span className="badge">{log.accion}</span>
                   </td>
                   <td className="log-desc">{log.descripcion}</td>
                   <td className="log-user">
-                    <User size={14} /> {log.username}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <User size={14} /> {log.username}
+                    </div>
                   </td>
                   <td className="log-date">
-                    <Clock size={14} /> {new Date(log.fecha).toLocaleString()}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Clock size={14} /> {new Date(log.fecha).toLocaleString()}
+                    </div>
                   </td>
                 </tr>
               ))}
