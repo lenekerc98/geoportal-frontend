@@ -25,7 +25,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
 
   useEffect(() => {
     if (isSuperAdmin) {
-      fetch(`${API_URL}/api/system/empresas`, {
+      fetch(`${API_URL}/api/empresas`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       })
       .then(res => res.json())
