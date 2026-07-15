@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings, Building2, FolderGit2 } from 'lucide-react';
 
 export default function SidebarLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(window.innerWidth <= 768);
   const [userRole, setUserRole] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('catastro_theme_v2') || 'light');
   const navigate = useNavigate();

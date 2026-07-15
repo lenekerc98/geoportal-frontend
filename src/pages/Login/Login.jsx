@@ -32,7 +32,7 @@ export default function Login() {
     try {
       const data = await login(username, password);
       localStorage.setItem('catastro_token', data.access_token);
-      window.location.href = '/dashboard';
+      window.location.href = '/geoportal';
     } catch (err) {
       setError(err.message || 'Error de autenticación');
     } finally {
