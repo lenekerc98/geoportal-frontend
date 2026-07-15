@@ -433,18 +433,16 @@ body {
     .qgis-status-bar .qgis-input { width: 140px !important; }
         .global-sidebar {
       z-index: 2000;
-      transform: translateX(0);
-      width: 250px;
     }
     .global-sidebar.collapsed {
-      transform: translateX(-100%);
+      width: 70px;
     }
     
     .main-content {
-      margin-left: 0 !important;
+      margin-left: 250px !important;
     }
     
     .main-content.collapsed {
-      margin-left: 0 !important;
+      margin-left: 70px !important;
     }
   }

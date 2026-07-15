@@ -65,14 +65,7 @@ export default function SidebarLayout() {
 
   return (
     <div>
-      {isMobile && collapsed && (
-        <button 
-          onClick={() => setCollapsed(false)}
-          style={{ position: 'fixed', top: '15px', left: '15px', zIndex: 3000, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '8px', padding: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', cursor: 'pointer', color: 'var(--text-main)', display: 'flex' }}
-        >
-          <Menu size={20} />
-        </button>
-      )}
+
       <aside className={`global-sidebar ${collapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           {!collapsed && (
