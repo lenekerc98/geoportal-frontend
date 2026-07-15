@@ -739,8 +739,9 @@ export default function Geoportal() {
       map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 1.5 });
       
       // Resaltar el predio al hacer zoom desde la lista
-      if (feature.properties && feature.properties.id) {
-        setSelectedPredioId(feature.properties.id);
+      const featId = feature.properties ? (feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral) : null;
+      if (featId) {
+        setSelectedPredioId(featId);
       }
     }
   };
@@ -2063,16 +2064,22 @@ export default function Geoportal() {
               <GeoJSON 
                 key={capa.tabla_db}
                 data={geoJsonCacheAdicionales[capa.tabla_db]}
-                style={() => ({
-                  color: '#a855f7', // Purple
-                  weight: 2,
-                  fillColor: '#a855f7',
-                  fillOpacity: 0.3
-                })}
+                style={(feature) => {
+                  const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
+                  const isSelected = featId && selectedPredioId === featId;
+                  return {
+                    color: isSelected ? '#00ffff' : '#a855f7', // Cyan if selected, else Purple
+                    weight: isSelected ? 4 : 2,
+                    fillColor: isSelected ? '#00ffff' : '#a855f7',
+                    fillOpacity: isSelected ? 0.6 : 0.3
+                  };
+                }}
                 pointToLayer={(feature, latlng) => {
+                  const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
+                  const isSelected = featId && selectedPredioId === featId;
                   return L.circleMarker(latlng, {
-                    radius: 5,
-                    fillColor: "#a855f7",
+                    radius: isSelected ? 7 : 5,
+                    fillColor: isSelected ? "#00ffff" : "#a855f7",
                     color: "#ffffff",
                     weight: 1,
                     opacity: 1,
@@ -2093,6 +2100,23 @@ export default function Geoportal() {
                     popupContent += `</div>`;
                     layer.bindPopup(popupContent);
                   }
+
+                  layer.on('click', () => {
+                    const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
+                    if (featId) {
+                      setSelectedPredioId(prev => {
+                        if (prev === featId) {
+                          layer.setStyle({ color: '#a855f7', weight: 2, fillColor: '#a855f7', fillOpacity: 0.3 });
+                          if (activePredioLayerRef.current === layer) activePredioLayerRef.current = null;
+                          return null;
+                        } else {
+                          layer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.6 });
+                          activePredioLayerRef.current = layer;
+                          return featId;
+                        }
+                      });
+                    }
+                  });
                   
                   layer.on('contextmenu', (e) => {
                     L.DomEvent.stopPropagation(e);
@@ -2100,9 +2124,7 @@ export default function Geoportal() {
                       mouseX: e.originalEvent.clientX,
                       mouseY: e.originalEvent.clientY,
                       feature: feature,
-                      layer: layer,
-                      type: 'generico',
-                      layerName: capa.nombre_capa
+                      layerType: capa.tabla_db
                     });
                   });
                 }}
@@ -2119,12 +2141,16 @@ export default function Geoportal() {
               <GeoJSON 
                 key={capa.id}
                 data={capa.geojson}
-                style={() => ({
-                  color: capa.color,
-                  weight: 2,
-                  fillColor: capa.color,
-                  fillOpacity: 0.3
-                })}
+                style={(feature) => {
+                  const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
+                  const isSelected = featId && selectedPredioId === featId;
+                  return {
+                    color: isSelected ? '#00ffff' : capa.color,
+                    weight: isSelected ? 4 : 2,
+                    fillColor: isSelected ? '#00ffff' : capa.color,
+                    fillOpacity: isSelected ? 0.6 : 0.3
+                  };
+                }}
                 onEachFeature={(feature, layer) => {
                   if (feature.properties) {
                     let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 200px; overflow-y: auto;">
@@ -2137,6 +2163,23 @@ export default function Geoportal() {
                     popupContent += `</div>`;
                     layer.bindPopup(popupContent);
                   }
+
+                  layer.on('click', () => {
+                    const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
+                    if (featId) {
+                      setSelectedPredioId(prev => {
+                        if (prev === featId) {
+                          layer.setStyle({ color: capa.color, weight: 2, fillColor: capa.color, fillOpacity: 0.3 });
+                          if (activePredioLayerRef.current === layer) activePredioLayerRef.current = null;
+                          return null;
+                        } else {
+                          layer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.6 });
+                          activePredioLayerRef.current = layer;
+                          return featId;
+                        }
+                      });
+                    }
+                  });
                 }}
               />
             );
