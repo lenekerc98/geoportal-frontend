@@ -65,24 +65,43 @@ export default function SidebarLayout() {
 
   return (
     <div>
-
-      <aside className={`global-sidebar ${collapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-header">
-          {!collapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
-                C
-              </div>
-              <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
+      {/* Mobile Navbar */}
+      {isMobile && (
+        <div className="mobile-navbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
+              C
             </div>
-          )}
+            <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '220px' }}>Catastro Rural Cantón Urdaneta 2026</span>
+          </div>
           <button 
-            onClick={() => setCollapsed(!collapsed)} 
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px', marginLeft: collapsed ? '0' : 'auto' }}
+            onClick={() => setCollapsed(!collapsed)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', padding: '5px' }}
           >
-            <Menu size={20} />
+            <Menu size={24} />
           </button>
         </div>
+      )}
+
+      <aside className={`global-sidebar ${collapsed ? 'collapsed' : ''}`}>
+        {!isMobile && (
+          <div className="sidebar-header">
+            {!collapsed && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
+                  C
+                </div>
+                <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
+              </div>
+            )}
+            <button 
+              onClick={() => setCollapsed(!collapsed)} 
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px', marginLeft: collapsed ? '0' : 'auto' }}
+            >
+              <Menu size={20} />
+            </button>
+          </div>
+        )}
 
         <nav className="sidebar-nav">
           <NavLink to="/geoportal" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>

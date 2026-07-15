@@ -322,6 +322,17 @@ export default function Geoportal() {
   // Custom Layers State
   const [capasAdicionales, setCapasAdicionales] = useState([]);
   const [activeCapasAdicionales, setActiveCapasAdicionales] = useState({});
+  const [temporalLayers, setTemporalLayers] = useState([]);
+  const [activeTemporalLayers, setActiveTemporalLayers] = useState({});
+
+  const handleAddTemporalLayer = (geojson, name) => {
+    const id = `temp_${Date.now()}`;
+    const color = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`;
+    
+    setTemporalLayers(prev => [...prev, { id, name, geojson, color }]);
+    setActiveTemporalLayers(prev => ({ ...prev, [id]: true }));
+    setToastMsg({ type: 'success', title: 'Capa Temporal', message: `Capa "${name}" cargada localmente.` });
+  };
   const [geoJsonCacheAdicionales, setGeoJsonCacheAdicionales] = useState({});
 
   const fetchCapasAdicionales = async () => {
@@ -828,6 +839,17 @@ export default function Geoportal() {
     
     if (map) {
       map.flyToBounds(bounds, { duration: 1.5, easeLinearity: 0.25, padding: [50, 50], maxZoom: 20 });
+    }
+    
+    if (window.innerWidth <= 768) {
+      setIsSidebarOpen(false);
+    } else {
+      setCollapsedCategories({
+        vectoriales: true,
+        raster: true,
+        ortofotos: true,
+        metadatos: true
+      });
     }
     
     setToastMsg({ type: 'success', title: 'Encontrado', message: `Se encontraron ${matches.length} predio(s).` });
@@ -2085,6 +2107,38 @@ export default function Geoportal() {
           return null;
         })}
 
+        {/* VECTOR: Capas Temporales (Local) */}
+        {temporalLayers.map(capa => {
+          if (activeTemporalLayers[capa.id] && capa.geojson) {
+            return (
+              <GeoJSON 
+                key={capa.id}
+                data={capa.geojson}
+                style={() => ({
+                  color: capa.color,
+                  weight: 2,
+                  fillColor: capa.color,
+                  fillOpacity: 0.3
+                })}
+                onEachFeature={(feature, layer) => {
+                  if (feature.properties) {
+                    let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 200px; overflow-y: auto;">
+                      <h4 style="margin:0 0 8px 0; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">${capa.name}</h4>`;
+                    Object.entries(feature.properties).forEach(([key, value]) => {
+                      if (key !== 'id' && value !== null && value !== '') {
+                        popupContent += `<p style="margin:0 0 4px 0; font-size: 12px;"><b>${key}:</b> ${value}</p>`;
+                      }
+                    });
+                    popupContent += `</div>`;
+                    layer.bindPopup(popupContent);
+                  }
+                }}
+              />
+            );
+          }
+          return null;
+        })}
+
         {/* VECTOR: Catálogo de Ortofotos (Footprints) */}
         {showFootprints && catalogData && (
           <GeoJSON 
@@ -2233,6 +2287,7 @@ export default function Geoportal() {
           onClose={() => setShowShapefileUploader(false)}
           authToken={authToken}
           user={currentUser}
+          onAddTemporalLayer={handleAddTemporalLayer}
           onSuccess={() => {
             setShowShapefileUploader(false);
             setPrediosData(null);

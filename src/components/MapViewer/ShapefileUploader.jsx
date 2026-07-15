@@ -5,7 +5,7 @@ import shp from 'shpjs';
 import { showSuccess } from '../../utils/swal';
 import './ShapefileUploader.css';
 
-export default function ShapefileUploader({ onClose, onSuccess, authToken, user }) {
+export default function ShapefileUploader({ onClose, onSuccess, authToken, user, onAddTemporalLayer }) {
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
@@ -19,6 +19,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
   const [mapping, setMapping] = useState({ cedula: '', nombre_posesionario: '', cod_catastral: '' });
   const [renames, setRenames] = useState({});
   const [isParsing, setIsParsing] = useState(false);
+  const [parsedGeoJson, setParsedGeoJson] = useState(null);
 
   // Custom Layer state
   const [importType, setImportType] = useState('catastro_base');
@@ -45,6 +46,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
       setPreviewColumns([]);
       setRenames({});
       setIsParsing(true);
+      setParsedGeoJson(null);
       
       const reader = new FileReader();
       reader.onload = async (evt) => {
@@ -68,6 +70,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
                if (k.includes('CLAVE') || k.includes('CATAST')) newMap.cod_catastral = c.original;
             });
             setMapping(newMap);
+            setParsedGeoJson(geojson);
           }
         } catch (err) {
           console.error("Error parsing SHP", err);
@@ -82,6 +85,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
       setFile(null);
       setPreviewColumns([]);
       setIsParsing(false);
+      setParsedGeoJson(null);
     }
   };
 
@@ -124,6 +128,13 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
       setUploadStatus({ type: 'error', message: 'Error de conexión.' });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleVisualizarTemporal = () => {
+    if (parsedGeoJson && onAddTemporalLayer) {
+      onAddTemporalLayer(parsedGeoJson, file.name || 'Capa Temporal');
+      onClose();
     }
   };
 
@@ -269,11 +280,26 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user 
           </div>
         )}
 
-        <div className="modal-actions" style={{display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px'}}>
-          <button className="btn-secondary" onClick={onClose} disabled={isUploading} style={{padding: '10px 20px', background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer'}}>Cerrar</button>
-          <button className="btn-dynamic" onClick={handleUpload} disabled={!file || isUploading} style={{padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px'}}>
-            {isUploading ? <><Loader2 size={16} className="spin" /> Procesando...</> : 'Iniciar Importación'}
-          </button>
+        <div className="modal-actions" style={{display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '20px'}}>
+          <div>
+            {onAddTemporalLayer && (
+              <button 
+                className="btn-secondary" 
+                onClick={handleVisualizarTemporal} 
+                disabled={!parsedGeoJson || isUploading || isParsing} 
+                style={{padding: '10px 20px', background: 'var(--card-bg)', border: '1px solid var(--accent-color)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'}}
+                title="Mostrar esta capa en el mapa sin guardarla en la Base de Datos"
+              >
+                <Eye size={16} /> Visualizar Temporalmente
+              </button>
+            )}
+          </div>
+          <div style={{display: 'flex', gap: '10px'}}>
+            <button className="btn-secondary" onClick={onClose} disabled={isUploading} style={{padding: '10px 20px', background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer'}}>Cerrar</button>
+            <button className="btn-dynamic" onClick={handleUpload} disabled={!file || isUploading || isParsing} style={{padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              {isUploading ? <><Loader2 size={16} className="spin" /> Procesando...</> : 'Iniciar Importación'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
