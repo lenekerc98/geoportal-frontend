@@ -1436,35 +1436,6 @@ export default function Geoportal() {
               </div>
               {showPredios && (
                 <div style={{ padding: '5px 10px 10px 30px', backgroundColor: 'var(--bg-main)' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Desde:</label>
-                      <input 
-                        type="date" 
-                        value={fechaInicio} 
-                        onChange={(e) => setFechaInicio(e.target.value)}
-                        className="sidebar-input"
-                        style={{ padding: '2px 4px', fontSize: '0.8rem', width: '100%' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Hasta:</label>
-                      <input 
-                        type="date" 
-                        value={fechaFin} 
-                        onChange={(e) => setFechaFin(e.target.value)}
-                        className="sidebar-input"
-                        style={{ padding: '2px 4px', fontSize: '0.8rem', width: '100%' }}
-                      />
-                    </div>
-                    <button 
-                      onClick={fetchMapData}
-                      style={{ padding: '4px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem', marginTop: '5px' }}
-                    >
-                      Filtrar Fechas
-                    </button>
-                  </div>
-
                   <div style={{ marginBottom: '5px', display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mostrar por:</label>
                     <select 
@@ -1495,7 +1466,8 @@ export default function Geoportal() {
                         return (
                           <div 
                             key={f.properties.id} 
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1 }}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
+                            onClick={() => zoomToFeature(f)}
                             onContextMenu={(e) => {
                               e.preventDefault();
                               setFeatureContextMenu({
@@ -1505,7 +1477,7 @@ export default function Geoportal() {
                               });
                             }}
                           >
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{displayText}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={displayText}>{displayText}</span>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <span 
                                 style={{ cursor: 'pointer', color: '#3b82f6' }}
@@ -1598,11 +1570,12 @@ export default function Geoportal() {
                         {geoJsonCacheAdicionales[capa.tabla_db].features.map((f, i) => {
                           const name = f.properties.nombre || f.properties.name || f.properties.codigo || f.properties.cod_catastral || `Elemento ${i+1}`;
                           return (
-                            <div key={i} className="feature-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '5px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem' }}>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }} title={name}>{name}</span>
+                            <div key={i} className="feature-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', cursor: 'pointer' }} onClick={() => zoomToFeature(f)}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={name}>{name}</span>
                               <div style={{ display: 'flex', gap: '8px' }}>
-                                <Target size={14} style={{ cursor: 'pointer', color: '#fbbf24' }} onClick={() => zoomToFeature(f)} />
-                                <TableProperties size={14} style={{ cursor: 'pointer', color: '#eab308' }} onClick={() => {
+                                <Target size={14} style={{ cursor: 'pointer', color: '#fbbf24' }} onClick={(e) => { e.stopPropagation(); zoomToFeature(f); }} />
+                                <TableProperties size={14} style={{ cursor: 'pointer', color: '#eab308' }} onClick={(e) => {
+                                  e.stopPropagation();
                                   if (f.layer && f.layer.openPopup) f.layer.openPopup();
                                 }} />
                               </div>
