@@ -1218,7 +1218,7 @@ export default function Geoportal() {
               zIndex: 1000,
               background: 'var(--bg-panel)',
               border: '1px solid var(--card-border)',
-              color: 'white',
+              color: 'var(--text-main)',
               padding: '10px',
               borderRadius: '8px',
               cursor: 'pointer',
@@ -1366,15 +1366,15 @@ export default function Geoportal() {
               ref={shapefileInputRef} 
               onChange={handleImportShapefile} 
             />
-            <button className="btn-secondary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'var(--accent-color)', color: '#1a1a2e', border: 'none' }} title="Subir Shapefile (Catastro o Adicional)">
+            <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
               <UploadCloud size={16} /> Shapefile
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-            <button className="btn-secondary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+            <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
               <DownloadCloud size={16} /> Descargar DB
             </button>
-            <button className="btn-secondary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
+            <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
               <FolderSearch size={16} /> Catalogar
             </button>
           </div>
