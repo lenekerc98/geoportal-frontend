@@ -737,6 +737,11 @@ export default function Geoportal() {
       const layer = L.geoJSON(feature);
       const bounds = layer.getBounds();
       map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 1.5 });
+      
+      // Resaltar el predio al hacer zoom desde la lista
+      if (feature.properties && feature.properties.id) {
+        setSelectedPredioId(feature.properties.id);
+      }
     }
   };
 
