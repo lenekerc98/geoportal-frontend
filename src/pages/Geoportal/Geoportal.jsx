@@ -1014,7 +1014,7 @@ export default function Geoportal() {
       {isDrawingPredio && (
         <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'var(--bg-panel)', backdropFilter: 'blur(10px)', padding: '10px 20px', borderRadius: '30px', border: '1px solid var(--accent-color)', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 0 20px rgba(0,0,0,0.5)' }}>
           <MousePointer2 size={18} color="var(--accent-color)" />
-          <span style={{ color: 'white', fontWeight: 'bold' }}>Modo Dibujo: Doble clic para finalizar</span>
+          <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>Modo Dibujo: Doble clic para finalizar</span>
           <button 
             className="btn-cancel" 
             style={{ padding: '5px 15px', fontSize: '12px', borderRadius: '15px' }}
