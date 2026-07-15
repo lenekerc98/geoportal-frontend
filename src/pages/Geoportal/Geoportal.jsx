@@ -380,6 +380,7 @@ export default function Geoportal() {
 
   // Estados para dibujo manual de predio
   const [isDrawingPredio, setIsDrawingPredio] = useState(false);
+  const [isSnapped, setIsSnapped] = useState(false);
   const [drawPoints, setDrawPoints] = useState([]);
   const [tempPredioFormData, setTempPredioFormData] = useState(null);
 
@@ -1004,6 +1005,7 @@ export default function Geoportal() {
           onStartDrawing={() => {
             setIsAddingPredio(false);
             setIsDrawingPredio(true);
+            setIsSnapped(false);
             setDrawPoints([]);
           }}
         />
@@ -1018,6 +1020,7 @@ export default function Geoportal() {
             style={{ padding: '5px 15px', fontSize: '12px', borderRadius: '15px' }}
             onClick={() => {
               setIsDrawingPredio(false);
+              setIsSnapped(false);
               setDrawPoints([]);
               setMousePos(null);
               setIsAddingPredio(true);
@@ -1235,7 +1238,7 @@ export default function Geoportal() {
         {/* PREMIUM FLOATING TOOLBAR DOCK */}
         <div className="floating-dock">
           <button 
-            onClick={() => { setIsMeasuring(false); setIsDrawingPredio(false); setIsAddingPredio(false); setIsBoxZooming(false); }}
+            onClick={() => { setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false); setIsBoxZooming(false); }}
             className={`dock-button navegar ${(!isMeasuring && !isAddingPredio && !isDrawingPredio && !isBoxZooming) ? 'active' : ''}`}
           >
             <MousePointer2 size={18} /> <span className="dock-button-text">Navegar</span>
@@ -1246,7 +1249,7 @@ export default function Geoportal() {
           <button 
             onClick={() => {
               setIsBoxZooming(!isBoxZooming);
-              setIsMeasuring(false); setIsDrawingPredio(false); setIsAddingPredio(false);
+              setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false);
             }}
             className={`dock-button ${isBoxZooming ? 'active' : ''}`}
             title="Acercamiento por Caja (Zoom Box)"
@@ -1281,7 +1284,7 @@ export default function Geoportal() {
           <div className="dock-divider"></div>
 
           <button 
-            onClick={() => { setIsMeasuring(!isMeasuring); setIsAddingPredio(false); setIsDrawingPredio(false); setMeasurePoints([]); setMousePos(null); }}
+            onClick={() => { setIsMeasuring(!isMeasuring); setIsAddingPredio(false); setIsDrawingPredio(false); setIsSnapped(false); setMeasurePoints([]); setMousePos(null); }}
             className={`dock-button medir ${isMeasuring ? 'active' : ''}`}
           >
             <Ruler size={18} /> <span className="dock-button-text">Medir</span>
@@ -1826,7 +1829,7 @@ export default function Geoportal() {
             setDrawPoints={setDrawPoints} 
             setMousePos={setMousePos} 
             onFinish={handleFinishDrawing} 
-            verticesData={verticesData}
+            setIsSnapped={setIsSnapped}
           />
         )}
 
@@ -1845,7 +1848,18 @@ export default function Geoportal() {
           <CircleMarker key={i} center={pt} radius={5} color="var(--accent-color)" fillColor="white" fillOpacity={1} weight={2} />
         ))}
         {isDrawingPredio && mousePos && (
-          <CircleMarker center={mousePos} radius={5} color="#fbbf24" fillColor="#fbbf24" fillOpacity={0.8} weight={2} />
+          isSnapped ? (
+            <Marker 
+              position={mousePos} 
+              icon={L.divIcon({
+                className: 'snap-icon',
+                html: '<div style="width: 14px; height: 14px; border: 2px solid #22c55e; background: rgba(34,197,94,0.4); transform: translate(-50%, -50%);"></div>',
+                iconSize: [0, 0]
+              })} 
+            />
+          ) : (
+            <CircleMarker center={mousePos} radius={5} color="#fbbf24" fillColor="#fbbf24" fillOpacity={0.8} weight={2} />
+          )
         )}
 
         {/* Marcador de Ubicación en Tiempo Real */}

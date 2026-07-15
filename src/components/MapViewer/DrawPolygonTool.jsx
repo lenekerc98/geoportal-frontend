@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
-export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, setMousePos, onFinish, verticesData }) {
+export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, setMousePos, onFinish, setIsSnapped }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
 
   const map = useMap();
@@ -18,9 +18,8 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     mousemove(e) {
       if (isDrawing) {
         let bestSnap = null;
-        let minDistance = Infinity;
+        let minDistance = 20; // 20 pixels threshold for snapping
 
-        // Búsqueda de snapping (Autocad-like)
         const mousePoint = map.latLngToLayerPoint(e.latlng);
         
         // 1. Snapping a los puntos que ya estamos dibujando (para cerrar el polígono)
@@ -29,7 +28,7 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
             const vPoint = map.latLngToLayerPoint(ptLatLng);
             const dist = mousePoint.distanceTo(vPoint);
             // Hacer el snap al primer punto más "fuerte" para facilitar el cierre
-            const threshold = index === 0 ? 20 : 15;
+            const threshold = index === 0 ? 25 : 20;
             if (dist < threshold && dist < minDistance) {
               minDistance = dist;
               bestSnap = ptLatLng;
@@ -37,33 +36,44 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
           });
         }
 
-        // 2. Snapping a la capa de vértices catastrales
-        if (verticesData && verticesData.features) {
-          verticesData.features.forEach(f => {
-            if (f.geometry && f.geometry.coordinates) {
-              // GeoJSON es [lon, lat]
-              const vLatLng = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]);
-              const vPoint = map.latLngToLayerPoint(vLatLng);
-              const dist = mousePoint.distanceTo(vPoint);
-
-              if (dist < 15 && dist < minDistance) { // Snap si está a menos de 15 píxeles
-                minDistance = dist;
-                bestSnap = vLatLng;
-              }
-            }
-          });
-        }
+        // 2. Snapping global a TODOS los polígonos/líneas renderizados en el mapa (AutoCAD like)
+        map.eachLayer((layer) => {
+          if (layer.getLatLngs) {
+            const latlngs = layer.getLatLngs();
+            
+            // Función recursiva para buscar en arrays anidados (Polygon, MultiPolygon)
+            const checkLatLngs = (coords) => {
+              coords.forEach(coord => {
+                if (Array.isArray(coord)) {
+                  checkLatLngs(coord);
+                } else if (coord && coord.lat !== undefined && coord.lng !== undefined) {
+                  const vPoint = map.latLngToLayerPoint(coord);
+                  const dist = mousePoint.distanceTo(vPoint);
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    bestSnap = coord;
+                  }
+                }
+              });
+            };
+            
+            checkLatLngs(latlngs);
+          }
+        });
 
         if (bestSnap) {
           setSnappedLatLng(bestSnap);
           setMousePos(bestSnap);
+          if (setIsSnapped) setIsSnapped(true);
         } else {
           setSnappedLatLng(null);
           setMousePos(e.latlng);
+          if (setIsSnapped) setIsSnapped(false);
         }
       } else {
         setMousePos(null);
         setSnappedLatLng(null);
+        if (setIsSnapped) setIsSnapped(false);
       }
     },
     dblclick(e) {
@@ -73,8 +83,6 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
         L.DomEvent.preventDefault(e);
         
         const pointToAdd = snappedLatLng ? snappedLatLng : e.latlng;
-        // Si el doble click snap al primer punto, no lo duplicamos. Si no, lo agregamos.
-        // Pero para simplificar, sólo mandamos los puntos al finish y él verifica.
         const finalPoints = [...drawPoints, pointToAdd];
         
         // Finalizar
