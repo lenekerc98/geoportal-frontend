@@ -4,6 +4,17 @@ import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings, Build
 
 export default function SidebarLayout() {
   const [collapsed, setCollapsed] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (mobile) setCollapsed(true);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [userRole, setUserRole] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('catastro_theme_v2') || 'light');
   const navigate = useNavigate();
@@ -54,14 +65,22 @@ export default function SidebarLayout() {
 
   return (
     <div>
+      {isMobile && collapsed && (
+        <button 
+          onClick={() => setCollapsed(false)}
+          style={{ position: 'fixed', top: '15px', left: '15px', zIndex: 3000, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '8px', padding: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', cursor: 'pointer', color: 'var(--text-main)', display: 'flex' }}
+        >
+          <Menu size={20} />
+        </button>
+      )}
       <aside className={`global-sidebar ${collapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           {!collapsed && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
+              <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
                 C
               </div>
-              <span className="title" style={{ fontSize: '18px' }}>Catastro Rural Cantón Urdaneta 2026</span>
+              <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
             </div>
           )}
           <button 
@@ -73,18 +92,18 @@ export default function SidebarLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/geoportal" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/geoportal" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <Map size={20} />
             <span>Geoportal</span>
           </NavLink>
 
-          <NavLink to="/dashboard" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/dashboard" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <BarChart2 size={20} />
             <span>Dashboard</span>
           </NavLink>
           
           {hasAccess(['admin']) && (
-            <NavLink to="/usuarios" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/usuarios" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
               <Users size={20} />
               <span>Usuarios</span>
             </NavLink>
@@ -95,21 +114,21 @@ export default function SidebarLayout() {
               <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default' }}>
                 <span>Sistema</span>
               </div>
-              <NavLink to="/sistema/parametros" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+              <NavLink to="/sistema/parametros" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                 <Settings size={18} />
                 <span>Parámetros Generales</span>
               </NavLink>
-              <NavLink to="/sistema/logs" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+              <NavLink to="/sistema/logs" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                 <Shield size={18} />
                 <span>Logs y Auditoría</span>
               </NavLink>
               {userRole?.toLowerCase() === 'superadmin' && (
                 <>
-                  <NavLink to="/empresas" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                  <NavLink to="/empresas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                     <Building2 size={18} />
                     <span>Gestión de Empresas</span>
                   </NavLink>
-                  <NavLink to="/proyectos" className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                  <NavLink to="/proyectos" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                     <FolderGit2 size={18} />
                     <span>Gestión de Proyectos</span>
                   </NavLink>

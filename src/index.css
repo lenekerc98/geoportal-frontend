@@ -431,21 +431,20 @@ body {
     }
     .qgis-input.scale-input { width: 70px !important; }
     .qgis-status-bar .qgis-input { width: 140px !important; }
+        .global-sidebar {
+      z-index: 2000;
+      transform: translateX(0);
+      width: 250px;
+    }
+    .global-sidebar.collapsed {
+      transform: translateX(-100%);
+    }
     
-    .global-sidebar {
-    z-index: 2000;
+    .main-content {
+      margin-left: 0 !important;
+    }
+    
+    .main-content.collapsed {
+      margin-left: 0 !important;
+    }
   }
-  
-  .main-content {
-    margin-left: 250px;
-  }
-  
-  .main-content.collapsed {
-    margin-left: 70px;
-  }
-  
-  /* When sidebar is open on mobile, don't push the map, just overlay it */
-  .main-content {
-    margin-left: 70px !important;
-  }
-}
