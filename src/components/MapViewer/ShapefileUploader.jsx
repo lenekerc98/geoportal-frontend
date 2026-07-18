@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { UploadCloud, CheckCircle2, AlertCircle, Loader2, X, Eye } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import shp from 'shpjs';
 import { showSuccess } from '../../utils/swal';
+import { AppContext } from '../../context/AppContext';
 import './ShapefileUploader.css';
 
 export default function ShapefileUploader({ onClose, onSuccess, authToken, user, onAddTemporalLayer }) {
@@ -27,6 +28,9 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   
   // Historical Cadastre 4D
   const [fechaVigencia, setFechaVigencia] = useState('');
+  
+  const { activeEmpresa } = useContext(AppContext);
+  const isModoManual = activeEmpresa?.parametros?.modo_historico === 'manual';
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -178,18 +182,20 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
           </select>
         </div>
 
-        <div className="form-group" style={{marginBottom: '15px'}}>
-          <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Fecha Histórica (Opcional):</label>
-          <input 
-            type="date"
-            className="input-dynamic"
-            value={fechaVigencia}
-            onChange={(e) => setFechaVigencia(e.target.value)}
-            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
-            title="Si dejas este campo en blanco, se usará la fecha actual."
-          />
-          <small style={{color: 'var(--text-muted)'}}>Si importas datos históricos, selecciona la fecha a la que corresponden los predios.</small>
-        </div>
+        {isModoManual && (
+          <div className="form-group" style={{marginBottom: '15px'}}>
+            <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Fecha Histórica (Opcional):</label>
+            <input 
+              type="date"
+              className="input-dynamic"
+              value={fechaVigencia}
+              onChange={(e) => setFechaVigencia(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
+              title="Si dejas este campo en blanco, se usará la fecha actual."
+            />
+            <small style={{color: 'var(--text-muted)'}}>Si importas datos históricos, selecciona la fecha a la que corresponden los predios.</small>
+          </div>
+        )}
 
         <div className="upload-box" style={{ border: file ? '2px solid var(--primary)' : '2px dashed var(--card-border)', padding: '30px', textAlign: 'center', borderRadius: '8px', marginBottom: '15px', position: 'relative' }}>
           <UploadCloud size={40} color={file ? "var(--primary)" : "gray"} style={{marginBottom: '10px'}} />

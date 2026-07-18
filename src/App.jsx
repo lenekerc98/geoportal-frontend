@@ -9,6 +9,7 @@ import EmpresasManager from './pages/System/EmpresasManager';
 import ProjectsManager from './pages/System/ProjectsManager';
 import Users from './pages/Users/Users';
 import SidebarLayout from './components/Layout/SidebarLayout';
+import { AppProvider } from './context/AppContext';
 
 export default function App() {
   useEffect(() => {
@@ -17,23 +18,25 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        
-        {/* Rutas protegidas/envueltas en el Sidebar */}
-        <Route element={<SidebarLayout />}>
-          <Route path="/geoportal" element={<Geoportal />} />
-          <Route path="/dashboard" element={<AnalyticsDashboard />} />
-          <Route path="/usuarios" element={<Users />} />
-          <Route path="/sistema/parametros" element={<SystemParams />} />
-          <Route path="/sistema/logs" element={<SystemLogs />} />
-          <Route path="/empresas" element={<EmpresasManager />} />
-          <Route path="/proyectos" element={<ProjectsManager />} />
-        </Route>
-        
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <AppProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          
+          {/* Rutas protegidas/envueltas en el Sidebar */}
+          <Route element={<SidebarLayout />}>
+            <Route path="/geoportal" element={<Geoportal />} />
+            <Route path="/dashboard" element={<AnalyticsDashboard />} />
+            <Route path="/usuarios" element={<Users />} />
+            <Route path="/sistema/parametros" element={<SystemParams />} />
+            <Route path="/sistema/logs" element={<SystemLogs />} />
+            <Route path="/empresas" element={<EmpresasManager />} />
+            <Route path="/proyectos" element={<ProjectsManager />} />
+          </Route>
+          
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AppProvider>
   );
 }

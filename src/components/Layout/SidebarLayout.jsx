@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Map, Users, LogOut, Sun, Moon, Menu, BarChart2, Shield, Settings, Building2, FolderGit2 } from 'lucide-react';
+import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2 } from 'lucide-react';
+import { AppContext } from '../../context/AppContext';
+import { API_URL } from '../../services/api';
 
 export default function SidebarLayout() {
   const [collapsed, setCollapsed] = useState(window.innerWidth <= 768);
@@ -23,6 +25,19 @@ export default function SidebarLayout() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('catastro_theme_v2', theme);
   }, [theme]);
+
+  const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
+  const [empresasList, setEmpresasList] = useState([]);
+
+  useEffect(() => {
+    if (userRole?.toLowerCase() === 'superadmin') {
+      const token = localStorage.getItem('catastro_token');
+      fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => setEmpresasList(data))
+        .catch(console.error);
+    }
+  }, [userRole]);
 
   // Protección de Rutas (Validar Token JWT)
   useEffect(() => {
@@ -85,21 +100,44 @@ export default function SidebarLayout() {
 
       <aside className={`global-sidebar ${collapsed ? 'collapsed' : ''}`}>
         {!isMobile && (
-          <div className="sidebar-header">
-            {!collapsed && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
-                  C
+          <div className="sidebar-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              {!collapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
+                    C
+                  </div>
+                  <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
                 </div>
-                <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
+              )}
+              <button 
+                onClick={() => setCollapsed(!collapsed)} 
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px' }}
+              >
+                <Menu size={20} />
+              </button>
+            </div>
+            
+            {!collapsed && userRole?.toLowerCase() === 'superadmin' && empresasList.length > 0 && (
+              <div style={{ marginTop: '15px', padding: '10px', background: 'var(--bg-lighter)', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
+                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Contexto Global</span>
+                <select 
+                  style={{ width: '100%', padding: '5px', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)' }}
+                  value={activeEmpresa?.id || ''}
+                  onChange={(e) => {
+                    const emp = empresasList.find(x => x.id === parseInt(e.target.value));
+                    setGlobalEmpresa(emp || null);
+                    // Opcional: forzar recarga para limpiar datos anteriores
+                    window.location.reload();
+                  }}
+                >
+                  <option value="">Todas (Vista Global)</option>
+                  {empresasList.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                  ))}
+                </select>
               </div>
             )}
-            <button 
-              onClick={() => setCollapsed(!collapsed)} 
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px', marginLeft: collapsed ? '0' : 'auto' }}
-            >
-              <Menu size={20} />
-            </button>
           </div>
         )}
 

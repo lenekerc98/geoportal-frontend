@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, Polyline, CircleMarker, Polygon, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -10,6 +10,8 @@ import { API_URL } from '../../services/api';
 import { confirmDelete, showSuccess, showError } from '../../utils/swal';
 import { saveTemporalLayer, getTemporalLayers, deleteTemporalLayer } from '../../utils/indexedDB';
 import './Geoportal.css';
+import SystemLogViewer from '../../components/MapViewer/SystemLogViewer';
+import { AppContext } from '../../context/AppContext';
 import PredioForm from '../../components/MapViewer/PredioForm';
 import AttributeTable from '../../components/AttributeTable';
 import MeasureTool from '../../components/MapViewer/MeasureTool';
@@ -583,15 +585,20 @@ export default function Geoportal() {
     };
   }, [map]);
 
+  const { activeEmpresa } = useContext(AppContext);
+
   const fetchMapData = async () => {
     let url = `${API_URL}/api/gis/predios`;
-    if (fechaInicio || fechaFin || fechaHistorica) {
-      const params = new URLSearchParams();
-      if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
-      if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
-      if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
+    if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
+    if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
+    if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+    
+    if (params.toString()) {
       url += `?${params.toString()}`;
     }
+
     try {
       const prediosRes = await fetch(url, {
         headers: { 'Authorization': `Bearer ${authToken}` }
@@ -659,6 +666,7 @@ export default function Geoportal() {
   const [isBoxZooming, setIsBoxZooming] = useState(false);
   const [measurePoints, setMeasurePoints] = useState([]);
   const [mousePos, setMousePos] = useState(null);
+  const [user, setUser] = useState(null);
 
   // Estados del Modal de Procesamiento
   const [toastMsg, setToastMsg] = useState(null);
@@ -833,7 +841,10 @@ export default function Geoportal() {
     if (!dataToSearch && authToken) {
       setToastMsg({ type: 'info', title: 'Buscando...', message: 'Cargando base de predios...' });
       try {
-        const res = await fetch(`${API_URL}/api/gis/predios`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        let currentUrl = `${API_URL}/api/gis/predios`;
+        if (activeEmpresa) currentUrl += `?empresa_id=${activeEmpresa.id}`;
+        
+        const res = await fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } });
         dataToSearch = await res.json();
         setPrediosData(dataToSearch);
         setShowPredios(true);
@@ -1458,6 +1469,7 @@ export default function Geoportal() {
                 setTimeout(() => { 
                   // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
                   let currentUrl = `${API_URL}/api/gis/predios`;
+                  if (activeEmpresa) currentUrl += `?empresa_id=${activeEmpresa.id}`;
                   fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
                     .then(r => r.json())
                     .then(d => setPrediosData(d))
