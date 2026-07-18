@@ -24,6 +24,9 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   // Custom Layer state
   const [importType, setImportType] = useState('catastro_base');
   const [nombreCapa, setNombreCapa] = useState('');
+  
+  // Historical Cadastre 4D
+  const [fechaVigencia, setFechaVigencia] = useState('');
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -108,7 +111,10 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     const empId = isSuperAdmin ? selectedEmpresa : (user?.empresa_id || 0);
 
     // Enviar mapping y renames
-    const url = `${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}&renames=${encodeURIComponent(JSON.stringify(renames))}`;
+    let url = `${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}&renames=${encodeURIComponent(JSON.stringify(renames))}`;
+    if (fechaVigencia) {
+      url += `&fecha_creacion=${fechaVigencia}T00:00:00`;
+    }
 
     try {
       const response = await fetch(url, {
@@ -170,6 +176,19 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
             <option value="catastro_base">Módulo Catastral Base (Predios, Linderos, Vértices)</option>
             <option value="capa_adicional">Capa Adicional (Visualización genérica)</option>
           </select>
+        </div>
+
+        <div className="form-group" style={{marginBottom: '15px'}}>
+          <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Fecha Histórica (Opcional):</label>
+          <input 
+            type="date"
+            className="input-dynamic"
+            value={fechaVigencia}
+            onChange={(e) => setFechaVigencia(e.target.value)}
+            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
+            title="Si dejas este campo en blanco, se usará la fecha actual."
+          />
+          <small style={{color: 'var(--text-muted)'}}>Si importas datos históricos, selecciona la fecha a la que corresponden los predios.</small>
         </div>
 
         <div className="upload-box" style={{ border: file ? '2px solid var(--primary)' : '2px dashed var(--card-border)', padding: '30px', textAlign: 'center', borderRadius: '8px', marginBottom: '15px', position: 'relative' }}>

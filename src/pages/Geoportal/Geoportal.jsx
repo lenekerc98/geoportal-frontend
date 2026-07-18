@@ -8,6 +8,7 @@ import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
 import { API_URL } from '../../services/api';
 import { confirmDelete, showSuccess, showError } from '../../utils/swal';
+import { saveTemporalLayer, getTemporalLayers, deleteTemporalLayer } from '../../utils/indexedDB';
 import './Geoportal.css';
 import PredioForm from '../../components/MapViewer/PredioForm';
 import AttributeTable from '../../components/AttributeTable';
@@ -325,14 +326,32 @@ export default function Geoportal() {
   const [temporalLayers, setTemporalLayers] = useState([]);
   const [activeTemporalLayers, setActiveTemporalLayers] = useState({});
 
-  const handleAddTemporalLayer = (geojson, name) => {
+  const handleAddTemporalLayer = async (geojson, name) => {
     const id = `temp_${Date.now()}`;
     const color = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`;
+    const layer = { id, name, geojson, color };
     
-    setTemporalLayers(prev => [...prev, { id, name, geojson, color }]);
-    setActiveTemporalLayers(prev => ({ ...prev, [id]: true }));
-    setToastMsg({ type: 'success', title: 'Capa Temporal', message: `Capa "${name}" cargada localmente.` });
+    try {
+      await saveTemporalLayer(layer);
+      setTemporalLayers(prev => [...prev, layer]);
+      setActiveTemporalLayers(prev => ({ ...prev, [id]: true }));
+      setToastMsg({ type: 'success', title: 'Capa Temporal', message: `Capa "${name}" guardada localmente.` });
+    } catch (e) {
+      console.error("Error guardando capa temporal", e);
+      setToastMsg({ type: 'error', title: 'Error', message: 'No se pudo guardar la capa temporal.' });
+    }
   };
+
+  useEffect(() => {
+    getTemporalLayers().then(layers => {
+      if (layers && layers.length > 0) {
+        setTemporalLayers(layers);
+        const activeMap = {};
+        layers.forEach(l => activeMap[l.id] = true);
+        setActiveTemporalLayers(activeMap);
+      }
+    }).catch(console.error);
+  }, []);
   const [geoJsonCacheAdicionales, setGeoJsonCacheAdicionales] = useState({});
 
   const fetchCapasAdicionales = async () => {
@@ -424,6 +443,7 @@ export default function Geoportal() {
   const [selectedYear, setSelectedYear] = useState('Todos');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
+  const [fechaHistorica, setFechaHistorica] = useState('');
   const [hiddenFeatureIds, setHiddenFeatureIds] = useState([]);
   const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo' o 'nombre'
 
@@ -565,10 +585,11 @@ export default function Geoportal() {
 
   const fetchMapData = async () => {
     let url = `${API_URL}/api/gis/predios`;
-    if (fechaInicio || fechaFin) {
+    if (fechaInicio || fechaFin || fechaHistorica) {
       const params = new URLSearchParams();
       if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
       if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
+      if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
       url += `?${params.toString()}`;
     }
     try {
@@ -1406,6 +1427,47 @@ export default function Geoportal() {
               <FolderSearch size={16} /> Catalogar
             </button>
           </div>
+
+          <div className="section-title" style={{ marginTop: '15px' }}>
+            <Layers size={16} />
+            Catastro Histórico (4D)
+          </div>
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Ver estado a la fecha:</label>
+            <div style={{ display: 'flex', gap: '5px' }}>
+              <input 
+                className="sidebar-input"
+                type="date" 
+                value={fechaHistorica}
+                onChange={e => setFechaHistorica(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button 
+                onClick={() => {
+                  setPrediosData(null);
+                  fetchMapData();
+                }} 
+                style={{ padding: '5px 10px', background: '#eab308', color: '#1e293b', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Aplicar
+              </button>
+            </div>
+            {fechaHistorica && (
+              <div style={{ fontSize: '0.75rem', color: '#38bdf8', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }} onClick={() => { 
+                setFechaHistorica(''); 
+                setTimeout(() => { 
+                  // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
+                  let currentUrl = `${API_URL}/api/gis/predios`;
+                  fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
+                    .then(r => r.json())
+                    .then(d => setPrediosData(d))
+                    .catch(console.error);
+                }, 50); 
+              }}>
+                Volver a la actualidad
+              </div>
+            )}
+          </div>
         </div>
 
         {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
@@ -1586,6 +1648,34 @@ export default function Geoportal() {
                     )}
                   </React.Fragment>
                 ))}
+                
+              {/* CAPAS TEMPORALES */}
+              {temporalLayers.length > 0 && (
+                <>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
+                  <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Temporales (Caché Local)</div>
+                  {temporalLayers.map(capa => (
+                    <div key={capa.id} className={`layer-item ${activeTemporalLayers[capa.id] ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center' }}>
+                      <span onClick={() => setActiveTemporalLayers(prev => ({...prev, [capa.id]: !prev[capa.id]}))} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <div style={{ width: '12px', height: '12px', background: capa.color, borderRadius: '2px', marginRight: '8px' }}></div>
+                        {capa.name}
+                      </span>
+                      <span onClick={() => setActiveTemporalLayers(prev => ({...prev, [capa.id]: !prev[capa.id]}))} style={{ cursor: 'pointer', marginRight: '10px' }}>
+                        {activeTemporalLayers[capa.id] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
+                      </span>
+                      <span onClick={async () => {
+                        try {
+                          await deleteTemporalLayer(capa.id);
+                          setTemporalLayers(prev => prev.filter(c => c.id !== capa.id));
+                        } catch (e) { console.error(e); }
+                      }} style={{ cursor: 'pointer', color: '#ef4444' }} title="Eliminar capa temporal local">
+                        <Trash2 size={16} />
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+
                 </>
               )}
             </>
