@@ -10,6 +10,7 @@ import ProjectsManager from './pages/System/ProjectsManager';
 import Users from './pages/Users/Users';
 import SidebarLayout from './components/Layout/SidebarLayout';
 import { AppProvider } from './context/AppContext';
+import ReportePlanimetrico from './pages/Reportes/ReportePlanimetrico';
 
 export default function App() {
   useEffect(() => {
@@ -33,6 +34,9 @@ export default function App() {
             <Route path="/empresas" element={<EmpresasManager />} />
             <Route path="/proyectos" element={<ProjectsManager />} />
           </Route>
+          
+          <Route path="/reporte/planimetrico/:id" element={<ReportePlanimetrico />} />
+          <Route path="/reporte/planimetrico/codigo/:codigo" element={<ReportePlanimetrico />} />
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

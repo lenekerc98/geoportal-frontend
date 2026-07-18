@@ -237,10 +237,23 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       backdropFilter: 'blur(3px)'
     }}>
-      <div className="glass-panel" style={{ padding: '30px', maxWidth: '600px', width: '90%', margin: '0 auto', border: '1px solid var(--card-border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px' }}>
+      <div className="glass-panel" style={{ padding: '30px', maxWidth: '600px', width: '90%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px' }}>
           <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{initialData ? 'Editar Predio' : 'Nuevo Predio (Coordenadas)'}</h2>
-          <button type="button" onClick={onCancel} style={{ background: 'var(--bg-main)', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex' }}><X size={20} /></button>
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {initialData && initialData.id && (
+              <button 
+                type="button" 
+                onClick={() => window.open(`/reporte/planimetrico/${initialData.id}`, '_blank')}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--primary)', border: 'none', color: 'white', cursor: 'pointer', padding: '5px 10px', borderRadius: '4px', fontWeight: 'bold', fontSize: '13px' }}
+                title="Generar Reporte Planimétrico"
+              >
+                🖨️ Reporte Planimétrico
+              </button>
+            )}
+            <button type="button" onClick={onCancel} style={{ background: 'var(--bg-main)', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex' }}><X size={20} /></button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>

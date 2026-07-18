@@ -1408,11 +1408,25 @@ export default function Geoportal() {
         
         {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
         <div className="sidebar-section">
-          <div className="section-header" style={{ cursor: 'default' }}>
+          <div className="section-header" style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers size={16} color="var(--primary)" />
               <span className="section-title">Gestión de Datos</span>
             </div>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
+            <button 
+              className="btn-primary" 
+              onClick={() => {
+                const cod = window.prompt("Ingrese el Código Catastral del predio:");
+                if (cod) window.open(`/reporte/planimetrico/codigo/${cod.trim()}`, '_blank');
+              }}
+              style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'var(--success)' }} 
+              title="Generar Reporte Planimétrico"
+            >
+              🖨️ Reporte Planimétrico
+            </button>
           </div>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
             <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">

@@ -1,0 +1,296 @@
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-page {
+    margin: 0;
+    box-shadow: none !important;
+    page-break-after: always;
+  }
+}
+
+body {
+  background-color: #f1f5f9;
+}
+
+.report-controls {
+  padding: 15px 30px;
+  background: white;
+  border-bottom: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.report-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.print-page {
+  width: 297mm;
+  height: 209mm;
+  background: white;
+  margin: 20px auto;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  padding: 10mm;
+  box-sizing: border-box;
+  position: relative;
+  font-family: Arial, sans-serif;
+}
+
+/* MARCO PRINCIPAL */
+.report-border {
+  border: 2px solid black;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-inner-border {
+  border: 1px solid black;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER TITULO */
+.report-header {
+  text-align: center;
+  border-bottom: 1px solid black;
+  padding: 5px 0;
+}
+
+.report-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+/* CUERPO PAG 1 */
+.report-body {
+  display: flex;
+  flex: 1;
+}
+
+.report-map-container {
+  flex: 1;
+  border-right: 1px solid black;
+  position: relative;
+}
+
+.report-sidebar {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* MAPA */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.vertex-label {
+  background: white;
+  border: 1px solid black;
+  border-radius: 50%;
+  font-size: 8px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px !important;
+  height: 16px !important;
+  margin-left: -8px !important;
+  margin-top: -8px !important;
+}
+
+.lindero-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: black;
+  text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;
+  white-space: nowrap;
+}
+
+/* SIDEBAR CAJETIN */
+.sidebar-box {
+  border-bottom: 1px solid black;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-box:last-child {
+  border-bottom: none;
+}
+
+.minimap-box {
+  height: 200px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.box-title {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 5px;
+  border-bottom: 1px solid black;
+  background: white;
+}
+.box-title-no-border {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 5px;
+}
+
+.box-content {
+  padding: 5px;
+  font-size: 11px;
+}
+
+.box-content-center {
+  text-align: center;
+  font-weight: bold;
+  padding: 10px 5px;
+}
+
+.dpa-grid {
+  display: flex;
+}
+.dpa-col {
+  flex: 1;
+  border-right: 1px solid black;
+}
+.dpa-col:last-child {
+  border-right: none;
+}
+
+/* BOTTOM FOOTER CAJETIN */
+.report-footer {
+  display: flex;
+  border-top: 1px solid black;
+  height: 40px;
+}
+.footer-box {
+  flex: 1;
+  border-right: 1px solid black;
+  display: flex;
+  flex-direction: column;
+}
+.footer-box:last-child {
+  border-right: none;
+}
+.footer-box .box-title {
+  border-bottom: none;
+  font-size: 9px;
+}
+.footer-box .box-content {
+  text-align: center;
+  font-weight: bold;
+  font-size: 12px;
+  padding-top: 0;
+}
+
+/* PÁGINA 2: TABLAS */
+.page2-header {
+  display: flex;
+  border-bottom: 2px solid black;
+}
+.page2-title {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  padding: 10px;
+}
+.page2-body {
+  display: flex;
+  flex: 1;
+  gap: 10px;
+  padding: 10px 0;
+}
+.page2-col-left {
+  flex: 1.2;
+}
+.page2-col-right {
+  flex: 0.8;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  margin-bottom: 10px;
+}
+.report-table th, .report-table td {
+  border: 1px solid black;
+  padding: 4px;
+  text-align: center;
+}
+.report-table th {
+  font-weight: bold;
+}
+
+.desc-box {
+  border: 1px solid black;
+  margin-bottom: 10px;
+}
+.desc-box-title {
+  font-weight: bold;
+  font-size: 11px;
+  border-bottom: 1px solid black;
+  padding: 4px;
+}
+.desc-box-content {
+  font-size: 10px;
+  padding: 6px;
+  min-height: 40px;
+}
+
+.firmas-grid {
+  display: flex;
+  margin-top: 20px;
+}
+.firma-box {
+  flex: 1;
+  border: 1px solid black;
+  padding: 5px;
+  text-align: center;
+  font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 80px;
+}
+.firma-box-title {
+  font-weight: bold;
+  border-bottom: 1px solid black;
+  padding-bottom: 3px;
+}
