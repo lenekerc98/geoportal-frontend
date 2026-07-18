@@ -43,8 +43,8 @@ export default function SystemParams() {
 
   return (
     <div className="params-container">
-      <h1 className="params-title">Parámetros Generales</h1>
-      <p className="params-subtitle">Gestión de División Político Administrativa (DPA)</p>
+      <h1 className="params-title">Gestión DPA</h1>
+      <p className="params-subtitle">Gestión de División Político Administrativa (Provincias, Cantones, Parroquias)</p>
 
       <div className="params-grid">
         {/* Provincias */}

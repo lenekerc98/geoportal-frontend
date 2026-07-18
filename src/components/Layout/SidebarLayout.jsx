@@ -127,8 +127,8 @@ export default function SidebarLayout() {
                 <span>Sistema</span>
               </div>
               <NavLink to="/sistema/parametros" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
-                <Settings size={18} />
-                <span>Parámetros Generales</span>
+                <Map size={18} />
+                <span>Gestión DPA</span>
               </NavLink>
               <NavLink to="/sistema/logs" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                 <Shield size={18} />
