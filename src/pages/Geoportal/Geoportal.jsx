@@ -10,7 +10,6 @@ import { API_URL } from '../../services/api';
 import { confirmDelete, showSuccess, showError } from '../../utils/swal';
 import { saveTemporalLayer, getTemporalLayers, deleteTemporalLayer } from '../../utils/indexedDB';
 import './Geoportal.css';
-import SystemLogViewer from '../../components/MapViewer/SystemLogViewer';
 import { AppContext } from '../../context/AppContext';
 import PredioForm from '../../components/MapViewer/PredioForm';
 import AttributeTable from '../../components/AttributeTable';
