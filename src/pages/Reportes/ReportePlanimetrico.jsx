@@ -111,7 +111,7 @@ export default function ReportePlanimetrico() {
   const linderosOeste = linderos.filter(l => getOrientacion(l.rumbo) === 'OESTE');
 
   const renderLinderoText = (l) => {
-    return `Del ${l.tramo || '?'} con una distancia de ${l.longitud.toFixed(2)} m, Rumbo ${l.rumbo}; ${l.colindante || 'S/D'}`;
+    return `Del ${l.tramo || ''} con una distancia de ${l.longitud.toFixed(2)} m, Rumbo ${l.rumbo}; ${l.colindante || ''}`;
   };
 
   const currentDate = new Date().toLocaleDateString('es-ES');

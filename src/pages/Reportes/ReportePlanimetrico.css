@@ -21,6 +21,8 @@
 
 body {
   background-color: #f1f5f9;
+  overflow: auto !important;
+  height: auto !important;
 }
 
 .report-controls {
