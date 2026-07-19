@@ -54,9 +54,9 @@ const ReporteriaDashboard = () => {
   useEffect(() => {
     const term = searchTerm.toLowerCase();
     const filtered = data.filter(item => 
-      (item.codigo || '').toLowerCase().includes(term) ||
-      (item.nombre_posesionario || '').toLowerCase().includes(term) ||
-      (item.cedula_posesionario || '').toLowerCase().includes(term)
+      String(item.codigo || '').toLowerCase().includes(term) ||
+      String(item.nombre_posesionario || '').toLowerCase().includes(term) ||
+      String(item.cedula_posesionario || '').toLowerCase().includes(term)
     );
     setFilteredData(filtered);
     setCurrentPage(1); // Reset to first page on search
@@ -157,7 +157,7 @@ const ReporteriaDashboard = () => {
                       <td className="fw-bold">{item.codigo}</td>
                       <td>{item.nombre_posesionario || 'SIN NOMBRE'}</td>
                       <td>{item.cedula_posesionario || 'S/D'}</td>
-                      <td>{new Date(item.fecha_creacion).toLocaleDateString()}</td>
+                      <td>{item.fecha_creacion ? new Date(item.fecha_creacion).toLocaleDateString() : 'S/D'}</td>
                       <td style={{ textAlign: 'right' }}>
                         <button 
                           className="btn-generar-sm" 
