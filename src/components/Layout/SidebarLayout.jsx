@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2 } from 'lucide-react';
+import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2, FileText } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 
@@ -211,6 +211,11 @@ export default function SidebarLayout() {
           <NavLink to="/dashboard" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <BarChart2 size={20} />
             <span>Dashboard</span>
+          </NavLink>
+
+          <NavLink to="/reporteria" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <FileText size={20} />
+            <span>Reportería</span>
           </NavLink>
           
           {hasAccess(['admin']) && (

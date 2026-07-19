@@ -4,6 +4,7 @@ import Login from './pages/Login/Login';
 import Geoportal from './pages/Geoportal/Geoportal';
 import AnalyticsDashboard from './pages/Dashboard/AnalyticsDashboard';
 import SystemLogs from './pages/System/SystemLogs';
+import ReporteriaDashboard from './pages/Reportes/ReporteriaDashboard';
 import SystemParams from './pages/System/SystemParams';
 import EmpresasManager from './pages/System/EmpresasManager';
 import ProjectsManager from './pages/System/ProjectsManager';
@@ -28,6 +29,7 @@ export default function App() {
           <Route element={<SidebarLayout />}>
             <Route path="/geoportal" element={<Geoportal />} />
             <Route path="/dashboard" element={<AnalyticsDashboard />} />
+            <Route path="/reporteria" element={<ReporteriaDashboard />} />
             <Route path="/usuarios" element={<Users />} />
             <Route path="/sistema/parametros" element={<SystemParams />} />
             <Route path="/sistema/logs" element={<SystemLogs />} />
