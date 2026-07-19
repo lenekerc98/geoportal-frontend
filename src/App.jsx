@@ -12,6 +12,7 @@ import Users from './pages/Users/Users';
 import SidebarLayout from './components/Layout/SidebarLayout';
 import { AppProvider } from './context/AppContext';
 import ReportePlanimetrico from './pages/Reportes/ReportePlanimetrico';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function App() {
           <Route element={<SidebarLayout />}>
             <Route path="/geoportal" element={<Geoportal />} />
             <Route path="/dashboard" element={<AnalyticsDashboard />} />
-            <Route path="/reporteria" element={<ReporteriaDashboard />} />
+            <Route path="/reporteria" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
             <Route path="/usuarios" element={<Users />} />
             <Route path="/sistema/parametros" element={<SystemParams />} />
             <Route path="/sistema/logs" element={<SystemLogs />} />
