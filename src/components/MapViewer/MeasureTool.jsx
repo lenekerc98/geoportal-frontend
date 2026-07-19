@@ -38,7 +38,6 @@ export default function MeasureTool({ isMeasuring, measurePoints, setMeasurePoin
           setMousePos(e.latlng);
         }
       } else if (!isMeasuring) {
-        setMousePos(null);
         setSnappedLatLng(null);
       }
     },

@@ -4,6 +4,67 @@ import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Build
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 
+const SystemHealthIndicator = ({ collapsed }) => {
+  const [health, setHealth] = useState({ api: 'PENDING', database: 'PENDING', storage: 'PENDING' });
+  
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/system/health`);
+        if (res.ok) {
+          const data = await res.json();
+          setHealth(data);
+        } else {
+          setHealth({ api: 'ERROR', database: 'ERROR', storage: 'ERROR' });
+        }
+      } catch (e) {
+        setHealth({ api: 'ERROR', database: 'ERROR', storage: 'ERROR' });
+      }
+    };
+    
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const isAllOk = health.api === 'OK' && health.database === 'OK' && health.storage === 'OK';
+  const hasError = health.api === 'ERROR' || health.database.startsWith('ERROR') || health.storage.startsWith('ERROR');
+  
+  const statusColor = isAllOk ? 'var(--success)' : (hasError ? 'var(--danger)' : 'var(--warning)');
+  const statusText = isAllOk ? 'Sistema en línea' : (hasError ? 'Error de conexión' : 'Verificando...');
+
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', borderTop: '1px solid var(--sidebar-border)' }} title={statusText}>
+        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}` }}></div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '15px', borderTop: '1px solid var(--sidebar-border)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}` }}></div>
+        <span style={{ fontWeight: 'bold' }}>{statusText}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '18px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>API Backend:</span>
+          <span style={{ color: health.api === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.api}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', title: health.database }}>
+          <span>Base de Datos:</span>
+          <span style={{ color: health.database === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.database === 'OK' ? 'OK' : 'ERROR'}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', title: health.storage }}>
+          <span>Almacenamiento:</span>
+          <span style={{ color: health.storage === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.storage === 'OK' ? 'OK' : 'ERROR'}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function SidebarLayout() {
   const [collapsed, setCollapsed] = useState(window.innerWidth <= 768);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -208,6 +269,7 @@ export default function SidebarLayout() {
               <span>Cerrar Sesión</span>
             </button>
           </div>
+          <SystemHealthIndicator collapsed={collapsed} />
         </div>
       </aside>
 

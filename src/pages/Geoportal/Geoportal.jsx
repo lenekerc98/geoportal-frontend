@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, Polyline, CircleMarker, Polygon, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, Polyline, CircleMarker, Polygon, Popup, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin } from 'lucide-react';
@@ -274,6 +274,8 @@ export default function Geoportal() {
   const [map, setMap] = useState(null);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
   const [showShapefileUploader, setShowShapefileUploader] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportCodigo, setReportCodigo] = useState('');
   
   // Current user info might be stored in localStorage or available via context/props
   // Attempting to decode JWT token to get user info if not passed down:
@@ -1419,8 +1421,8 @@ export default function Geoportal() {
             <button 
               className="btn-primary" 
               onClick={() => {
-                const cod = window.prompt("Ingrese el Código Catastral del predio:");
-                if (cod) window.open(`/reporte/planimetrico/codigo/${cod.trim()}`, '_blank');
+                setReportCodigo('');
+                setShowReportModal(true);
               }}
               style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'var(--success)' }} 
               title="Generar Reporte Planimétrico"
@@ -2036,7 +2038,7 @@ export default function Geoportal() {
         {/* VECTOR: Predios */}
         {showPredios && prediosData && prediosData.features && (
           <GeoJSON 
-            key={`predios-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}`}
+            key={`predios-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}`}
             data={{...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)))}}
             style={(feature) => {
               const isSelected = selectedPredioId === feature.properties.id || (searchResults && searchResults.includes(feature.properties.id));
@@ -2433,6 +2435,78 @@ export default function Geoportal() {
             if (showLineas) { setLineasData(null); toggleLineas(); setTimeout(toggleLineas, 500); }
           }}
         />
+      )}
+
+      {/* Modal Reporte Planimétrico */}
+      {showReportModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-panel" style={{ padding: '24px', width: '400px', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--primary)' }}>Reporte Planimétrico</h3>
+              <button onClick={() => setShowReportModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+            </div>
+            <div>
+              <label style={{ fontSize: '0.9rem', marginBottom: '8px', display: 'block' }}>Ingrese el Código Catastral del predio:</label>
+              <input 
+                type="text" 
+                className="sidebar-input"
+                value={reportCodigo}
+                onChange={(e) => setReportCodigo(e.target.value)}
+                placeholder="Ej. 010101001"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const cod = reportCodigo.trim();
+                    if (!cod) {
+                      showError('Por favor ingrese un código catastral válido.');
+                      return;
+                    }
+                    const exists = prediosData && prediosData.features && prediosData.features.some(f => f.properties && f.properties.cod_catastral === cod);
+                    if (!exists) {
+                      showError('El predio con el código especificado no existe o no está disponible en la vista actual.');
+                      return;
+                    }
+                    setShowReportModal(false);
+                    window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
+                  }
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <button 
+                className="btn-secondary" 
+                onClick={() => setShowReportModal(false)}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', color: 'var(--text-main)', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={() => {
+                  const cod = reportCodigo.trim();
+                  if (!cod) {
+                    showError('Por favor ingrese un código catastral válido.');
+                    return;
+                  }
+                  
+                  // Verificar existencia
+                  const exists = prediosData && prediosData.features && prediosData.features.some(f => f.properties && f.properties.cod_catastral === cod);
+                  
+                  if (!exists) {
+                    showError('El predio con el código especificado no existe o no está disponible en la vista actual.');
+                    return;
+                  }
+                  
+                  setShowReportModal(false);
+                  window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
+                }}
+                style={{ padding: '8px 16px', borderRadius: '6px' }}
+              >
+                Generar Reporte
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
