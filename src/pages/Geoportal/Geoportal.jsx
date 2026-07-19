@@ -2454,20 +2454,26 @@ export default function Geoportal() {
                 onChange={(e) => setReportCodigo(e.target.value)}
                 placeholder="Ej. 010101001"
                 autoFocus
-                onKeyDown={(e) => {
+                onKeyDown={async (e) => {
                   if (e.key === 'Enter') {
                     const cod = reportCodigo.trim();
                     if (!cod) {
                       showError('Por favor ingrese un código catastral válido.');
                       return;
                     }
-                    const exists = prediosData && prediosData.features && prediosData.features.some(f => f.properties && f.properties.cod_catastral === cod);
-                    if (!exists) {
-                      showError('El predio con el código especificado no existe o no está disponible en la vista actual.');
-                      return;
+                    try {
+                      const res = await fetch(`${API_URL}/api/gis/codigos/buscar/${cod}`, {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                      });
+                      if (res.ok) {
+                        setShowReportModal(false);
+                        window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
+                      } else {
+                        showError('El predio con el código especificado no existe en la base de datos.');
+                      }
+                    } catch (error) {
+                      showError('Error al conectar con el servidor.');
                     }
-                    setShowReportModal(false);
-                    window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
                   }
                 }}
               />
@@ -2482,23 +2488,26 @@ export default function Geoportal() {
               </button>
               <button 
                 className="btn-primary" 
-                onClick={() => {
+                onClick={async () => {
                   const cod = reportCodigo.trim();
                   if (!cod) {
                     showError('Por favor ingrese un código catastral válido.');
                     return;
                   }
                   
-                  // Verificar existencia
-                  const exists = prediosData && prediosData.features && prediosData.features.some(f => f.properties && f.properties.cod_catastral === cod);
-                  
-                  if (!exists) {
-                    showError('El predio con el código especificado no existe o no está disponible en la vista actual.');
-                    return;
+                  try {
+                    const res = await fetch(`${API_URL}/api/gis/codigos/buscar/${cod}`, {
+                      headers: { 'Authorization': `Bearer ${authToken}` }
+                    });
+                    if (res.ok) {
+                      setShowReportModal(false);
+                      window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
+                    } else {
+                      showError('El predio con el código especificado no existe en la base de datos.');
+                    }
+                  } catch (error) {
+                    showError('Error al conectar con el servidor.');
                   }
-                  
-                  setShowReportModal(false);
-                  window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
                 }}
                 style={{ padding: '8px 16px', borderRadius: '6px' }}
               >
