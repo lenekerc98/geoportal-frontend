@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react';
 import { API_URL } from '../../services/api';
@@ -283,8 +283,15 @@ export default function ReportePlanimetrico() {
               {polygonCoords.length > 0 && (
                 <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                   <MapScaleUpdater scaleValue={displayScale} />
-                  {/* Grid / Fondo en blanco o TileLayer neutral */}
-                  <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" opacity={0.5} maxNativeZoom={19} maxZoom={24} />
+                  
+                  <LayersControl position="topright">
+                    <LayersControl.BaseLayer checked name="Mapa Claro">
+                      <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" opacity={0.5} maxNativeZoom={19} maxZoom={24} />
+                    </LayersControl.BaseLayer>
+                    <LayersControl.BaseLayer name="Satélite (Esri)">
+                      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" opacity={0.8} maxNativeZoom={19} maxZoom={24} />
+                    </LayersControl.BaseLayer>
+                  </LayersControl>
                   
                   <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
                   
