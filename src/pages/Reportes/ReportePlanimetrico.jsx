@@ -286,6 +286,7 @@ export default function ReportePlanimetrico() {
       )}
 
       {!loading && data && (
+        <>
         <div className="print-page">
         <div className="report-border">
           <div className="report-header">
@@ -576,6 +577,7 @@ export default function ReportePlanimetrico() {
           </div>
         </div>
       </div>
+      </>
       )}
     </div>
   );
