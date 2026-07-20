@@ -5,9 +5,8 @@ import { API_URL } from '../../services/api';
 import './ReporteriaDashboard.css';
 
 const ReporteriaDashboard = () => {
-  const { token } = useContext(AppContext);
+  const token = localStorage.getItem('catastro_token');
   const [data, setData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -21,7 +20,7 @@ const ReporteriaDashboard = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = async () => {
     setLoading(true);
@@ -41,26 +40,30 @@ const ReporteriaDashboard = () => {
       });
       if (res.ok) {
         const json = await res.json();
-        setData(json);
-        setFilteredData(json);
+        // Garantizar que siempre sea un array
+        setData(Array.isArray(json) ? json : []);
+        setCurrentPage(1);
       }
     } catch (e) {
       console.error(e);
+      setData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const term = searchTerm.toLowerCase();
-    const filtered = data.filter(item => 
-      String(item.codigo || '').toLowerCase().includes(term) ||
-      String(item.nombre_posesionario || '').toLowerCase().includes(term) ||
-      String(item.cedula_posesionario || '').toLowerCase().includes(term)
-    );
-    setFilteredData(filtered);
-    setCurrentPage(1); // Reset to first page on search
-  }, [searchTerm, data]);
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  };
+
+  // ESTADO DERIVADO: Evita useEffect y previene loops infinitos de renderizado
+  const term = searchTerm.toLowerCase();
+  const filteredData = data.filter(item => 
+    String(item.codigo || '').toLowerCase().includes(term) ||
+    String(item.nombre_posesionario || '').toLowerCase().includes(term) ||
+    String(item.cedula_posesionario || '').toLowerCase().includes(term)
+  );
 
   const handleGenerarReporte = (codigo) => {
     if (!codigo) return;
@@ -129,7 +132,7 @@ const ReporteriaDashboard = () => {
                 type="text" 
                 placeholder="Buscar por código, cédula o nombre..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={handleSearchChange}
                 className="search-input"
               />
             </div>
@@ -153,7 +156,7 @@ const ReporteriaDashboard = () => {
               <tbody>
                 {currentItems.length > 0 ? (
                   currentItems.map((item, idx) => (
-                    <tr key={idx}>
+                    <tr key={item.codigo || idx}>
                       <td className="fw-bold">{item.codigo}</td>
                       <td>{item.nombre_posesionario || 'SIN NOMBRE'}</td>
                       <td>{item.cedula_posesionario || 'S/D'}</td>
@@ -179,7 +182,6 @@ const ReporteriaDashboard = () => {
           )}
         </div>
 
-        {/* Controles de Paginación */}
         {!loading && filteredData.length > 0 && (
           <div className="pagination-controls">
             <div className="pagination-info">
