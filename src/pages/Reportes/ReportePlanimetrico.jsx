@@ -47,19 +47,14 @@ const getOrientacionGeometrica = (center, midPoint) => {
 const MapScaleUpdater = ({ scaleValue }) => {
   const map = useMap();
   useEffect(() => {
-    let z = 18;
-    if (scaleValue.includes('100')) z = 22;
-    else if (scaleValue.includes('500')) z = 20;
-    else if (scaleValue.includes('1000')) z = 19;
-    else if (scaleValue.includes('1500')) z = 18.5;
-    else if (scaleValue.includes('2000')) z = 18;
-    else if (scaleValue.includes('2500')) z = 17.5;
-    else if (scaleValue.includes('3000')) z = 17;
-    else if (scaleValue.includes('4000')) z = 16.5;
-    else if (scaleValue.includes('5000')) z = 16;
-    else if (scaleValue.includes('10000')) z = 15;
-    else if (scaleValue.includes('50000')) z = 13;
-    
+    let s = 1000;
+    if (scaleValue && scaleValue.includes(':')) {
+      const val = parseInt(scaleValue.split(':')[1].replace(/\D/g, ''));
+      if (!isNaN(val) && val > 0) s = val;
+    }
+    // Formula matemática de escala a zoom en Web Mercator
+    // Zoom 19 equivale aprox a 1:1000
+    const z = 19 - Math.log2(s / 1000);
     map.setZoom(z);
   }, [scaleValue, map]);
   return null;
@@ -219,7 +214,7 @@ export default function ReportePlanimetrico() {
           <div className="report-body">
             <div className="report-map-container">
               {polygonCoords.length > 0 && (
-                <MapContainer center={center} zoom={18} maxZoom={24} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                   <MapScaleUpdater scaleValue={displayScale} />
                   {/* Grid / Fondo en blanco o TileLayer neutral */}
                   <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" opacity={0.5} maxNativeZoom={19} maxZoom={24} />
