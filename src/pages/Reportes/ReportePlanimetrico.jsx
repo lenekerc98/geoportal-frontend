@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Printer, ArrowLeft, Loader2 } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
@@ -62,14 +62,34 @@ const MapScaleUpdater = ({ scaleValue }) => {
 
 export default function ReportePlanimetrico() {
   const { id, codigo } = useParams();
+  const navigate = useNavigate();
   const { activeEmpresa } = useContext(AppContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  const [allPredios, setAllPredios] = useState([]);
   
   const [scale, setScale] = useState('1:1000');
   const [customScale, setCustomScale] = useState('');
   
   const predefinedScales = ['1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
+
+  useEffect(() => {
+    const fetchAllPredios = async () => {
+      try {
+        const token = localStorage.getItem('catastro_token');
+        const res = await fetch(`${API_URL}/api/gis/codigos-catastrales`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          json.sort((a,b) => (a.codigo || '').localeCompare(b.codigo || ''));
+          setAllPredios(json);
+        }
+      } catch (e) {}
+    };
+    fetchAllPredios();
+  }, []);
 
   useEffect(() => {
     fetchReportData();
@@ -169,6 +189,21 @@ export default function ReportePlanimetrico() {
   
   const displayScale = scale === 'custom' ? customScale : scale;
 
+  const currentIndex = allPredios.findIndex(p => p.codigo === (codigo || predio.codigo) || p.id === parseInt(id || predio.id));
+  
+  const goFirst = () => {
+    if (allPredios.length > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[0].codigo}`);
+  };
+  const goPrev = () => {
+    if (currentIndex > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[currentIndex - 1].codigo}`);
+  };
+  const goNext = () => {
+    if (currentIndex >= 0 && currentIndex < allPredios.length - 1) navigate(`/reporte/planimetrico/codigo/${allPredios[currentIndex + 1].codigo}`);
+  };
+  const goLast = () => {
+    if (allPredios.length > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[allPredios.length - 1].codigo}`);
+  };
+
   return (
     <div style={{ paddingBottom: '50px' }}>
       <div className="report-controls no-print">
@@ -176,6 +211,17 @@ export default function ReportePlanimetrico() {
           <button onClick={() => window.close()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 15px', background: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
             <ArrowLeft size={16} /> Volver
           </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '20px', background: 'white', padding: '5px 10px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', marginRight: '5px' }}>Atlas:</span>
+            <button onClick={goFirst} disabled={currentIndex <= 0} title="Primero" style={{ padding: '4px', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronsLeft size={16} /></button>
+            <button onClick={goPrev} disabled={currentIndex <= 0} title="Anterior" style={{ padding: '4px', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronLeft size={16} /></button>
+            <span style={{ fontSize: '12px', margin: '0 10px', minWidth: '70px', textAlign: 'center' }}>
+              {currentIndex >= 0 ? `${currentIndex + 1} / ${allPredios.length}` : '...'}
+            </span>
+            <button onClick={goNext} disabled={currentIndex === -1 || currentIndex >= allPredios.length - 1} title="Siguiente" style={{ padding: '4px', cursor: (currentIndex === -1 || currentIndex >= allPredios.length - 1) ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronRight size={16} /></button>
+            <button onClick={goLast} disabled={currentIndex === -1 || currentIndex >= allPredios.length - 1} title="Último" style={{ padding: '4px', cursor: (currentIndex === -1 || currentIndex >= allPredios.length - 1) ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronsRight size={16} /></button>
+          </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
             <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Escala:</label>
