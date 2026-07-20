@@ -243,14 +243,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           
           <div style={{ display: 'flex', gap: '10px' }}>
             {initialData && initialData.id && (
-              <button 
-                type="button" 
-                onClick={() => window.open(`/reporte/planimetrico/${initialData.id}`, '_blank')}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--primary)', border: 'none', color: 'white', cursor: 'pointer', padding: '5px 10px', borderRadius: '4px', fontWeight: 'bold', fontSize: '13px' }}
-                title="Generar Reporte Planimétrico"
-              >
-                🖨️ Reporte Planimétrico
-              </button>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ID: {initialData.id}</span>
             )}
             <button type="button" onClick={onCancel} style={{ background: 'var(--bg-main)', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex' }}><X size={20} /></button>
           </div>
