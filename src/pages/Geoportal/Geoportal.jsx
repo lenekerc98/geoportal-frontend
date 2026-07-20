@@ -1418,19 +1418,6 @@ export default function Geoportal() {
           </div>
           
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
-            <button 
-              className="btn-primary" 
-              onClick={() => {
-                setReportCodigo('');
-                setShowReportModal(true);
-              }}
-              style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'var(--success)' }} 
-              title="Generar Reporte Planimétrico"
-            >
-              🖨️ Reporte Planimétrico
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
             <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
               <UploadCloud size={16} /> Ortofoto
             </button>

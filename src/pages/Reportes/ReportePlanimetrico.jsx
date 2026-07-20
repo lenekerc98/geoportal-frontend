@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
-import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, AlertCircle } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
@@ -130,16 +130,14 @@ export default function ReportePlanimetrico() {
     }
   };
 
-  if (loading) {
+  if (loading && !allPredios.length) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
       <Loader2 size={40} className="spin" style={{ animation: 'spin 2s linear infinite' }} />
-      <h2>Generando Reporte...</h2>
+      <h2>Cargando Atlas...</h2>
     </div>;
   }
 
-  if (!data) {
-    return <div style={{ padding: '20px', textAlign: 'center' }}>No se encontraron datos para el reporte.</div>;
-  }
+  // Remove the early return for !data so we can render the controls first
 
   const { predio, vertices, linderos } = data;
   
@@ -227,9 +225,9 @@ export default function ReportePlanimetrico() {
             
             <div style={{ display: 'flex', alignItems: 'center', margin: '0 10px', gap: '5px' }}>
               <input 
-                key={codigo || (predio ? predio.codigo : 'manual')}
+                key={codigo || (data?.predio ? data.predio.codigo : 'manual')}
                 type="text" 
-                defaultValue={codigo || (predio ? predio.codigo : '')}
+                defaultValue={codigo || (data?.predio ? data.predio.codigo : '')}
                 onKeyDown={handleManualSearch}
                 placeholder="Buscar código..."
                 style={{ width: '120px', padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 'bold' }}
@@ -266,13 +264,29 @@ export default function ReportePlanimetrico() {
           </div>
         </div>
         
-        <button onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+        <button onClick={() => window.print()} disabled={!data} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 20px', background: !data ? '#94a3b8' : 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: !data ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
           <Printer size={18} /> Imprimir PDF
         </button>
       </div>
 
-      {/* PÁGINA 1: MAPA */}
-      <div className="print-page">
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', flexDirection: 'column' }}>
+          <Loader2 size={40} className="spin" style={{ animation: 'spin 2s linear infinite' }} />
+          <h2>Generando Reporte...</h2>
+        </div>
+      )}
+
+      {!loading && !data && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', flexDirection: 'column', color: '#64748b' }}>
+          <AlertCircle size={60} style={{ marginBottom: '20px', color: '#cbd5e1' }} />
+          <h2>Predio Sin Mapa</h2>
+          <p>El código catastral <b>{codigo}</b> está registrado en la base de datos pero aún no tiene un polígono asociado.</p>
+          <p>Usa los controles del Atlas arriba para navegar al siguiente predio.</p>
+        </div>
+      )}
+
+      {!loading && data && (
+        <div className="print-page">
         <div className="report-border">
           <div className="report-header">
             <h1>LEVANTAMIENTO PLANIMÉTRICO</h1>
