@@ -97,6 +97,8 @@ export default function ReportePlanimetrico() {
 
   const fetchReportData = async () => {
     try {
+      setLoading(true);
+      setData(null); // Clear previous data
       const token = localStorage.getItem('catastro_token');
       
       let url = '';
@@ -113,12 +115,18 @@ export default function ReportePlanimetrico() {
         const json = await res.json();
         setData(json);
       } else {
-        showError('No se pudo cargar la información del predio');
+        showError('No se pudo cargar la información del predio (Puede no tener mapa asociado)');
       }
     } catch (e) {
-      showError('Error de conexión');
+      showError('Error de conexión con el servidor');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualSearch = (e) => {
+    if (e.key === 'Enter' && e.target.value.trim() !== '') {
+      navigate(`/reporte/planimetrico/codigo/${e.target.value.trim()}`);
     }
   };
 
@@ -216,9 +224,22 @@ export default function ReportePlanimetrico() {
             <span style={{ fontSize: '12px', fontWeight: 'bold', marginRight: '5px' }}>Atlas:</span>
             <button onClick={goFirst} disabled={currentIndex <= 0} title="Primero" style={{ padding: '4px', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronsLeft size={16} /></button>
             <button onClick={goPrev} disabled={currentIndex <= 0} title="Anterior" style={{ padding: '4px', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronLeft size={16} /></button>
-            <span style={{ fontSize: '12px', margin: '0 10px', minWidth: '70px', textAlign: 'center' }}>
-              {currentIndex >= 0 ? `${currentIndex + 1} / ${allPredios.length}` : '...'}
-            </span>
+            
+            <div style={{ display: 'flex', alignItems: 'center', margin: '0 10px', gap: '5px' }}>
+              <input 
+                key={codigo || (predio ? predio.codigo : 'manual')}
+                type="text" 
+                defaultValue={codigo || (predio ? predio.codigo : '')}
+                onKeyDown={handleManualSearch}
+                placeholder="Buscar código..."
+                style={{ width: '120px', padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 'bold' }}
+                title="Presiona Enter para buscar"
+              />
+              <span style={{ fontSize: '12px', minWidth: '40px', color: '#64748b' }}>
+                / {allPredios.length}
+              </span>
+            </div>
+
             <button onClick={goNext} disabled={currentIndex === -1 || currentIndex >= allPredios.length - 1} title="Siguiente" style={{ padding: '4px', cursor: (currentIndex === -1 || currentIndex >= allPredios.length - 1) ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronRight size={16} /></button>
             <button onClick={goLast} disabled={currentIndex === -1 || currentIndex >= allPredios.length - 1} title="Último" style={{ padding: '4px', cursor: (currentIndex === -1 || currentIndex >= allPredios.length - 1) ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronsRight size={16} /></button>
           </div>
@@ -325,8 +346,8 @@ export default function ReportePlanimetrico() {
                 <div className="minimap-box">
                   {/* Carta Topográfica Scale 1:50000 */}
                   <MapContainer center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false}>
-                    <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}" />
-                    <Marker position={center} />
+                    <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                    <Polygon positions={polygonCoords} pathOptions={{ color: 'yellow', weight: 1, fillColor: 'transparent' }} />
                   </MapContainer>
                 </div>
                 <div className="box-content-center" style={{ fontSize: '9px', borderTop: '1px solid black' }}>
