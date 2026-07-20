@@ -12,21 +12,36 @@ import './ReportePlanimetrico.css';
 const createTextIcon = (text, className) => {
   return L.divIcon({
     className: className,
-    html: `<div>${text}</div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
+    html: `<div style="white-space: nowrap; font-size: 10px; font-weight: bold;">${text}</div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0]
   });
 };
 
-// Helper: Determinar orientación principal a partir de rumbo
-const getOrientacion = (rumbo) => {
-  if (!rumbo) return 'ESTE';
-  const r = rumbo.toUpperCase();
-  if (r.startsWith('N')) return 'NORTE';
-  if (r.startsWith('S')) return 'SUR';
-  if (r.startsWith('E')) return 'ESTE';
-  if (r.startsWith('W') || r.startsWith('O')) return 'OESTE';
-  return 'ESTE';
+const createRotatedTextIcon = (text, p1, p2) => {
+  let angle = Math.atan2(-(p2[0] - p1[0]), (p2[1] - p1[1])) * (180 / Math.PI);
+  if (angle > 90 || angle < -90) angle += 180;
+  
+  return L.divIcon({
+    className: 'lindero-rotated',
+    html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; margin-top: -10px;">${text}</div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0]
+  });
+};
+
+// Helper: Determinar orientación geométrica respecto al centro
+const getOrientacionGeometrica = (center, midPoint) => {
+  if (!center || !midPoint) return 'ESTE';
+  let dy = midPoint[0] - center[0];
+  let dx = midPoint[1] - center[1];
+  let angle = Math.atan2(dx, dy) * (180 / Math.PI);
+  let azimuth = (angle + 360) % 360;
+  
+  if (azimuth >= 315 || azimuth < 45) return 'NORTE';
+  if (azimuth >= 45 && azimuth < 135) return 'ESTE';
+  if (azimuth >= 135 && azimuth < 225) return 'SUR';
+  return 'OESTE';
 };
 
 export default function ReportePlanimetrico() {
@@ -104,11 +119,27 @@ export default function ReportePlanimetrico() {
   const lngs = polygonCoords.map(p => p[1]);
   const center = polygonCoords.length > 0 ? [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2] : [0,0];
 
+  // Calcular centroides y linderos
+  const linderosConInfo = linderos.map(l => {
+    let midPoint = [0, 0];
+    try {
+      const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
+      const points = coordsStr.split(',').map(p => {
+        const [lng, lat] = p.trim().split(' ');
+        return [parseFloat(lat), parseFloat(lng)];
+      });
+      if(points.length >= 2) {
+        midPoint = [(points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2];
+      }
+    } catch(e){}
+    return { ...l, orientacion: getOrientacionGeometrica(center, midPoint) };
+  });
+
   // Agrupar Linderos por Orientación
-  const linderosNorte = linderos.filter(l => getOrientacion(l.rumbo) === 'NORTE');
-  const linderosSur = linderos.filter(l => getOrientacion(l.rumbo) === 'SUR');
-  const linderosEste = linderos.filter(l => getOrientacion(l.rumbo) === 'ESTE');
-  const linderosOeste = linderos.filter(l => getOrientacion(l.rumbo) === 'OESTE');
+  const linderosNorte = linderosConInfo.filter(l => l.orientacion === 'NORTE');
+  const linderosSur = linderosConInfo.filter(l => l.orientacion === 'SUR');
+  const linderosEste = linderosConInfo.filter(l => l.orientacion === 'ESTE');
+  const linderosOeste = linderosConInfo.filter(l => l.orientacion === 'OESTE');
 
   const renderLinderoText = (l) => {
     return `Del ${l.tramo || ''} con una distancia de ${l.longitud.toFixed(2)} m, Rumbo ${l.rumbo}; ${l.colindante || ''}`;
@@ -185,9 +216,22 @@ export default function ReportePlanimetrico() {
                     );
                   })}
 
-                  {/* Linderos / Distancias */}
+                  {/* Info Central del Predio */}
+                  <Marker position={center} icon={L.divIcon({
+                    className: 'center-predio-info',
+                    html: `<div style="position: absolute; transform: translate(-50%, -50%); text-align: center; font-size: 10px; line-height: 1.2; font-weight: bold; white-space: nowrap;">
+                      Posesionario:<br/>
+                      ${predio.nombre_posesionario || 'SIN NOMBRE'}<br/>
+                      C.C.: ${predio.cedula || 'S/D'}<br/>
+                      Código: ${predio.codigo || 'S/D'}<br/>
+                      Área: ${predio.area_ha || 0} Ha
+                    </div>`,
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                  })} />
+
+                  {/* Linderos / Distancias Rotadas */}
                   {linderos.map((l, i) => {
-                    // LineString to coords to find midpoint
                     try {
                       const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
                       const points = coordsStr.split(',').map(p => {
@@ -198,7 +242,7 @@ export default function ReportePlanimetrico() {
                         const midLat = (points[0][0] + points[1][0]) / 2;
                         const midLng = (points[0][1] + points[1][1]) / 2;
                         const label = `${l.longitud.toFixed(2)}m - ${l.colindante || ''}`;
-                        return <Marker key={i} position={[midLat, midLng]} icon={createTextIcon(label, 'lindero-label')} />;
+                        return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(label, points[0], points[1])} />;
                       }
                     } catch(e){}
                     return null;
