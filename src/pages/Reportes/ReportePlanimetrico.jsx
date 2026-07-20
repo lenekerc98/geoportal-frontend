@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams } from 'react-router-dom';
-import { MapContainer, TileLayer, Polygon, Marker, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Printer, ArrowLeft, Loader2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
@@ -42,6 +42,27 @@ const getOrientacionGeometrica = (center, midPoint) => {
   if (azimuth >= 45 && azimuth < 135) return 'ESTE';
   if (azimuth >= 135 && azimuth < 225) return 'SUR';
   return 'OESTE';
+};
+
+const MapScaleUpdater = ({ scaleValue }) => {
+  const map = useMap();
+  useEffect(() => {
+    let z = 18;
+    if (scaleValue.includes('100')) z = 22;
+    else if (scaleValue.includes('500')) z = 20;
+    else if (scaleValue.includes('1000')) z = 19;
+    else if (scaleValue.includes('1500')) z = 18.5;
+    else if (scaleValue.includes('2000')) z = 18;
+    else if (scaleValue.includes('2500')) z = 17.5;
+    else if (scaleValue.includes('3000')) z = 17;
+    else if (scaleValue.includes('4000')) z = 16.5;
+    else if (scaleValue.includes('5000')) z = 16;
+    else if (scaleValue.includes('10000')) z = 15;
+    else if (scaleValue.includes('50000')) z = 13;
+    
+    map.setZoom(z);
+  }, [scaleValue, map]);
+  return null;
 };
 
 export default function ReportePlanimetrico() {
@@ -198,9 +219,10 @@ export default function ReportePlanimetrico() {
           <div className="report-body">
             <div className="report-map-container">
               {polygonCoords.length > 0 && (
-                <MapContainer center={center} zoom={18} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                <MapContainer center={center} zoom={18} maxZoom={24} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                  <MapScaleUpdater scaleValue={displayScale} />
                   {/* Grid / Fondo en blanco o TileLayer neutral */}
-                  <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" opacity={0.5} />
+                  <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" opacity={0.5} maxNativeZoom={19} maxZoom={24} />
                   
                   <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
                   
