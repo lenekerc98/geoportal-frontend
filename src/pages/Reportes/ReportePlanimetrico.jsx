@@ -576,6 +576,7 @@ export default function ReportePlanimetrico() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
