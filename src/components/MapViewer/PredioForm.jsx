@@ -25,6 +25,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     cod_catastral: initialData?.cod_catastral || '',
     geom_geojson: initialData?.geom_text || formatInitialCoords(initialData?.geom_geojson),
   });
+  const [colindantes, setColindantes] = useState([]);
 
   const [cedula, setCedula] = useState('');
   const [nombrePosesionario, setNombrePosesionario] = useState('');
@@ -225,7 +226,8 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       ...formData,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
       geom_geojson: parsedGeojson,
-      es_utm: esUtm
+      es_utm: esUtm,
+      colindantes: colindantes
     });
   };
 
@@ -357,6 +359,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                         <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>N°</th>
                         <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada X (Este)</th>
                         <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada Y (Norte)</th>
+                        <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Colindantes</th>
                         <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}></th>
                       </tr>
                     </thead>
@@ -385,11 +388,21 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                   setFormData({...formData, geom_geojson: newLines.join('\n')});
                                 }} />
                               </td>
+                              <td style={{ padding: '8px' }}>
+                                <input type="text" value={colindantes[index] || ''} placeholder={`P${String(index+1).padStart(2, '0')} - P${String((index+1)%lines.length + 1).padStart(2, '0')}`} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
+                                  const newCols = [...colindantes];
+                                  newCols[index] = e.target.value;
+                                  setColindantes(newCols);
+                                }} />
+                              </td>
                               <td style={{ padding: '8px', textAlign: 'center' }}>
                                 <button type="button" onClick={() => {
                                   const newLines = [...lines];
                                   newLines.splice(index, 1);
                                   setFormData({...formData, geom_geojson: newLines.join('\n')});
+                                  const newCols = [...colindantes];
+                                  newCols.splice(index, 1);
+                                  setColindantes(newCols);
                                 }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }}>
                                   <X size={16} />
                                 </button>

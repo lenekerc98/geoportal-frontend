@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import Swal from 'sweetalert2';
+import proj4 from 'proj4';
+
+// Definir UTM 17S si no está definido
+if (!proj4.defs('EPSG:32717')) {
+  proj4.defs('EPSG:32717', '+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs');
+}
 
 export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, setMousePos, onFinish, setIsSnapped }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
@@ -13,6 +20,44 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
         // Usa el punto con snap si existe, sino el punto del clic
         const pointToAdd = snappedLatLng ? snappedLatLng : e.latlng;
         setDrawPoints(prev => [...prev, pointToAdd]);
+      }
+    },
+    contextmenu(e) {
+      if (isDrawing) {
+        L.DomEvent.stopPropagation(e);
+        L.DomEvent.preventDefault(e);
+        
+        Swal.fire({
+          title: 'Coordenada Manual (UTM 17S)',
+          html: `
+            <input id="swal-utm-x" class="swal2-input" placeholder="Coordenada X (Este)" type="number" step="any">
+            <input id="swal-utm-y" class="swal2-input" placeholder="Coordenada Y (Norte)" type="number" step="any">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: 'Añadir',
+          cancelButtonText: 'Cancelar',
+          preConfirm: () => {
+            const x = document.getElementById('swal-utm-x').value;
+            const y = document.getElementById('swal-utm-y').value;
+            if (!x || !y) {
+              Swal.showValidationMessage('Ambas coordenadas son obligatorias');
+              return null;
+            }
+            return { x: parseFloat(x), y: parseFloat(y) };
+          }
+        }).then((result) => {
+          if (result.isConfirmed && result.value) {
+            // Proyectar de UTM 32717 a WGS84 4326
+            try {
+              const ll = proj4('EPSG:32717', 'EPSG:4326', [result.value.x, result.value.y]);
+              const latlng = L.latLng(ll[1], ll[0]);
+              setDrawPoints(prev => [...prev, latlng]);
+            } catch (err) {
+              Swal.fire('Error', 'Coordenadas UTM inválidas', 'error');
+            }
+          }
+        });
       }
     },
     mousemove(e) {
