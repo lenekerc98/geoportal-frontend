@@ -156,7 +156,7 @@ export default function ReportePlanimetrico() {
 
   // Remove the early return for !data so we can render the controls first
 
-  const { predio, vertices, linderos } = data;
+  const { predio = {}, vertices = [], linderos = [] } = data || {};
   
   // Extraer Polígono (WKT to LatLng array)
   // Ej: POLYGON((lng lat, lng lat...))
@@ -171,7 +171,7 @@ export default function ReportePlanimetrico() {
       return points;
     } catch (e) { return []; }
   };
-  const polygonCoords = parsePolygonWKT(predio.geom_wkt);
+  const polygonCoords = parsePolygonWKT(predio?.geom_wkt);
   
   // Calcular centro
   const lats = polygonCoords.map(p => p[0]);
@@ -212,7 +212,7 @@ export default function ReportePlanimetrico() {
   
   const displayScale = scale === 'custom' ? customScale : scale;
 
-  const currentIndex = allPredios.findIndex(p => p.codigo === (codigo || predio.codigo) || p.id === parseInt(id || predio.id));
+  const currentIndex = allPredios.findIndex(p => p.codigo === (codigo || predio?.codigo) || p.id === parseInt(id || predio?.id));
   
   const goFirst = () => {
     if (allPredios.length > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[0].codigo}`);
@@ -399,8 +399,8 @@ export default function ReportePlanimetrico() {
               <div className="sidebar-box">
                 <div className="box-title">POSESIONARIO:</div>
                 <div className="box-content">
-                  {predio.nombre_posesionario || 'SIN NOMBRE'}<br/>
-                  C.C.: {predio.cedula || 'S/D'}
+                  {predio?.nombre_posesionario || 'SIN NOMBRE'}<br/>
+                  C.C.: {predio?.cedula || 'S/D'}
                 </div>
               </div>
               
@@ -463,7 +463,7 @@ export default function ReportePlanimetrico() {
             </div>
             <div className="footer-box">
               <div className="box-title">ÁREA:</div>
-              <div className="box-content">{predio.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
+              <div className="box-content">{predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
             </div>
             <div className="footer-box">
               <div className="box-title">ESCALA:</div>
