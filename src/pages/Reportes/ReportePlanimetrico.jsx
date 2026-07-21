@@ -92,6 +92,17 @@ export default function ReportePlanimetrico() {
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
   useEffect(() => {
+    document.body.style.overflow = 'auto';
+    document.body.style.height = 'auto';
+    document.body.style.backgroundColor = '#f1f5f9';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+      document.body.style.backgroundColor = '';
+    };
+  }, []);
+
+  useEffect(() => {
     const fetchAllPredios = async () => {
       try {
         const token = localStorage.getItem('catastro_token');
