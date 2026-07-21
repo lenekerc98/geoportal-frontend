@@ -14,7 +14,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       } else if (parsed.type === 'MultiPolygon' && parsed.coordinates && parsed.coordinates[0] && parsed.coordinates[0][0]) {
         return parsed.coordinates[0][0].map(coord => `${coord[0]} ${coord[1]}`).join('\n');
       }
-    } catch(e) {
+    } catch (e) {
       return geoJsonStr;
     }
     return geoJsonStr;
@@ -174,10 +174,10 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
     let parsedGeojson = null;
     let esUtm = false;
-    
+
     if (formData.geom_geojson) {
       const rawText = formData.geom_geojson.trim();
-      
+
       if (rawText.startsWith('{')) {
         // Asume GeoJSON normal
         try {
@@ -242,7 +242,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       <div className="glass-panel" style={{ padding: '30px', maxWidth: '600px', width: '90%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px' }}>
           <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{initialData ? 'Editar Predio' : 'Nuevo Predio (Coordenadas)'}</h2>
-          
+
           <div style={{ display: 'flex', gap: '10px' }}>
             {initialData && initialData.id && (
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ID: {initialData.id}</span>
@@ -256,12 +256,12 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Código Catastral *</label>
               <div style={{ position: 'relative' }}>
-                <input 
-                  type="text" 
-                  value={formData.cod_catastral} 
-                  onChange={e => setFormData({...formData, cod_catastral: e.target.value})} 
+                <input
+                  type="text"
+                  value={formData.cod_catastral}
+                  onChange={e => setFormData({ ...formData, cod_catastral: e.target.value })}
                   className="input-dynamic"
-                  placeholder="Ej. 17-01-..." 
+                  placeholder="Ej. 17-01-..."
                   required
                 />
                 <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)' }}>
@@ -277,27 +277,27 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Cédula Posesionario *</label>
               <div style={{ position: 'relative' }}>
-                <input 
-                  type="text" 
-                  value={cedula} 
-                  onChange={e => setCedula(e.target.value)} 
+                <input
+                  type="text"
+                  value={cedula}
+                  onChange={e => setCedula(e.target.value)}
                   className="input-dynamic"
-                  placeholder="Ej. 1712345678" 
+                  placeholder="Ej. 1712345678"
                   required
                   maxLength={10}
                 />
                 {loadingCedula && <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)' }}><Loader2 size={16} className="spin" color="var(--accent-color)" /></div>}
               </div>
             </div>
-            
+
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Nombre Posesionario</label>
-              <input 
-                type="text" 
-                value={nombrePosesionario || ''} 
+              <input
+                type="text"
+                value={nombrePosesionario || ''}
                 onChange={e => isNewPosesionario && setNombrePosesionario(e.target.value)}
                 className="input-dynamic"
-                placeholder={isNewPosesionario ? "Escriba el nombre..." : "Se autocompleta..."} 
+                placeholder={isNewPosesionario ? "Escriba el nombre..." : "Se autocompleta..."}
                 disabled={!isNewPosesionario}
                 style={{ opacity: isNewPosesionario ? 1 : 0.7 }}
                 required={isNewPosesionario}
@@ -314,7 +314,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => setInputMode('table')} style={{ background: inputMode === 'table' ? 'var(--accent-color)' : 'transparent', color: inputMode === 'table' ? 'white' : 'var(--text-muted)', border: `1px solid ${inputMode === 'table' ? 'var(--accent-color)' : 'var(--card-border)'}`, padding: '4px 10px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>Tabla de Puntos</button>
                   <button type="button" onClick={() => setInputMode('text')} style={{ background: inputMode === 'text' ? 'var(--accent-color)' : 'transparent', color: inputMode === 'text' ? 'white' : 'var(--text-muted)', border: `1px solid ${inputMode === 'text' ? 'var(--accent-color)' : 'var(--card-border)'}`, padding: '4px 10px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>Pegar Texto</button>
-                  
+
                   <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".txt,.xlsx" onChange={handleFileUpload} />
                   <button type="button" onClick={() => fileInputRef.current?.click()} style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--card-border)', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <Upload size={14} /> Subir Archivo
@@ -325,8 +325,8 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                 </div>
               </div>
               {!initialData && onStartDrawing && (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={onStartDrawing}
                   style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--primary-glow)', color: 'var(--accent-color)', border: '1px solid var(--accent-color)', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
@@ -340,85 +340,85 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
                   Ej. <code>599202.0 9796078.0</code> o separadas por tabulador/comas.
                 </p>
-                <textarea 
-                  value={formData.geom_geojson} 
-                  onChange={e => setFormData({...formData, geom_geojson: e.target.value})} 
+                <textarea
+                  value={formData.geom_geojson}
+                  onChange={e => setFormData({ ...formData, geom_geojson: e.target.value })}
                   className="input-dynamic"
-                  style={{ height: '200px', fontFamily: 'monospace', padding: '15px', resize: 'vertical' }} 
+                  style={{ height: '200px', fontFamily: 'monospace', padding: '15px', resize: 'vertical' }}
                   placeholder={"599202.0 9796078.0\n599245.9 9796098.8\n599287.0 9796030.0"}
                   required={!initialData}
                 />
               </>
             ) : (
               <div style={{ border: '1px solid var(--card-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                <div className="predio-table-container" style={{ maxHeight: '250px' }}>
+                <div className="predio-table-container" style={{ maxHeight: '250px', overflowY: 'auto' }}>
                   <div className="predio-table-wrapper">
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead style={{ background: 'var(--bg-main)', position: 'sticky', top: 0, zIndex: 10 }}>
-                      <tr>
-                        <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>N°</th>
-                        <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada X (Este)</th>
-                        <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada Y (Norte)</th>
-                        <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Colindantes</th>
-                        <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const lines = formData.geom_geojson ? formData.geom_geojson.split('\n') : [];
-                        if (lines.length === 0) lines.push('');
-                        return lines.map((line, index) => {
-                          const parts = line.trim().split(/[\s,;\t]+/).filter(Boolean);
-                          const x = parts[0] || '';
-                          const y = parts[1] || '';
-                          return (
-                            <tr key={index} style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
-                              <td style={{ padding: '8px', textAlign: 'center', color: 'var(--text-muted)' }}>{index + 1}</td>
-                              <td style={{ padding: '8px' }}>
-                                <input type="number" step="any" value={x} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
-                                  const newLines = [...lines];
-                                  newLines[index] = `${e.target.value} ${y}`;
-                                  setFormData({...formData, geom_geojson: newLines.join('\n')});
-                                }} />
-                              </td>
-                              <td style={{ padding: '8px' }}>
-                                <input type="number" step="any" value={y} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
-                                  const newLines = [...lines];
-                                  newLines[index] = `${x} ${e.target.value}`;
-                                  setFormData({...formData, geom_geojson: newLines.join('\n')});
-                                }} />
-                              </td>
-                              <td style={{ padding: '8px' }}>
-                                <input type="text" value={colindantes[index] || ''} placeholder={`P${String(index+1).padStart(2, '0')} - P${String((index+1)%lines.length + 1).padStart(2, '0')}`} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
-                                  const newCols = [...colindantes];
-                                  newCols[index] = e.target.value;
-                                  setColindantes(newCols);
-                                }} />
-                              </td>
-                              <td style={{ padding: '8px', textAlign: 'center' }}>
-                                <button type="button" onClick={() => {
-                                  const newLines = [...lines];
-                                  newLines.splice(index, 1);
-                                  setFormData({...formData, geom_geojson: newLines.join('\n')});
-                                  const newCols = [...colindantes];
-                                  newCols.splice(index, 1);
-                                  setColindantes(newCols);
-                                }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }}>
-                                  <X size={16} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
+                        <tr>
+                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>N°</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada X (Este)</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada Y (Norte)</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Colindantes</th>
+                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const lines = formData.geom_geojson ? formData.geom_geojson.split('\n') : [];
+                          if (lines.length === 0) lines.push('');
+                          return lines.map((line, index) => {
+                            const parts = line.trim().split(/[\s,;\t]+/).filter(Boolean);
+                            const x = parts[0] || '';
+                            const y = parts[1] || '';
+                            return (
+                              <tr key={index} style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
+                                <td style={{ padding: '8px', textAlign: 'center', color: 'var(--text-muted)' }}>{index + 1}</td>
+                                <td style={{ padding: '8px' }}>
+                                  <input type="number" step="any" value={x} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
+                                    const newLines = [...lines];
+                                    newLines[index] = `${e.target.value} ${y}`;
+                                    setFormData({ ...formData, geom_geojson: newLines.join('\n') });
+                                  }} />
+                                </td>
+                                <td style={{ padding: '8px' }}>
+                                  <input type="number" step="any" value={y} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
+                                    const newLines = [...lines];
+                                    newLines[index] = `${x} ${e.target.value}`;
+                                    setFormData({ ...formData, geom_geojson: newLines.join('\n') });
+                                  }} />
+                                </td>
+                                <td style={{ padding: '8px' }}>
+                                  <input type="text" value={colindantes[index] || ''} placeholder="Pedro Castillo" className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
+                                    const newCols = [...colindantes];
+                                    newCols[index] = e.target.value;
+                                    setColindantes(newCols);
+                                  }} />
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                  <button type="button" onClick={() => {
+                                    const newLines = [...lines];
+                                    newLines.splice(index, 1);
+                                    setFormData({ ...formData, geom_geojson: newLines.join('\n') });
+                                    const newCols = [...colindantes];
+                                    newCols.splice(index, 1);
+                                    setColindantes(newCols);
+                                  }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }}>
+                                    <X size={16} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-              <div className="table-footer">
+                <div className="table-footer">
                   <button type="button" onClick={() => {
                     const current = formData.geom_geojson ? formData.geom_geojson : '';
-                    setFormData({...formData, geom_geojson: current + (current.endsWith('\n') || !current ? '' : '\n') + ' '});
+                    setFormData({ ...formData, geom_geojson: current + (current.endsWith('\n') || !current ? '' : '\n') + ' ' });
                   }} className="btn-add-vertex">
                     + Añadir Vértice
                   </button>
