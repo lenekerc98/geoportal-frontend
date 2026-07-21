@@ -44,19 +44,35 @@ const getOrientacionGeometrica = (center, midPoint) => {
   return 'OESTE';
 };
 
-const MapScaleUpdater = ({ scaleValue }) => {
+const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale }) => {
   const map = useMap();
   useEffect(() => {
-    let s = 1000;
-    if (scaleValue && scaleValue.includes(':')) {
-      const val = parseInt(scaleValue.split(':')[1].replace(/\D/g, ''));
-      if (!isNaN(val) && val > 0) s = val;
+    if (!polygonCoords || polygonCoords.length === 0) return;
+
+    const lats = polygonCoords.map(p => p[0]);
+    const lngs = polygonCoords.map(p => p[1]);
+    const center = [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2];
+
+    if (scaleValue === 'Auto') {
+      map.fitBounds(polygonCoords, { padding: [40, 40] });
+      // Calculate resulting scale
+      const z = map.getZoom();
+      // Round to nearest nice number (e.g. 100s)
+      let s = Math.round(1000 * Math.pow(2, 19 - z));
+      if (s > 1000) s = Math.round(s / 100) * 100;
+      else if (s > 100) s = Math.round(s / 50) * 50;
+      setCalculatedScale(`~ 1:${s}`);
+    } else {
+      let s = 1000;
+      if (scaleValue && scaleValue.includes(':')) {
+        const val = parseInt(scaleValue.split(':')[1].replace(/\D/g, ''));
+        if (!isNaN(val) && val > 0) s = val;
+      }
+      const z = 19 - Math.log2(s / 1000);
+      map.setView(center, z);
+      setCalculatedScale(scaleValue);
     }
-    // Formula matemática de escala a zoom en Web Mercator
-    // Zoom 19 equivale aprox a 1:1000
-    const z = 19 - Math.log2(s / 1000);
-    map.setZoom(z);
-  }, [scaleValue, map]);
+  }, [scaleValue, map, polygonCoords, setCalculatedScale]);
   return null;
 };
 
@@ -69,10 +85,11 @@ export default function ReportePlanimetrico() {
   
   const [allPredios, setAllPredios] = useState([]);
   
-  const [scale, setScale] = useState('1:1000');
+  const [scale, setScale] = useState('Auto');
   const [customScale, setCustomScale] = useState('');
+  const [calculatedScale, setCalculatedScale] = useState('Auto');
   
-  const predefinedScales = ['1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
+  const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
   useEffect(() => {
     const fetchAllPredios = async () => {
@@ -297,7 +314,7 @@ export default function ReportePlanimetrico() {
             <div className="report-map-container">
               {polygonCoords.length > 0 && (
                 <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
-                  <MapScaleUpdater scaleValue={displayScale} />
+                  <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} />
                   
                   <LayersControl position="topright">
                     <LayersControl.BaseLayer checked name="Mapa Claro">
@@ -450,7 +467,7 @@ export default function ReportePlanimetrico() {
             </div>
             <div className="footer-box">
               <div className="box-title">ESCALA:</div>
-              <div className="box-content">{displayScale}</div>
+              <div className="box-content">{scale === 'custom' ? customScale : calculatedScale}</div>
             </div>
             <div className="footer-box" style={{ flex: 1.5 }}>
               <div className="box-title">COORDENADAS PLANAS:</div>
