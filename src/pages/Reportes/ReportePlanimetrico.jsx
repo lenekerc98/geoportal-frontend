@@ -48,9 +48,32 @@ const getOrientacionGeometrica = (center, midPoint) => {
   return 'OESTE';
 };
 
-const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale }) => {
+const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGraphicScale }) => {
   const map = useMap();
+
   useEffect(() => {
+    const updateGraphicScale = () => {
+      const centerLatLng = map.getCenter();
+      const pointC = map.latLngToContainerPoint(centerLatLng);
+      const pointX = L.point(pointC.x + 100, pointC.y); // 100px reference
+      const latLngX = map.containerPointToLatLng(pointX);
+      const dist100px = centerLatLng.distanceTo(latLngX);
+
+      const getRoundNum = (num) => {
+        const pow10 = Math.pow(10, (Math.floor(num) + '').length - 1);
+        let d = num / pow10;
+        d = d >= 10 ? 10 : d >= 5 ? 5 : d >= 3 ? 3 : d >= 2 ? 2 : 1;
+        return pow10 * d;
+      };
+
+      const m = getRoundNum(dist100px);
+      const widthPx = (m / dist100px) * 100;
+
+      if (setGraphicScale) {
+        setGraphicScale({ widthPx, label: m >= 1000 ? (m / 1000) + ' km' : m + ' m' });
+      }
+    };
+
     if (!polygonCoords || polygonCoords.length === 0) return;
 
     const lats = polygonCoords.map(p => p[0]);
@@ -59,9 +82,7 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale }) => {
 
     if (scaleValue === 'Auto') {
       map.fitBounds(polygonCoords, { padding: [40, 40] });
-      // Calculate resulting scale
       const z = map.getZoom();
-      // Round to nearest nice number (e.g. 100s)
       let s = Math.round(1000 * Math.pow(2, 19 - z));
       if (s > 1000) s = Math.round(s / 100) * 100;
       else if (s > 100) s = Math.round(s / 50) * 50;
@@ -76,7 +97,11 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale }) => {
       map.setView(center, z);
       setCalculatedScale(scaleValue);
     }
-  }, [scaleValue, map, polygonCoords, setCalculatedScale]);
+    
+    updateGraphicScale();
+    map.on('moveend zoomend', updateGraphicScale);
+    return () => map.off('moveend zoomend', updateGraphicScale);
+  }, [scaleValue, map, polygonCoords, setCalculatedScale, setGraphicScale]);
   return null;
 };
 
@@ -170,6 +195,7 @@ export default function ReportePlanimetrico() {
   const [scale, setScale] = useState('Auto');
   const [customScale, setCustomScale] = useState('');
   const [calculatedScale, setCalculatedScale] = useState('Auto');
+  const [graphicScale, setGraphicScale] = useState({ widthPx: 100, label: '0 m' });
   
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
@@ -407,8 +433,7 @@ export default function ReportePlanimetrico() {
             <div className="report-map-container">
               {polygonCoords.length > 0 && (
                 <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
-                  <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} />
-                  <ScaleControl position="bottomright" imperial={false} maxWidth={150} />
+                  <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                   <UtmGrid />
                   
                   <LayersControl position="topright">
@@ -542,14 +567,14 @@ export default function ReportePlanimetrico() {
           <div className="report-footer">
             <div className="footer-box" style={{ flex: 1.5 }}>
               <div className="box-title">ESCALA GRÁFICA:</div>
-              <div className="box-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                {/* Simulación Escala Gráfica */}
-                <div style={{ width: '80%', height: '5px', display: 'flex', border: '1px solid black' }}>
+              <div className="box-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <div style={{ width: `${graphicScale.widthPx}px`, height: '5px', display: 'flex', border: '1px solid black', backgroundColor: 'black' }}>
                   <div style={{ flex: 1, background: 'black' }}></div>
                   <div style={{ flex: 1, background: 'white' }}></div>
                   <div style={{ flex: 1, background: 'black' }}></div>
                   <div style={{ flex: 1, background: 'white' }}></div>
                 </div>
+                <div style={{ fontSize: '9px', fontWeight: 'bold', marginTop: '2px' }}>{graphicScale.label}</div>
               </div>
             </div>
             <div className="footer-box">
