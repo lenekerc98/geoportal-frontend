@@ -375,14 +375,14 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                               <tr key={index} style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
                                 <td style={{ padding: '8px', textAlign: 'center', color: 'var(--text-muted)' }}>{index + 1}</td>
                                 <td style={{ padding: '8px' }}>
-                                  <input type="number" step="any" value={x} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
+                                  <input type="text" value={x} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
                                     const newLines = [...lines];
                                     newLines[index] = `${e.target.value} ${y}`;
                                     setFormData({ ...formData, geom_geojson: newLines.join('\n') });
                                   }} />
                                 </td>
                                 <td style={{ padding: '8px' }}>
-                                  <input type="number" step="any" value={y} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
+                                  <input type="text" value={y} className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
                                     const newLines = [...lines];
                                     newLines[index] = `${x} ${e.target.value}`;
                                     setFormData({ ...formData, geom_geojson: newLines.join('\n') });

@@ -268,7 +268,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
 proj4.defs("EPSG:32717","+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
 export default function Geoportal() {
-  const [authToken, setAuthToken] = useState(localStorage.getItem('catastro_token'));
+  const authToken = localStorage.getItem('catastro_token');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null);
   const [map, setMap] = useState(null);
@@ -375,7 +375,7 @@ export default function Geoportal() {
     if (authToken) {
       fetchCapasAdicionales();
     }
-  }, [authToken]);
+  }, [authToken, fetchCapasAdicionales]);
 
   const toggleCapaAdicional = async (tabla_db) => {
     const isCurrentlyActive = activeCapasAdicionales[tabla_db];
@@ -443,9 +443,6 @@ export default function Geoportal() {
   const shapefileInputRef = useRef(null);
 
   // Filtros y Visibilidad
-  const [selectedYear, setSelectedYear] = useState('Todos');
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
   const [fechaHistorica, setFechaHistorica] = useState('');
   const [hiddenFeatureIds, setHiddenFeatureIds] = useState([]);
   const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo' o 'nombre'
@@ -667,7 +664,6 @@ export default function Geoportal() {
   const [isBoxZooming, setIsBoxZooming] = useState(false);
   const [measurePoints, setMeasurePoints] = useState([]);
   const [mousePos, setMousePos] = useState(null);
-  const [user, setUser] = useState(null);
 
   // Estados del Modal de Procesamiento
   const [toastMsg, setToastMsg] = useState(null);
@@ -983,7 +979,7 @@ export default function Geoportal() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [activeTasks]);
+  }, [activeTasks, authToken]);
 
   useEffect(() => {
     if (!authToken) return;

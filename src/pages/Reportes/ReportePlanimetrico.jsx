@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl } from 'react-leaflet';
 import L from 'leaflet';
+import proj4 from 'proj4';
+
+// Definir proyección UTM 17S
+proj4.defs("EPSG:32717","+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, AlertCircle } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
@@ -74,6 +78,84 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale }) => {
     }
   }, [scaleValue, map, polygonCoords, setCalculatedScale]);
   return null;
+};
+
+const UtmGrid = () => {
+  const map = useMap();
+  const [gridLines, setGridLines] = useState([]);
+  const [gridLabels, setGridLabels] = useState([]);
+
+  useEffect(() => {
+    const updateGrid = () => {
+      const bounds = map.getBounds();
+      
+      const swUtm = proj4('EPSG:4326', 'EPSG:32717', [bounds.getWest(), bounds.getSouth()]);
+      const neUtm = proj4('EPSG:4326', 'EPSG:32717', [bounds.getEast(), bounds.getNorth()]);
+      
+      const widthUtm = Math.abs(neUtm[0] - swUtm[0]);
+      let step = 1000;
+      if (widthUtm < 200) step = 20;
+      else if (widthUtm < 500) step = 50;
+      else if (widthUtm < 1500) step = 100;
+      else if (widthUtm < 5000) step = 500;
+      else if (widthUtm < 15000) step = 1000;
+      else step = 5000;
+
+      const lines = [];
+      const labels = [];
+      
+      const minX = Math.floor(swUtm[0] / step) * step;
+      const maxX = Math.ceil(neUtm[0] / step) * step;
+      const minY = Math.floor(swUtm[1] / step) * step;
+      const maxY = Math.ceil(neUtm[1] / step) * step;
+
+      // Vertical lines (Eastings)
+      for (let x = minX; x <= maxX; x += step) {
+        if (x === 0) continue;
+        const bottom = proj4('EPSG:32717', 'EPSG:4326', [x, minY]);
+        const top = proj4('EPSG:32717', 'EPSG:4326', [x, maxY]);
+        lines.push([[bottom[1], bottom[0]], [top[1], top[0]]]);
+        
+        // Label at the top edge of the current view
+        const labelLatLng = proj4('EPSG:32717', 'EPSG:4326', [x, neUtm[1]]);
+        labels.push({ pos: [labelLatLng[1], labelLatLng[0]], text: x.toString(), type: 'x' });
+      }
+
+      // Horizontal lines (Northings)
+      for (let y = minY; y <= maxY; y += step) {
+        if (y === 0) continue;
+        const left = proj4('EPSG:32717', 'EPSG:4326', [minX, y]);
+        const right = proj4('EPSG:32717', 'EPSG:4326', [maxX, y]);
+        lines.push([[left[1], left[0]], [right[1], right[0]]]);
+        
+        // Label at the left edge of the current view
+        const labelLatLng = proj4('EPSG:32717', 'EPSG:4326', [swUtm[0], y]);
+        labels.push({ pos: [labelLatLng[1], labelLatLng[0]], text: y.toString(), type: 'y' });
+      }
+
+      setGridLines(lines);
+      setGridLabels(labels);
+    };
+
+    updateGrid();
+    map.on('moveend zoomend', updateGrid);
+    return () => map.off('moveend zoomend', updateGrid);
+  }, [map]);
+
+  return (
+    <>
+      {gridLines.map((line, i) => (
+        <Polyline key={i} positions={line} pathOptions={{ color: '#000000', weight: 0.5, opacity: 0.4, dashArray: '2, 4' }} />
+      ))}
+      {gridLabels.map((lbl, i) => (
+        <Marker key={`lbl-${i}`} position={lbl.pos} icon={L.divIcon({
+          className: 'utm-grid-label',
+          html: `<div style="background: rgba(255,255,255,0.8); padding: 1px 3px; font-size: 9px; font-weight: bold; border: 1px solid #ccc; white-space: nowrap; ${lbl.type === 'y' ? 'transform: rotate(-90deg) translate(-20px, 15px);' : 'transform: translate(0px, 0px);'}">${lbl.text}</div>`,
+          iconSize: [0,0]
+        })} />
+      ))}
+    </>
+  );
 };
 
 export default function ReportePlanimetrico() {
@@ -326,6 +408,8 @@ export default function ReportePlanimetrico() {
               {polygonCoords.length > 0 && (
                 <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                   <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} />
+                  <ScaleControl position="bottomright" imperial={false} maxWidth={150} />
+                  <UtmGrid />
                   
                   <LayersControl position="topright">
                     <LayersControl.BaseLayer checked name="Mapa Claro">

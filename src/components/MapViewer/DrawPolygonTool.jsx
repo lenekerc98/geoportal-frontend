@@ -11,8 +11,33 @@ if (!proj4.defs('EPSG:32717')) {
 
 export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, setMousePos, onFinish, setIsSnapped }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
+  const [cachedSnapPoints, setCachedSnapPoints] = useState([]);
 
   const map = useMap();
+
+  React.useEffect(() => {
+    if (isDrawing) {
+      const points = [];
+      map.eachLayer((layer) => {
+        if (layer.getLatLngs) {
+          const latlngs = layer.getLatLngs();
+          const extract = (coords) => {
+            coords.forEach(coord => {
+              if (Array.isArray(coord)) {
+                extract(coord);
+              } else if (coord && coord.lat !== undefined && coord.lng !== undefined) {
+                points.push(coord);
+              }
+            });
+          };
+          extract(latlngs);
+        }
+      });
+      setCachedSnapPoints(points);
+    } else {
+      setCachedSnapPoints([]);
+    }
+  }, [isDrawing, map]);
 
   useMapEvents({
     click(e) {
@@ -30,8 +55,8 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
         Swal.fire({
           title: 'Coordenada Manual (UTM 17S)',
           html: `
-            <input id="swal-utm-x" class="swal2-input" placeholder="Coordenada X (Este)" type="number" step="any">
-            <input id="swal-utm-y" class="swal2-input" placeholder="Coordenada Y (Norte)" type="number" step="any">
+            <input id="swal-utm-x" class="swal2-input" placeholder="Coordenada X (Este)" type="text">
+            <input id="swal-utm-y" class="swal2-input" placeholder="Coordenada Y (Norte)" type="text">
           `,
           focusConfirm: false,
           showCancelButton: true,
@@ -81,30 +106,17 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
           });
         }
 
-        // 2. Snapping global a TODOS los polígonos/líneas renderizados en el mapa (AutoCAD like)
-        map.eachLayer((layer) => {
-          if (layer.getLatLngs) {
-            const latlngs = layer.getLatLngs();
-            
-            // Función recursiva para buscar en arrays anidados (Polygon, MultiPolygon)
-            const checkLatLngs = (coords) => {
-              coords.forEach(coord => {
-                if (Array.isArray(coord)) {
-                  checkLatLngs(coord);
-                } else if (coord && coord.lat !== undefined && coord.lng !== undefined) {
-                  const vPoint = map.latLngToLayerPoint(coord);
-                  const dist = mousePoint.distanceTo(vPoint);
-                  if (dist < minDistance) {
-                    minDistance = dist;
-                    bestSnap = coord;
-                  }
-                }
-              });
-            };
-            
-            checkLatLngs(latlngs);
-          }
-        });
+        // 2. Snapping global a TODOS los polígonos/líneas renderizados en el mapa usando caché
+        if (cachedSnapPoints.length > 0) {
+          cachedSnapPoints.forEach(coord => {
+            const vPoint = map.latLngToLayerPoint(coord);
+            const dist = mousePoint.distanceTo(vPoint);
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestSnap = coord;
+            }
+          });
+        }
 
         if (bestSnap) {
           setSnappedLatLng(bestSnap);
