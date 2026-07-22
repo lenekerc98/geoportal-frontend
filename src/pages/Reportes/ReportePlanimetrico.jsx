@@ -52,12 +52,12 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
   const map = useMap();
 
   useEffect(() => {
-    const updateGraphicScale = () => {
+      const updateGraphicScale = () => {
       const centerLatLng = map.getCenter();
       const pointC = map.latLngToContainerPoint(centerLatLng);
-      const pointX = L.point(pointC.x + 100, pointC.y); // 100px reference
+      const pointX = L.point(pointC.x + 200, pointC.y); // Usar 200px de referencia
       const latLngX = map.containerPointToLatLng(pointX);
-      const dist100px = centerLatLng.distanceTo(latLngX);
+      const dist200px = centerLatLng.distanceTo(latLngX);
 
       const getRoundNum = (num) => {
         const pow10 = Math.pow(10, (Math.floor(num) + '').length - 1);
@@ -66,11 +66,19 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
         return pow10 * d;
       };
 
-      const m = getRoundNum(dist100px);
-      const widthPx = (m / dist100px) * 100;
+      const maxMeters = getRoundNum(dist200px);
+      const totalWidthPx = (maxMeters / dist200px) * 200;
+      
+      const segments = 5;
+      const segmentMeters = maxMeters / segments;
+      
+      const ticks = [];
+      for (let i = 0; i <= segments; i++) {
+        ticks.push(i * segmentMeters);
+      }
 
       if (setGraphicScale) {
-        setGraphicScale({ widthPx, label: m >= 1000 ? (m / 1000) + ' km' : m + ' m' });
+        setGraphicScale({ totalWidthPx, ticks });
       }
     };
 
@@ -105,10 +113,9 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
   return null;
 };
 
-const UtmGrid = () => {
+const UtmGrid = ({ setMapGridLabels }) => {
   const map = useMap();
   const [gridLines, setGridLines] = useState([]);
-  const [gridLabels, setGridLabels] = useState([]);
 
   useEffect(() => {
     const updateGrid = () => {
@@ -127,7 +134,7 @@ const UtmGrid = () => {
       else step = 5000;
 
       const lines = [];
-      const labels = [];
+      const labels = { top: [], bottom: [], left: [], right: [] };
       
       const minX = Math.floor(swUtm[0] / step) * step;
       const maxX = Math.ceil(neUtm[0] / step) * step;
@@ -141,9 +148,11 @@ const UtmGrid = () => {
         const top = proj4('EPSG:32717', 'EPSG:4326', [x, maxY]);
         lines.push([[bottom[1], bottom[0]], [top[1], top[0]]]);
         
-        // Label at the top edge of the current view
-        const labelLatLng = proj4('EPSG:32717', 'EPSG:4326', [x, neUtm[1]]);
-        labels.push({ pos: [labelLatLng[1], labelLatLng[0]], text: x.toString(), type: 'x' });
+        const ptTop = map.latLngToContainerPoint([top[1], top[0]]);
+        labels.top.push({ text: x.toString(), val: ptTop.x });
+        
+        const ptBottom = map.latLngToContainerPoint([bottom[1], bottom[0]]);
+        labels.bottom.push({ text: x.toString(), val: ptBottom.x });
       }
 
       // Horizontal lines (Northings)
@@ -153,31 +162,26 @@ const UtmGrid = () => {
         const right = proj4('EPSG:32717', 'EPSG:4326', [maxX, y]);
         lines.push([[left[1], left[0]], [right[1], right[0]]]);
         
-        // Label at the left edge of the current view
-        const labelLatLng = proj4('EPSG:32717', 'EPSG:4326', [swUtm[0], y]);
-        labels.push({ pos: [labelLatLng[1], labelLatLng[0]], text: y.toString(), type: 'y' });
+        const ptLeft = map.latLngToContainerPoint([left[1], left[0]]);
+        labels.left.push({ text: y.toString(), val: ptLeft.y });
+        
+        const ptRight = map.latLngToContainerPoint([right[1], right[0]]);
+        labels.right.push({ text: y.toString(), val: ptRight.y });
       }
 
       setGridLines(lines);
-      setGridLabels(labels);
+      if (setMapGridLabels) setMapGridLabels(labels);
     };
 
     updateGrid();
     map.on('moveend zoomend', updateGrid);
     return () => map.off('moveend zoomend', updateGrid);
-  }, [map]);
+  }, [map, setMapGridLabels]);
 
   return (
     <>
       {gridLines.map((line, i) => (
-        <Polyline key={i} positions={line} pathOptions={{ color: '#000000', weight: 0.5, opacity: 0.4, dashArray: '2, 4' }} />
-      ))}
-      {gridLabels.map((lbl, i) => (
-        <Marker key={`lbl-${i}`} position={lbl.pos} icon={L.divIcon({
-          className: 'utm-grid-label',
-          html: `<div style="background: rgba(255,255,255,0.8); padding: 1px 3px; font-size: 9px; font-weight: bold; border: 1px solid #ccc; white-space: nowrap; ${lbl.type === 'y' ? 'transform: rotate(-90deg) translate(-20px, 15px);' : 'transform: translate(0px, 0px);'}">${lbl.text}</div>`,
-          iconSize: [0,0]
-        })} />
+        <Polyline key={i} positions={line} pathOptions={{ color: '#444444', weight: 0.6, opacity: 0.6 }} />
       ))}
     </>
   );
@@ -195,7 +199,8 @@ export default function ReportePlanimetrico() {
   const [scale, setScale] = useState('Auto');
   const [customScale, setCustomScale] = useState('');
   const [calculatedScale, setCalculatedScale] = useState('Auto');
-  const [graphicScale, setGraphicScale] = useState({ widthPx: 100, label: '0 m' });
+  const [graphicScale, setGraphicScale] = useState({ totalWidthPx: 200, ticks: [0, 50, 100, 150, 200, 250] });
+  const [mapGridLabels, setMapGridLabels] = useState({ top: [], bottom: [], left: [], right: [] });
   
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
@@ -430,11 +435,13 @@ export default function ReportePlanimetrico() {
           </div>
           
           <div className="report-body">
-            <div className="report-map-container">
+            <div className="report-map-container" style={{ position: 'relative', padding: '20px', backgroundColor: 'white', overflow: 'hidden' }}>
+              
+              <div style={{ position: 'relative', width: '100%', height: '100%', border: '2px solid black', outline: '4px solid white', outlineOffset: '-4px' }}>
               {polygonCoords.length > 0 && (
-                <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                   <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
-                  <UtmGrid />
+                  <UtmGrid setMapGridLabels={setMapGridLabels} />
                   
                   <LayersControl position="topright">
                     <LayersControl.BaseLayer checked name="Mapa Claro">
@@ -498,6 +505,25 @@ export default function ReportePlanimetrico() {
                   </div>
                 </MapContainer>
               )}
+              </div>
+
+              {/* Etiquetas Top */}
+              {mapGridLabels.top.map((lbl, i) => (
+                <div key={`t-${i}`} style={{ position: 'absolute', top: '5px', left: `${lbl.val + 20}px`, transform: 'translateX(-50%)', fontSize: '10px', fontWeight: 'bold' }}>{lbl.text}</div>
+              ))}
+              {/* Etiquetas Bottom */}
+              {mapGridLabels.bottom.map((lbl, i) => (
+                <div key={`b-${i}`} style={{ position: 'absolute', bottom: '5px', left: `${lbl.val + 20}px`, transform: 'translateX(-50%)', fontSize: '10px', fontWeight: 'bold' }}>{lbl.text}</div>
+              ))}
+              {/* Etiquetas Left */}
+              {mapGridLabels.left.map((lbl, i) => (
+                <div key={`l-${i}`} style={{ position: 'absolute', left: '-5px', top: `${lbl.val + 20}px`, transform: 'translateY(-50%) rotate(-90deg)', fontSize: '10px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{lbl.text}</div>
+              ))}
+              {/* Etiquetas Right */}
+              {mapGridLabels.right.map((lbl, i) => (
+                <div key={`r-${i}`} style={{ position: 'absolute', right: '-5px', top: `${lbl.val + 20}px`, transform: 'translateY(-50%) rotate(90deg)', fontSize: '10px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{lbl.text}</div>
+              ))}
+
             </div>
             
             <div className="report-sidebar">
@@ -567,14 +593,26 @@ export default function ReportePlanimetrico() {
           <div className="report-footer">
             <div className="footer-box" style={{ flex: 1.5 }}>
               <div className="box-title">ESCALA GRÁFICA:</div>
-              <div className="box-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                <div style={{ width: `${graphicScale.widthPx}px`, height: '5px', display: 'flex', border: '1px solid black', backgroundColor: 'black' }}>
-                  <div style={{ flex: 1, background: 'black' }}></div>
-                  <div style={{ flex: 1, background: 'white' }}></div>
-                  <div style={{ flex: 1, background: 'black' }}></div>
-                  <div style={{ flex: 1, background: 'white' }}></div>
+              <div className="box-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+                <div style={{ position: 'relative', width: `${Math.min(graphicScale.totalWidthPx || 200, 250)}px`, height: '8px', display: 'flex', border: '1px solid black', marginTop: '-10px' }}>
+                  
+                  {/* Ticks Numbers */}
+                  {graphicScale.ticks?.map((tick, i) => (
+                    <div key={i} style={{ position: 'absolute', left: `${(i / (graphicScale.ticks.length - 1)) * 100}%`, top: '10px', transform: 'translateX(-50%)', fontSize: '8px', fontWeight: 'bold' }}>
+                      {tick}
+                    </div>
+                  ))}
+
+                  {/* Segments alternating black and white */}
+                  {graphicScale.ticks?.slice(0, -1).map((_, i) => (
+                    <div key={i} style={{ flex: 1, backgroundColor: i % 2 === 0 ? 'black' : 'white', borderRight: i < graphicScale.ticks.length - 2 ? '1px solid black' : 'none' }}></div>
+                  ))}
+                  
+                  {/* Label 'Metros' */}
+                  <div style={{ position: 'absolute', right: '-28px', top: '10px', fontSize: '8px', fontWeight: 'bold' }}>
+                    Metros
+                  </div>
                 </div>
-                <div style={{ fontSize: '9px', fontWeight: 'bold', marginTop: '2px' }}>{graphicScale.label}</div>
               </div>
             </div>
             <div className="footer-box">
