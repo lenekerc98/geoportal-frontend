@@ -459,6 +459,7 @@ export default function Geoportal() {
   const [hiddenFeatureIds, setHiddenFeatureIds] = useState([]);
   const [loadingPredios, setLoadingPredios] = useState(false);
   const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo' o 'nombre'
+  const [selectedYear, setSelectedYear] = useState('Todos');
 
   // Visibilidades
   const [showFootprints, setShowFootprints] = useState(false);
@@ -1475,7 +1476,22 @@ export default function Geoportal() {
                 value={fechaHistorica}
                 onChange={e => setFechaHistorica(e.target.value)}
                 style={{ flex: 1 }}
+                title="Filtrar en el backend por fecha exacta"
               />
+              <select 
+                className="sidebar-input" 
+                value={selectedYear} 
+                onChange={e => setSelectedYear(e.target.value)}
+                style={{ flex: 1, padding: '2px', fontSize: '0.75rem' }}
+                title="Filtrar resultados visualmente por año"
+              >
+                <option value="Todos">Todos los años</option>
+                <option value="2026">2026</option>
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
               <button 
                 onClick={() => {
                   setPrediosData(null);
@@ -1564,6 +1580,7 @@ export default function Geoportal() {
                     {!loadingPredios && (prediosData?.features || [])
                       .filter(f => f && f.properties)
                       .filter(f => searchResults === null || searchResults.includes(f.properties.id))
+                      .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
                       .map(f => {
                         const isHidden = hiddenFeatureIds.includes(f.properties.id);
                         const displayText = listDisplayMode === 'codigo' 
