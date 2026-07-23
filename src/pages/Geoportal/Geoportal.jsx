@@ -375,7 +375,8 @@ export default function Geoportal() {
     if (authToken) {
       fetchCapasAdicionales();
     }
-  }, [authToken, fetchCapasAdicionales]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
 
   const toggleCapaAdicional = async (tabla_db) => {
     const isCurrentlyActive = activeCapasAdicionales[tabla_db];
