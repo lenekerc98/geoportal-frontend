@@ -2104,7 +2104,7 @@ export default function Geoportal() {
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             attribution="Tiles &copy; Esri"
             zIndex={1}
-            maxNativeZoom={19}
+            maxNativeZoom={17}
             maxZoom={32}
           />
         )}
