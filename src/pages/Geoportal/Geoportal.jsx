@@ -444,6 +444,8 @@ export default function Geoportal() {
   const shapefileInputRef = useRef(null);
 
   // Filtros y Visibilidad
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
   const [fechaHistorica, setFechaHistorica] = useState('');
   const [hiddenFeatureIds, setHiddenFeatureIds] = useState([]);
   const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo' o 'nombre'
