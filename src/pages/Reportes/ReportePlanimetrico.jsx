@@ -444,11 +444,14 @@ export default function ReportePlanimetrico() {
                   <UtmGrid setMapGridLabels={setMapGridLabels} />
                   
                   <LayersControl position="topright">
-                    <LayersControl.BaseLayer checked name="Mapa Claro">
-                      <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" opacity={0.5} maxNativeZoom={19} maxZoom={24} />
+                    <LayersControl.BaseLayer checked name="Ortofoto (Local)">
+                      <TileLayer url={`${API_URL}/api/gis/tiles/{z}/{x}/{y}.png?v=3`} maxNativeZoom={20} maxZoom={24} zIndex={0} />
                     </LayersControl.BaseLayer>
                     <LayersControl.BaseLayer name="Satélite (Esri)">
-                      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" opacity={0.8} maxNativeZoom={19} maxZoom={24} />
+                      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={19} maxZoom={24} zIndex={0} />
+                    </LayersControl.BaseLayer>
+                    <LayersControl.BaseLayer name="Mapa Claro">
+                      <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" maxNativeZoom={19} maxZoom={24} zIndex={0} />
                     </LayersControl.BaseLayer>
                   </LayersControl>
                   
