@@ -406,8 +406,9 @@ export default function Geoportal() {
   const [collapsedCategories, setCollapsedCategories] = useState({
     vectores: false,
     raster: false,
-    ortofotos: false,
-    metadatos: false
+    ortofotos: true,
+    metadatos: true,
+    basemap: false
   });
   const toggleCategory = (cat) => setCollapsedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
 
@@ -451,6 +452,7 @@ export default function Geoportal() {
   const [showFootprints, setShowFootprints] = useState(false);
   const [showMasterOrthophoto, setShowMasterOrthophoto] = useState(false);
   const [ortofotoOpacity, setOrtofotoOpacity] = useState(1);
+  const [baseMap, setBaseMap] = useState('osm');
   const [showPredios, setShowPredios] = useState(false);
   const [showVertices, setShowVertices] = useState(false);
   const [showLineas, setShowLineas] = useState(false);
@@ -1691,6 +1693,32 @@ export default function Geoportal() {
             </>
           )}
 
+          <div className="layer-category" onClick={() => toggleCategory('basemap')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Mapas Base</span>
+            {collapsedCategories.basemap ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+          </div>
+          
+          {!collapsedCategories.basemap && (
+            <>
+              <div className={`layer-item ${baseMap === 'osm' ? 'active' : ''}`} onClick={() => setBaseMap('osm')}>
+                <span>OpenStreetMap</span>
+                {baseMap === 'osm' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+              </div>
+              <div className={`layer-item ${baseMap === 'esri' ? 'active' : ''}`} onClick={() => setBaseMap('esri')}>
+                <span>Satélite (Esri)</span>
+                {baseMap === 'esri' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+              </div>
+              <div className={`layer-item ${baseMap === 'carto' ? 'active' : ''}`} onClick={() => setBaseMap('carto')}>
+                <span>Carto ({theme === 'dark' ? 'Oscuro' : 'Claro'})</span>
+                {baseMap === 'carto' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+              </div>
+              <div className={`layer-item ${baseMap === 'none' ? 'active' : ''}`} onClick={() => setBaseMap('none')}>
+                <span>Fondo Blanco (Ninguno)</span>
+                {baseMap === 'none' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+              </div>
+            </>
+          )}
+
           <div className="layer-category" onClick={() => toggleCategory('raster')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Raster</span>
             {collapsedCategories.raster ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
@@ -1977,13 +2005,34 @@ export default function Geoportal() {
           </CircleMarker>
         )}
 
-        <TileLayer
-          url={theme === 'dark' ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
-          attribution={theme === 'dark' ? '&copy; CARTO' : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
-          zIndex={1}
-          maxNativeZoom={19}
-          maxZoom={32}
-        />
+        {/* MAPAS BASE */}
+        {baseMap === 'osm' && (
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            zIndex={1}
+            maxNativeZoom={19}
+            maxZoom={32}
+          />
+        )}
+        {baseMap === 'esri' && (
+          <TileLayer
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            attribution="Tiles &copy; Esri"
+            zIndex={1}
+            maxNativeZoom={19}
+            maxZoom={32}
+          />
+        )}
+        {baseMap === 'carto' && (
+          <TileLayer
+            url={theme === 'dark' ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"}
+            attribution='&copy; CARTO'
+            zIndex={1}
+            maxNativeZoom={19}
+            maxZoom={32}
+          />
+        )}
 
         <ScaleControl position="bottomleft" imperial={false} />
 
