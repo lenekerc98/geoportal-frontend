@@ -1547,22 +1547,9 @@ export default function Geoportal() {
 
             {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
             <div className="sidebar-section">
-              <div
-                onClick={() => toggleCategory('vectores')}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: '10px',
-                  border: '1px solid #1e293b',
-                  padding: '8px',
-                  cursor: 'pointer',
-                  backgroundColor: '#f8fafc',
-                  marginBottom: '10px'
-                }}
-              >
-                <span style={{ fontWeight: 'bold', color: '#1e293b', fontSize: '0.9rem' }}>Capas Vectoriales</span>
-                {collapsedCategories.vectores ? <ChevronRight size={16} color="#1e293b" /> : <ChevronDown size={16} color="#1e293b" />}
+              <div className="layer-category" onClick={() => toggleCategory('vectores')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Capas Vectoriales</span>
+                {collapsedCategories.vectores ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
               </div>
 
               {!collapsedCategories.vectores && (
