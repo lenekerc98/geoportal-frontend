@@ -782,10 +782,12 @@ export default function Geoportal() {
   };
 
   const zoomToFeature = (feature) => {
-    if (map && feature) {
+    if (map && feature && feature.geometry) {
       const layer = L.geoJSON(feature);
       const bounds = layer.getBounds();
-      map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 1.5 });
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 1.5 });
+      }
       
       // Resaltar el predio al hacer zoom desde la lista
       const featId = feature.properties ? (feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral) : null;
@@ -1562,7 +1564,6 @@ export default function Geoportal() {
                     {!loadingPredios && (prediosData?.features || [])
                       .filter(f => f && f.properties)
                       .filter(f => searchResults === null || searchResults.includes(f.properties.id))
-                      .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
                       .map(f => {
                         const isHidden = hiddenFeatureIds.includes(f.properties.id);
                         const displayText = listDisplayMode === 'codigo' 
