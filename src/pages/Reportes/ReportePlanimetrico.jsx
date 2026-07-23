@@ -440,9 +440,6 @@ export default function ReportePlanimetrico() {
                   <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                   <UtmGrid setMapGridLabels={setMapGridLabels} />
                   
-                  {/* Capa Satelital Fija por Defecto en el Reporte */}
-                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={19} maxZoom={24} zIndex={0} />
-                  
                   <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
                   
                   {/* Vértices Puntos */}
