@@ -465,7 +465,7 @@ export default function Geoportal() {
   const [showFootprints, setShowFootprints] = useState(false);
   const [showMasterOrthophoto, setShowMasterOrthophoto] = useState(false);
   const [ortofotoOpacity, setOrtofotoOpacity] = useState(1);
-  const [baseMap, setBaseMap] = useState('osm');
+  const [baseMap, setBaseMap] = useState('none');
   const [showPredios, setShowPredios] = useState(false);
   const [showVertices, setShowVertices] = useState(false);
   const [showLineas, setShowLineas] = useState(false);
@@ -1510,9 +1510,17 @@ export default function Geoportal() {
                     title="Filtrar resultados visualmente por año"
                   >
                     <option value="Todos">Todos los años</option>
-                    <option value="2026">2026</option>
-                    <option value="2025">2025</option>
-                    <option value="2024">2024</option>
+                    {Array.from(
+                      new Set(
+                        (prediosData?.features || [])
+                          .map(f => f.properties?.fecha_creacion ? String(f.properties.fecha_creacion).substring(0, 4) : null)
+                          .filter(y => y && !isNaN(y))
+                      )
+                    )
+                      .sort((a, b) => b - a)
+                      .map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
                   </select>
                 </div>
                 <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
@@ -1551,6 +1559,7 @@ export default function Geoportal() {
                 <span>Capas Vectoriales</span>
                 {collapsedCategories.vectores ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
               </div>
+
 
               {!collapsedCategories.vectores && (
                 <>

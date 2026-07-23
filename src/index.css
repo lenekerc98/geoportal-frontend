@@ -393,7 +393,7 @@ body {
   gap: 20px;
   font-family: 'Outfit', sans-serif;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-main);
 }
 
 .qgis-status-item {
@@ -403,9 +403,9 @@ body {
 }
 
 .qgis-input {
-  background: rgba(0,0,0,0.2);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: white;
+  background: var(--bg-main);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'Outfit', sans-serif;
@@ -415,7 +415,7 @@ body {
 .qgis-input-scale {
   background: transparent;
   border: none;
-  color: white;
+  color: var(--text-main);
   width: 60px;
   outline: none;
 }
