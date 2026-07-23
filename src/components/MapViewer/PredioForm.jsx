@@ -41,7 +41,6 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     cod_catastral: initialData?.cod_catastral || '',
     geom_geojson: initialData?.geom_text || formatInitialCoords(initialData?.geom_geojson),
   });
-  });
   const [colindantes, setColindantes] = useState([]);
   
   const { activeEmpresa } = useContext(AppContext);
