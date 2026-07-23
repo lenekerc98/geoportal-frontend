@@ -37,7 +37,7 @@ const BoxZoomHandler = ({ isActive, setIsActive }) => {
       }
       return;
     }
-    
+
     let box = null;
     let startLatLng = null;
 
@@ -60,10 +60,10 @@ const BoxZoomHandler = ({ isActive, setIsActive }) => {
       startLatLng = null;
       box = null;
       map.dragging.enable();
-      
+
       if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
-         setIsActive(false);
-         return;
+        setIsActive(false);
+        return;
       }
       map.fitBounds(bounds);
       setIsActive(false);
@@ -124,7 +124,7 @@ function MapContextMenu({ onAction }) {
       display: 'flex',
       flexDirection: 'column'
     }}>
-      <div 
+      <div
         onClick={(e) => { e.stopPropagation(); onAction('add_predio', contextMenu.latlng); setContextMenu(null); }}
         style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
         onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
@@ -132,7 +132,7 @@ function MapContextMenu({ onAction }) {
       >
         <Plus size={16} color="#34d399" /> Agregar Predio
       </div>
-      <div 
+      <div
         onClick={(e) => { e.stopPropagation(); onAction('measure', contextMenu.latlng); setContextMenu(null); }}
         style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
         onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
@@ -141,7 +141,7 @@ function MapContextMenu({ onAction }) {
         <Ruler size={16} color="#60a5fa" /> Medir Distancia
       </div>
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '5px 0' }}></div>
-      <div 
+      <div
         onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`${contextMenu.latlng.lat.toFixed(6)}, ${contextMenu.latlng.lng.toFixed(6)}`); setContextMenu(null); showSuccess('Coordenadas copiadas'); }}
         style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
         onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
@@ -169,7 +169,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
 
   return (
     <>
-      <div 
+      <div
         style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998, pointerEvents: 'auto' }}
         onClick={onClose}
         onContextMenu={(e) => { e.preventDefault(); onClose(); }}
@@ -193,7 +193,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
         <div style={{ padding: '5px 15px', fontSize: '0.8rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '5px' }}>
           {title}
         </div>
-        <div 
+        <div
           onClick={(e) => { e.stopPropagation(); onAction('zoom', context.feature); onClose(); }}
           style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -201,9 +201,9 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
         >
           <Target size={16} color="#fbbf24" /> Acercar al {isPredio ? 'Predio' : 'Elemento'}
         </div>
-        
+
         {!isPredio && (
-          <div 
+          <div
             onClick={(e) => { e.stopPropagation(); onAction('popup', context.feature); onClose(); }}
             style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -215,7 +215,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
 
         {isPredio && (
           <>
-            <div 
+            <div
               onClick={(e) => { e.stopPropagation(); onAction('table', context.feature); onClose(); }}
               style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -224,7 +224,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
               <TableProperties size={16} color="#eab308" /> Tabla de Atributos
             </div>
             <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
-            <div 
+            <div
               onClick={(e) => { e.stopPropagation(); onAction('edit', context.feature); onClose(); }}
               style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -232,7 +232,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
             >
               <Edit size={16} color="#3b82f6" /> Editar Predio
             </div>
-            <div 
+            <div
               onClick={(e) => { e.stopPropagation(); onAction('hide', context.feature); onClose(); }}
               style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -240,7 +240,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
             >
               <EyeOff size={16} color="#94a3b8" /> Ocultar Predio
             </div>
-            <div 
+            <div
               onClick={(e) => { e.stopPropagation(); onAction('export', context.feature); onClose(); }}
               style={{ padding: '10px 15px', color: 'var(--success)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -249,7 +249,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
               <DownloadCloud size={16} color="var(--success)" /> Exportar a Shapefile
             </div>
             <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
-            <div 
+            <div
               onClick={(e) => { e.stopPropagation(); onAction('delete', context.feature); onClose(); }}
               style={{ padding: '10px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -265,7 +265,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
 }
 
 // Define UTM Zone 17S
-proj4.defs("EPSG:32717","+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
+proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
 export default function Geoportal() {
   const authToken = localStorage.getItem('catastro_token');
@@ -276,7 +276,7 @@ export default function Geoportal() {
   const [showShapefileUploader, setShowShapefileUploader] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportCodigo, setReportCodigo] = useState('');
-  
+
   // Current user info might be stored in localStorage or available via context/props
   // Attempting to decode JWT token to get user info if not passed down:
   const getDecodedUser = () => {
@@ -285,22 +285,22 @@ export default function Geoportal() {
       if (!token) return null;
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
       }).join(''));
       return JSON.parse(jsonPayload);
     } catch (e) {
       return null;
     }
   };
-  
+
   const [currentUser] = useState(getDecodedUser());
 
   useEffect(() => {
     if (window.innerWidth < 768) {
       setIsSidebarOpen(false);
     }
-    
+
     // Observar cambios en el tema
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -322,7 +322,7 @@ export default function Geoportal() {
   const [activeTasks, setActiveTasks] = useState([]);
   const [catalogData, setCatalogData] = useState(null);
   const [activeTableData, setActiveTableData] = useState(null);
-  
+
   // Custom Layers State
   const [capasAdicionales, setCapasAdicionales] = useState([]);
   const [activeCapasAdicionales, setActiveCapasAdicionales] = useState({});
@@ -331,9 +331,9 @@ export default function Geoportal() {
 
   const handleAddTemporalLayer = async (geojson, name) => {
     const id = `temp_${Date.now()}`;
-    const color = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`;
+    const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
     const layer = { id, name, geojson, color };
-    
+
     try {
       await saveTemporalLayer(layer);
       setTemporalLayers(prev => [...prev, layer]);
@@ -380,12 +380,12 @@ export default function Geoportal() {
 
   const toggleCapaAdicional = async (tabla_db) => {
     const isCurrentlyActive = activeCapasAdicionales[tabla_db];
-    
+
     setActiveCapasAdicionales(prev => ({
       ...prev,
       [tabla_db]: !isCurrentlyActive
     }));
-    
+
     if (!isCurrentlyActive && !geoJsonCacheAdicionales[tabla_db]) {
       try {
         const res = await fetch(`${API_URL}/api/gis/capa-adicional/${tabla_db}`, {
@@ -442,9 +442,9 @@ export default function Geoportal() {
       } else {
         setToastMsg({ type: 'error', title: 'Error', message: 'No se pudo borrar' });
       }
-    } catch(e) { console.error(e); }
+    } catch (e) { console.error(e); }
   };
-  
+
   // Datos Vectoriales Catastrales
   const [prediosData, setPrediosData] = useState(null);
   const [verticesData, setVerticesData] = useState(null);
@@ -469,13 +469,13 @@ export default function Geoportal() {
   const [showPredios, setShowPredios] = useState(false);
   const [showVertices, setShowVertices] = useState(false);
   const [showLineas, setShowLineas] = useState(false);
-  
+
   // CRUD Predios
   const [isAddingPredio, setIsAddingPredio] = useState(false);
   const [editingPredio, setEditingPredio] = useState(null);
   const [featureContextMenu, setFeatureContextMenu] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
-  
+
   // Búsqueda
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
@@ -522,7 +522,7 @@ export default function Geoportal() {
     };
     const options = {
       outputType: 'blob',
-      types: { 
+      types: {
         point: 'vertices',
         polygon: 'predios',
         line: 'linderos'
@@ -553,7 +553,7 @@ export default function Geoportal() {
         const geojson = await shp(buffer);
         setImportedShapes(geojson);
         setToastMsg({ type: 'success', title: 'Importado', message: 'Shapefile cargado al mapa visualmente.' });
-        
+
         if (map && geojson.features && geojson.features.length > 0) {
           const group = L.geoJSON(geojson);
           map.fitBounds(group.getBounds());
@@ -572,7 +572,7 @@ export default function Geoportal() {
     if (!map) return;
     map.on('locationfound', (e) => {
       setUserLocation(e.latlng);
-      
+
       // Solo centramos la cámara la primera vez
       if (!window.isFirstLocationFound) {
         map.flyTo(e.latlng, 18);
@@ -607,7 +607,7 @@ export default function Geoportal() {
     if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
     if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
     if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
-    
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
@@ -624,8 +624,8 @@ export default function Geoportal() {
         console.error("Error fetching predios:", await prediosRes.text());
         setPrediosData({ type: "FeatureCollection", features: [] });
       }
-    } catch (err) { 
-      console.error("Network error fetching predios:", err); 
+    } catch (err) {
+      console.error("Network error fetching predios:", err);
       setPrediosData({ type: "FeatureCollection", features: [] });
     } finally {
       setLoadingPredios(false);
@@ -679,7 +679,7 @@ export default function Geoportal() {
       setToastMsg({ type: 'error', title: 'Error', message: e.message });
     }
   };
-  
+
   // Visibilidad de Ortofotos Individuales { "archivo.tif": true/false }
   const [individualOrthophotos, setIndividualOrthophotos] = useState({});
 
@@ -711,7 +711,7 @@ export default function Geoportal() {
         if (data.ruta) {
           handleS3FileSelect(data.ruta);
         }
-      } catch(e) {
+      } catch (e) {
         setToastMsg({ type: 'error', title: 'Error', message: 'Fallo de conexión al buscar archivo' });
       }
     } else {
@@ -735,7 +735,7 @@ export default function Geoportal() {
       } else {
         setToastMsg({ type: 'error', title: 'Error', message: processData.detail || 'Fallo al procesar' });
       }
-    } catch(e) {
+    } catch (e) {
       setToastMsg({ type: 'error', title: 'Error', message: 'Fallo de conexión al enviar archivo' });
     }
   };
@@ -745,7 +745,7 @@ export default function Geoportal() {
     if (!window.confirm('¿Iniciar la catalogación masiva de toda la carpeta de ortofotos? Esto podría tardar varios minutos.')) return;
     try {
       setToastMsg({ type: 'info', title: 'Catalogación', message: 'Iniciando...' });
-      const res = await fetch(`${API_URL}/api/gis/ortofotos/catalogar-masivo`, { 
+      const res = await fetch(`${API_URL}/api/gis/ortofotos/catalogar-masivo`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
@@ -756,10 +756,10 @@ export default function Geoportal() {
       } else {
         setToastMsg({ type: 'error', title: 'Error', message: 'No se pudo iniciar' });
       }
-    } catch(e) { console.error(e); }
+    } catch (e) { console.error(e); }
   };
-  
-  const defaultCenter = currentUser?.defaultCenter || [-1.5833, -79.4667]; 
+
+  const defaultCenter = currentUser?.defaultCenter || [-1.5833, -79.4667];
   const defaultZoom = currentUser?.defaultZoom || 14;
 
   const handleDeleteCapaAdicional = async (tabla_db) => {
@@ -789,7 +789,7 @@ export default function Geoportal() {
       if (bounds.isValid()) {
         map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 1.5 });
       }
-      
+
       // Resaltar el predio al hacer zoom desde la lista
       const featId = feature.properties ? (feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral) : null;
       if (featId) {
@@ -883,14 +883,14 @@ export default function Geoportal() {
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    
+
     let dataToSearch = prediosData;
     if (!dataToSearch && authToken) {
       setToastMsg({ type: 'info', title: 'Buscando...', message: 'Cargando base de predios...' });
       try {
         let currentUrl = `${API_URL}/api/gis/predios`;
         if (activeEmpresa) currentUrl += `?empresa_id=${activeEmpresa.id}`;
-        
+
         const res = await fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } });
         dataToSearch = await res.json();
         setPrediosData(dataToSearch);
@@ -904,7 +904,7 @@ export default function Geoportal() {
     if (!dataToSearch?.features) return;
 
     const query = searchQuery.trim().toLowerCase();
-    
+
     const matches = dataToSearch.features.filter(f => {
       const cod = f.properties.cod_catastral?.toLowerCase() || '';
       const cedula = f.properties.cedula?.toLowerCase() || '';
@@ -921,11 +921,11 @@ export default function Geoportal() {
 
     const featureCollection = { type: "FeatureCollection", features: matches };
     const bounds = L.geoJSON(featureCollection).getBounds();
-    
+
     if (map) {
       map.flyToBounds(bounds, { duration: 1.5, easeLinearity: 0.25, padding: [50, 50], maxZoom: 20 });
     }
-    
+
     if (window.innerWidth <= 768) {
       setIsSidebarOpen(false);
     } else {
@@ -936,7 +936,7 @@ export default function Geoportal() {
         metadatos: true
       });
     }
-    
+
     setToastMsg({ type: 'success', title: 'Encontrado', message: `Se encontraron ${matches.length} predio(s).` });
   };
 
@@ -944,39 +944,39 @@ export default function Geoportal() {
     e.preventDefault();
     setIsDragging(true);
   };
-  
+
   const onDragLeave = (e) => {
     e.preventDefault();
     setIsDragging(false);
   };
-  
+
   const onDrop = async (e) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
       const formData = new FormData();
       formData.append("file", file);
-      
+
       setToastMsg({ type: 'info', title: 'Subiendo archivo...', message: `Procesando ${file.name}` });
-      
+
       try {
         const response = await fetch(`${API_URL}/api/gis/upload`, {
           method: 'POST',
           body: formData,
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
           setToastMsg({ type: 'success', title: 'Éxito', message: data.mensaje });
           if (data.tipo === 'raster') {
             setActiveTasks(prev => [...prev, { id: data.task_id, progress: 0, status: 'procesando', minimized: false, filename: file.name }]);
           } else if (data.tipo === 'vector') {
-            if (data.capa === 'predio') { setPrediosData(null); if(showPredios) togglePredios(); }
-            if (data.capa === 'linea_lindero') { setLineasData(null); if(showLineas) toggleLineas(); }
-            if (data.capa === 'vertice') { setVerticesData(null); if(showVertices) toggleVertices(); }
+            if (data.capa === 'predio') { setPrediosData(null); if (showPredios) togglePredios(); }
+            if (data.capa === 'linea_lindero') { setLineasData(null); if (showLineas) toggleLineas(); }
+            if (data.capa === 'vertice') { setVerticesData(null); if (showVertices) toggleVertices(); }
           }
         } else {
           setToastMsg({ type: 'error', title: 'Error', message: data.detail });
@@ -1003,11 +1003,11 @@ export default function Geoportal() {
                   if (data.estado === 'completado') {
                     setToastMsg({ type: 'success', title: '¡Ortofoto Lista!', message: `Generación exitosa para ${t.filename}.` });
                     setTimeout(() => setToastMsg(null), 8000);
-                    
+
                     if (t.filename !== 'Carpeta Entera') {
                       setIndividualOrthophotos(prevOrto => ({ ...prevOrto, [t.filename]: true }));
                     }
-                    
+
                     fetch(`${API_URL}/api/gis/catalog`, { headers: { 'Authorization': `Bearer ${authToken}` } }).then(r => r.json()).then(d => {
                       if (d.type === 'FeatureCollection') setCatalogData(d);
                     });
@@ -1045,7 +1045,7 @@ export default function Geoportal() {
 
   let totalDistance = 0;
   for (let i = 1; i < measurePoints.length; i++) {
-    totalDistance += L.latLng(measurePoints[i-1]).distanceTo(L.latLng(measurePoints[i]));
+    totalDistance += L.latLng(measurePoints[i - 1]).distanceTo(L.latLng(measurePoints[i]));
   }
   let dynamicDistance = 0;
   if (isMeasuring && measurePoints.length > 0 && mousePos) {
@@ -1105,10 +1105,10 @@ export default function Geoportal() {
       )}
 
       {(isAddingPredio || editingPredio) && !isDrawingPredio && (
-        <PredioForm 
-          initialData={editingPredio || tempPredioFormData} 
-          onSubmit={handleSavePredio} 
-          onCancel={() => { setIsAddingPredio(false); setEditingPredio(null); setTempPredioFormData(null); }} 
+        <PredioForm
+          initialData={editingPredio || tempPredioFormData}
+          onSubmit={handleSavePredio}
+          onCancel={() => { setIsAddingPredio(false); setEditingPredio(null); setTempPredioFormData(null); }}
           onStartDrawing={() => {
             setIsAddingPredio(false);
             setIsDrawingPredio(true);
@@ -1122,8 +1122,8 @@ export default function Geoportal() {
         <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'var(--bg-panel)', backdropFilter: 'blur(10px)', padding: '10px 20px', borderRadius: '30px', border: '1px solid var(--accent-color)', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 0 20px rgba(0,0,0,0.5)' }}>
           <MousePointer2 size={18} color="var(--accent-color)" />
           <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>Modo Dibujo: Doble clic para finalizar</span>
-          <button 
-            className="btn-cancel" 
+          <button
+            className="btn-cancel"
             style={{ padding: '5px 15px', fontSize: '12px', borderRadius: '15px' }}
             onClick={() => {
               setIsDrawingPredio(false);
@@ -1140,7 +1140,7 @@ export default function Geoportal() {
 
       <div className="ui-overlay" style={{ pointerEvents: 'none' }}>
         {sidebarContextMenu && (
-          <div 
+          <div
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998, pointerEvents: 'auto' }}
             onClick={() => setSidebarContextMenu(null)}
             onContextMenu={(e) => { e.preventDefault(); setSidebarContextMenu(null); }}
@@ -1164,7 +1164,7 @@ export default function Geoportal() {
             pointerEvents: 'auto'
           }}>
             {!sidebarContextMenu.isAdicional && (
-              <div 
+              <div
                 onClick={(e) => { e.stopPropagation(); setActiveTableData(sidebarContextMenu.layerType); setSidebarContextMenu(null); }}
                 style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -1173,14 +1173,14 @@ export default function Geoportal() {
                 <TableProperties size={16} color="#3b82f6" /> Ver Tabla de Atributos
               </div>
             )}
-            <div 
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                const data = sidebarContextMenu.isAdicional 
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                const data = sidebarContextMenu.isAdicional
                   ? geoJsonCacheAdicionales[sidebarContextMenu.layerType]
                   : sidebarContextMenu.layerType === 'predios' ? prediosData : sidebarContextMenu.layerType === 'lineas' ? lineasData : verticesData;
-                zoomToVectorLayer(data); 
-                setSidebarContextMenu(null); 
+                zoomToVectorLayer(data);
+                setSidebarContextMenu(null);
               }}
               style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -1188,15 +1188,15 @@ export default function Geoportal() {
             >
               <Target size={16} color="#fbbf24" /> Acercar a la Capa
             </div>
-            
+
             {sidebarContextMenu.isAdicional && (
               <>
                 <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
-                <div 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
                     handleDeleteCapaAdicional(sidebarContextMenu.layerType);
-                    setSidebarContextMenu(null); 
+                    setSidebarContextMenu(null);
                   }}
                   style={{ padding: '10px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -1209,8 +1209,8 @@ export default function Geoportal() {
           </div>
         )}
 
-        <FeatureContextMenuComponent 
-          context={featureContextMenu} 
+        <FeatureContextMenuComponent
+          context={featureContextMenu}
           onClose={() => setFeatureContextMenu(null)}
           onAction={(action, feature) => {
             if (action === 'zoom') {
@@ -1231,7 +1231,7 @@ export default function Geoportal() {
             } else if (action === 'hide') {
               setHiddenFeatureIds(prev => [...prev, feature.properties.id]);
             } else if (action === 'export') {
-              proj4.defs("EPSG:32717","+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
+              proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
               const predioId = feature.properties.id;
               let posesionarioName = feature.properties.nombre_posesionario;
@@ -1273,14 +1273,14 @@ export default function Geoportal() {
                 type: 'FeatureCollection',
                 features: featuresToExport
               };
-              
+
               const prj32717 = 'PROJCS["WGS_1984_UTM_Zone_17S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",-81.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]';
 
               const options = {
                 outputType: 'blob',
                 compression: 'STORE',
                 prj: prj32717,
-                types: { 
+                types: {
                   point: `${cleanName}_punto`,
                   multipoint: `${cleanName}_punto`,
                   line: `${cleanName}_linea`,
@@ -1291,7 +1291,7 @@ export default function Geoportal() {
                   multipolygon: `${cleanName}_predio`
                 }
               };
-              
+
               Promise.resolve(shpwrite.zip(singleGeoJSON, options)).then(content => {
                 if (content && typeof content.generateAsync === 'function') return content.generateAsync({ type: 'blob', compression: 'STORE' });
                 if (content && typeof content.generate === 'function') return content.generate({ type: 'blob', compression: 'STORE' });
@@ -1311,7 +1311,7 @@ export default function Geoportal() {
             } else if (action === 'delete') {
               handleDeletePredio(feature.properties.id, feature.properties.cod_catastral);
             }
-          }} 
+          }}
         />
 
         {!isSidebarOpen && (
@@ -1344,16 +1344,16 @@ export default function Geoportal() {
 
         {/* PREMIUM FLOATING TOOLBAR DOCK */}
         <div className="floating-dock">
-          <button 
+          <button
             onClick={() => { setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false); setIsBoxZooming(false); }}
             className={`dock-button navegar ${(!isMeasuring && !isAddingPredio && !isDrawingPredio && !isBoxZooming) ? 'active' : ''}`}
           >
             <MousePointer2 size={18} /> <span className="dock-button-text">Navegar</span>
           </button>
-          
+
           <div className="dock-divider"></div>
 
-          <button 
+          <button
             onClick={() => {
               setIsBoxZooming(!isBoxZooming);
               setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false);
@@ -1364,14 +1364,14 @@ export default function Geoportal() {
             <Scan size={18} />
           </button>
 
-          <button 
+          <button
             onClick={() => map && map.zoomIn()}
             className="dock-button"
             title="Acercar (Zoom In)"
           >
             <ZoomIn size={18} />
           </button>
-          <button 
+          <button
             onClick={() => map && map.zoomOut()}
             className="dock-button"
             title="Alejar (Zoom Out)"
@@ -1381,16 +1381,16 @@ export default function Geoportal() {
 
           <div className="dock-divider"></div>
 
-          <button 
+          <button
             onClick={() => { setIsAddingPredio(true); setIsMeasuring(false); }}
             className={`dock-button agregar ${(isAddingPredio || isDrawingPredio) ? 'active' : ''}`}
           >
             <Plus size={18} /> <span className="dock-button-text">Agregar Predio</span>
           </button>
-          
+
           <div className="dock-divider"></div>
 
-          <button 
+          <button
             onClick={() => { setIsMeasuring(!isMeasuring); setIsAddingPredio(false); setIsDrawingPredio(false); setIsSnapped(false); setMeasurePoints([]); setMousePos(null); }}
             className={`dock-button medir ${isMeasuring ? 'active' : ''}`}
           >
@@ -1399,8 +1399,8 @@ export default function Geoportal() {
 
           <div className="dock-divider"></div>
 
-          <button 
-            onClick={() => { 
+          <button
+            onClick={() => {
               if (map) {
                 // Alternar rastreo
                 if (window.isTrackingLocation) {
@@ -1411,7 +1411,7 @@ export default function Geoportal() {
                   setToastMsg({ type: 'info', title: 'Rastreo Detenido', message: 'Se ha detenido el seguimiento de tu ubicación.' });
                 } else {
                   window.isFirstLocationFound = false; // Reset flag
-                  map.locate({ setView: false, maxZoom: 18, enableHighAccuracy: true, watch: true }); 
+                  map.locate({ setView: false, maxZoom: 18, enableHighAccuracy: true, watch: true });
                   window.isTrackingLocation = true;
                 }
               }
@@ -1422,16 +1422,16 @@ export default function Geoportal() {
           </button>
         </div>
 
-        <S3BrowserModal 
-          isOpen={isS3ModalOpen} 
-          onClose={() => setIsS3ModalOpen(false)} 
-          onSelect={handleS3FileSelect} 
-          authToken={authToken} 
+        <S3BrowserModal
+          isOpen={isS3ModalOpen}
+          onClose={() => setIsS3ModalOpen(false)}
+          onSelect={handleS3FileSelect}
+          authToken={authToken}
         />
 
         {/* INFO WINDOW PARA LA REGLA */}
         {isMeasuring && (
-          <div style={{ 
+          <div style={{
             position: 'absolute', bottom: '100px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, pointerEvents: 'auto',
             background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(10px)', border: '1px solid #f59e0b', borderRadius: '12px', padding: '12px 20px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
           }}>
@@ -1443,471 +1443,479 @@ export default function Geoportal() {
 
         <aside className={`map-sidebar ${isSidebarOpen ? 'open' : ''}`}>
           <div style={{ padding: '20px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <X 
-              size={24} 
-              color="var(--text-main)" 
-              style={{ cursor: 'pointer' }} 
+            <X
+              size={24}
+              color="var(--text-main)"
+              style={{ cursor: 'pointer' }}
               onClick={() => setIsSidebarOpen(false)}
               title="Ocultar panel"
             />
             <h3 style={{ margin: 0, color: 'var(--accent-color)' }}>Controles del Mapa</h3>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-        
-        {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
-        <div className="sidebar-section">
-          <div className="section-header" style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={16} color="var(--primary)" />
-              <span className="section-title">Gestión de Datos</span>
-            </div>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
-            <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
-              <UploadCloud size={16} /> Ortofoto
-            </button>
-            <input 
-              type="file" 
-              accept=".zip" 
-              style={{ display: 'none' }} 
-              ref={shapefileInputRef} 
-              onChange={handleImportShapefile} 
-            />
-            <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
-              <UploadCloud size={16} /> Shapefile
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
-            <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-              <DownloadCloud size={16} /> Descargar DB
-            </button>
-            <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
-              <FolderSearch size={16} /> Catalogar
-            </button>
-          </div>
 
-          <div className="section-title" style={{ marginTop: '15px' }}>
-            <Layers size={16} />
-            Catastro Histórico (4D)
-          </div>
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Ver estado a la fecha:</label>
-            <div style={{ display: 'flex', gap: '5px' }}>
-              <input 
-                className="sidebar-input"
-                type="date" 
-                value={fechaHistorica}
-                onChange={e => setFechaHistorica(e.target.value)}
-                style={{ flex: 1 }}
-                title="Filtrar en el backend por fecha exacta"
-              />
-              <select 
-                className="sidebar-input" 
-                value={selectedYear} 
-                onChange={e => setSelectedYear(e.target.value)}
-                style={{ flex: 1, padding: '2px', fontSize: '0.75rem' }}
-                title="Filtrar resultados visualmente por año"
-              >
-                <option value="Todos">Todos los años</option>
-                <option value="2026">2026</option>
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
-              <button 
-                onClick={() => {
-                  setPrediosData(null);
-                  fetchMapData();
-                }} 
-                style={{ padding: '5px 10px', background: '#eab308', color: '#1e293b', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Aplicar
-              </button>
-            </div>
-            {fechaHistorica && (
-              <div style={{ fontSize: '0.75rem', color: '#38bdf8', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }} onClick={() => { 
-                setFechaHistorica(''); 
-                setTimeout(() => { 
-                  // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
-                  let currentUrl = `${API_URL}/api/gis/predios`;
-                  if (activeEmpresa) currentUrl += `?empresa_id=${activeEmpresa.id}`;
-                  fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
-                    .then(r => r.json())
-                    .then(d => setPrediosData(d))
-                    .catch(console.error);
-                }, 50); 
-              }}>
-                Volver a la actualidad
+            {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
+            <div className="sidebar-section">
+              <div className="section-header" style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Layers size={16} color="var(--primary)" />
+                  <span className="section-title">Gestión de Datos</span>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
-        <div className="sidebar-section">
-          <div className="section-header" onClick={() => toggleCategory('vectores')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={16} color="var(--primary)" />
-              <span className="section-title">Capas Vectoriales</span>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
+                <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
+                  <UploadCloud size={16} /> Ortofoto
+                </button>
+                <input
+                  type="file"
+                  accept=".zip"
+                  style={{ display: 'none' }}
+                  ref={shapefileInputRef}
+                  onChange={handleImportShapefile}
+                />
+                <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
+                  <UploadCloud size={16} /> Shapefile
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+                <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                  <DownloadCloud size={16} /> Descargar DB
+                </button>
+                <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
+                  <FolderSearch size={16} /> Catalogar
+                </button>
+              </div>
+
+              <div className="section-title" style={{ marginTop: '15px' }}>
+                <Layers size={16} />
+                Catastro Histórico (4D)
+              </div>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Ver estado a la fecha:</label>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input
+                    className="sidebar-input"
+                    type="date"
+                    value={fechaHistorica}
+                    onChange={e => setFechaHistorica(e.target.value)}
+                    style={{ flex: 1 }}
+                    title="Filtrar en el backend por fecha exacta"
+                  />
+                  <select
+                    className="sidebar-input"
+                    value={selectedYear}
+                    onChange={e => setSelectedYear(e.target.value)}
+                    style={{ flex: 1, padding: '2px', fontSize: '0.75rem' }}
+                    title="Filtrar resultados visualmente por año"
+                  >
+                    <option value="Todos">Todos los años</option>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                  <button
+                    onClick={() => {
+                      setPrediosData(null);
+                      fetchMapData();
+                    }}
+                    style={{ padding: '5px 10px', background: '#eab308', color: '#1e293b', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Aplicar
+                  </button>
+                </div>
+                {fechaHistorica && (
+                  <div style={{ fontSize: '0.75rem', color: '#38bdf8', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }} onClick={() => {
+                    setFechaHistorica('');
+                    setTimeout(() => {
+                      // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
+                      let currentUrl = `${API_URL}/api/gis/predios`;
+                      if (activeEmpresa) currentUrl += `?empresa_id=${activeEmpresa.id}`;
+                      fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
+                        .then(r => r.json())
+                        .then(d => setPrediosData(d))
+                        .catch(console.error);
+                    }, 50);
+                  }}>
+                    Volver a la actualidad
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              {collapsedCategories.vectores ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-            </div>
-          </div>
-          
-          {!collapsedCategories.vectores && (
-            <>
-              <div 
-                className={`layer-item ${showPredios ? 'active' : ''}`}
-                onContextMenu={(e) => {
-                  if (showPredios) {
-                    e.preventDefault();
-                    setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'predios' });
-                  }
+
+            {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
+            <div className="sidebar-section">
+              <div
+                onClick={() => toggleCategory('vectores')}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '10px',
+                  border: '1px solid #1e293b',
+                  padding: '8px',
+                  cursor: 'pointer',
+                  backgroundColor: '#f8fafc',
+                  marginBottom: '10px'
                 }}
               >
-                <span onClick={togglePredios} style={{ flex: 1 }}>Predios (Polígonos)</span>
-                <span onClick={togglePredios} style={{ cursor: 'pointer' }}>{showPredios ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
+                <span style={{ fontWeight: 'bold', color: '#1e293b', fontSize: '0.9rem' }}>Capas Vectoriales</span>
+                {collapsedCategories.vectores ? <ChevronRight size={16} color="#1e293b" /> : <ChevronDown size={16} color="#1e293b" />}
               </div>
-              {showPredios && (
-                <div style={{ padding: '5px 10px 10px 30px', backgroundColor: 'var(--bg-main)' }}>
-                  <div style={{ marginBottom: '5px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mostrar por:</label>
-                    <select 
-                      value={listDisplayMode} 
-                      onChange={e => setListDisplayMode(e.target.value)}
-                      className="sidebar-input"
-                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: 'auto' }}
-                    >
-                      <option value="codigo">Código Catastral</option>
-                      <option value="nombre">Nombre Propietario</option>
-                    </select>
-                  </div>
 
-                  <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', marginTop: '10px' }}>
+              {!collapsedCategories.vectores && (
+                <>
+                  <div
+                    className={`layer-item ${showPredios ? 'active' : ''}`}
+                    onContextMenu={(e) => {
+                      if (showPredios) {
+                        e.preventDefault();
+                        setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'predios' });
+                      }
+                    }}
+                  >
+                    <span onClick={togglePredios} style={{ flex: 1 }}>Predios (Polígonos)</span>
+                    <span onClick={togglePredios} style={{ cursor: 'pointer' }}>{showPredios ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
                   </div>
-                  
-                  {/* LISTA INDIVIDUAL DE PREDIOS */}
-                  <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '4px', padding: '4px' }}>
-                    {loadingPredios && (
-                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        Cargando predios...
+                  {showPredios && (
+                    <div style={{ padding: '5px 10px 10px 30px', backgroundColor: 'var(--bg-main)' }}>
+                      <div style={{ marginBottom: '5px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mostrar por:</label>
+                        <select
+                          value={listDisplayMode}
+                          onChange={e => setListDisplayMode(e.target.value)}
+                          className="sidebar-input"
+                          style={{ padding: '2px 4px', fontSize: '0.75rem', height: 'auto' }}
+                        >
+                          <option value="codigo">Código Catastral</option>
+                          <option value="nombre">Nombre Propietario</option>
+                        </select>
                       </div>
-                    )}
-                    {!loadingPredios && (!prediosData?.features || prediosData.features.length === 0) && (
-                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        No hay predios en esta empresa.
+
+                      <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', marginTop: '10px' }}>
                       </div>
-                    )}
-                    {!loadingPredios && (prediosData?.features || [])
-                      .filter(f => f && f.properties)
-                      .filter(f => searchResults === null || searchResults.includes(f.properties.id))
-                      .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
-                      .map(f => {
-                        const isHidden = hiddenFeatureIds.includes(f.properties.id);
-                        const displayText = listDisplayMode === 'codigo' 
-                          ? (f.properties.cod_catastral || `Predio ${f.properties.id}`)
-                          : (f.properties.nombre_posesionario || 'Sin Nombre');
-                        return (
-                          <div 
-                            key={f.properties.id} 
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
-                            onClick={() => zoomToFeature(f)}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              setFeatureContextMenu({
-                                feature: f,
-                                mouseX: e.clientX,
-                                mouseY: e.clientY
-                              });
-                            }}
-                          >
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={displayText}>{displayText}</span>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <span 
-                                style={{ cursor: 'pointer', color: '#3b82f6' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingPredio({
-                                    id: f.properties.id,
-                                    posesionario_id: f.properties.posesionario_id,
-                                    cod_catastral: f.properties.cod_catastral,
-                                    geom_geojson: JSON.stringify(f.geometry, null, 2)
+
+                      {/* LISTA INDIVIDUAL DE PREDIOS */}
+                      <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '4px', padding: '4px' }}>
+                        {loadingPredios && (
+                          <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            Cargando predios...
+                          </div>
+                        )}
+                        {!loadingPredios && (!prediosData?.features || prediosData.features.length === 0) && (
+                          <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            No hay predios en esta empresa.
+                          </div>
+                        )}
+                        {!loadingPredios && (prediosData?.features || [])
+                          .filter(f => f && f.properties)
+                          .filter(f => searchResults === null || searchResults.includes(f.properties.id))
+                          .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
+                          .map(f => {
+                            const isHidden = hiddenFeatureIds.includes(f.properties.id);
+                            const displayText = listDisplayMode === 'codigo'
+                              ? (f.properties.cod_catastral || `Predio ${f.properties.id}`)
+                              : (f.properties.nombre_posesionario || 'Sin Nombre');
+                            return (
+                              <div
+                                key={f.properties.id}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
+                                onClick={() => zoomToFeature(f)}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setFeatureContextMenu({
+                                    feature: f,
+                                    mouseX: e.clientX,
+                                    mouseY: e.clientY
                                   });
                                 }}
-                                title="Editar predio"
                               >
-                                <Edit size={14} />
-                              </span>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={displayText}>{displayText}</span>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <span
+                                    style={{ cursor: 'pointer', color: '#3b82f6' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingPredio({
+                                        id: f.properties.id,
+                                        posesionario_id: f.properties.posesionario_id,
+                                        cod_catastral: f.properties.cod_catastral,
+                                        geom_geojson: JSON.stringify(f.geometry, null, 2)
+                                      });
+                                    }}
+                                    title="Editar predio"
+                                  >
+                                    <Edit size={14} />
+                                  </span>
 
-                              <span 
-                                style={{ cursor: 'pointer' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isHidden) setHiddenFeatureIds(hiddenFeatureIds.filter(id => id !== f.properties.id));
-                                  else setHiddenFeatureIds([...hiddenFeatureIds, f.properties.id]);
-                                }}
-                                title={isHidden ? "Mostrar lote" : "Ocultar lote"}
-                              >
-                                {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                  <span
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isHidden) setHiddenFeatureIds(hiddenFeatureIds.filter(id => id !== f.properties.id));
+                                      else setHiddenFeatureIds([...hiddenFeatureIds, f.properties.id]);
+                                    }}
+                                    title={isHidden ? "Mostrar lote" : "Ocultar lote"}
+                                  >
+                                    {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        }
+                      </div>
+                    </div>
+                  )}
+
+                  <div
+                    className={`layer-item ${showLineas ? 'active' : ''}`}
+                    onContextMenu={(e) => {
+                      if (showLineas) {
+                        e.preventDefault();
+                        setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'lineas' });
+                      }
+                    }}
+                  >
+                    <span onClick={toggleLineas} style={{ flex: 1 }}>Linderos (Líneas)</span>
+                    <span onClick={toggleLineas} style={{ cursor: 'pointer' }}>{showLineas ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
+                  </div>
+
+                  <div
+                    className={`layer-item ${showVertices ? 'active' : ''}`}
+                    onContextMenu={(e) => {
+                      if (showVertices) {
+                        e.preventDefault();
+                        setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'vertices' });
+                      }
+                    }}
+                  >
+                    <span onClick={toggleVertices} style={{ flex: 1 }}>Vértices (Puntos)</span>
+                    <span onClick={toggleVertices} style={{ cursor: 'pointer' }}>{showVertices ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
+                  </div>
+
+                  {/* CAPAS ADICIONALES (GENERICAS) */}
+                  {capasAdicionales.length > 0 && (
+                    <>
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
+                      <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Adicionales</div>
+                      {capasAdicionales.map(capa => (
+                        <React.Fragment key={capa.tabla_db}>
+                          <div
+                            className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
+                            onContextMenu={(e) => {
+                              if (activeCapasAdicionales[capa.tabla_db]) {
+                                e.preventDefault();
+                                setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: capa.tabla_db, isAdicional: true });
+                              }
+                            }}
+                          >
+                            <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
+                              {getGeometryIcon(capa.tipo_geometria)}
+                              {capa.nombre_capa}
+                            </span>
+                            <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ cursor: 'pointer' }}>
+                              {activeCapasAdicionales[capa.tabla_db] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
+                            </span>
+                          </div>
+                          {activeCapasAdicionales[capa.tabla_db] && geoJsonCacheAdicionales[capa.tabla_db] && (
+                            <div className="feature-list" style={{ marginLeft: '10px', marginTop: '5px', maxHeight: '150px', overflowY: 'auto' }}>
+                              {geoJsonCacheAdicionales[capa.tabla_db].features.map((f, i) => {
+                                const name = f.properties.nombre || f.properties.name || f.properties.codigo || f.properties.cod_catastral || `Elemento ${i + 1}`;
+                                return (
+                                  <div key={i} className="feature-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', cursor: 'pointer' }} onClick={() => zoomToFeature(f)}>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={name}>{name}</span>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                      <Target size={14} style={{ cursor: 'pointer', color: '#fbbf24' }} onClick={(e) => { e.stopPropagation(); zoomToFeature(f); }} />
+                                      <TableProperties size={14} style={{ cursor: 'pointer', color: '#eab308' }} onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (f.layer && f.layer.openPopup) f.layer.openPopup();
+                                      }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </React.Fragment>
+                      ))}
+
+                      {/* CAPAS TEMPORALES */}
+                      {temporalLayers.length > 0 && (
+                        <>
+                          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
+                          <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Temporales (Caché Local)</div>
+                          {temporalLayers.map(capa => (
+                            <div key={capa.id} className={`layer-item ${activeTemporalLayers[capa.id] ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center' }}>
+                              <span onClick={() => setActiveTemporalLayers(prev => ({ ...prev, [capa.id]: !prev[capa.id] }))} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <div style={{ width: '12px', height: '12px', background: capa.color, borderRadius: '2px', marginRight: '8px' }}></div>
+                                {capa.name}
+                              </span>
+                              <span onClick={() => setActiveTemporalLayers(prev => ({ ...prev, [capa.id]: !prev[capa.id] }))} style={{ cursor: 'pointer', marginRight: '10px' }}>
+                                {activeTemporalLayers[capa.id] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
+                              </span>
+                              <span onClick={async () => {
+                                try {
+                                  await deleteTemporalLayer(capa.id);
+                                  setTemporalLayers(prev => prev.filter(c => c.id !== capa.id));
+                                } catch (e) { console.error(e); }
+                              }} style={{ cursor: 'pointer', color: '#ef4444' }} title="Eliminar capa temporal local">
+                                <Trash2 size={16} />
                               </span>
                             </div>
-                          </div>
-                        );
-                      })
-                    }
+                          ))}
+                        </>
+                      )}
+
+                    </>
+                  )}
+                </>
+              )}
+
+              <div className="layer-category" onClick={() => toggleCategory('basemap')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Mapas Base</span>
+                {collapsedCategories.basemap ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              </div>
+
+              {!collapsedCategories.basemap && (
+                <>
+                  <div className={`layer-item ${baseMap === 'osm' ? 'active' : ''}`} onClick={() => setBaseMap('osm')}>
+                    <span>OpenStreetMap</span>
+                    {baseMap === 'osm' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
                   </div>
+                  <div className={`layer-item ${baseMap === 'esri' ? 'active' : ''}`} onClick={() => setBaseMap('esri')}>
+                    <span>Satélite (Esri)</span>
+                    {baseMap === 'esri' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                  </div>
+                  <div className={`layer-item ${baseMap === 'carto' ? 'active' : ''}`} onClick={() => setBaseMap('carto')}>
+                    <span>Carto ({theme === 'dark' ? 'Oscuro' : 'Claro'})</span>
+                    {baseMap === 'carto' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                  </div>
+                  <div className={`layer-item ${baseMap === 'none' ? 'active' : ''}`} onClick={() => setBaseMap('none')}>
+                    <span>Fondo Blanco (Ninguno)</span>
+                    {baseMap === 'none' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                  </div>
+                </>
+              )}
+
+              <div className="layer-category" onClick={() => toggleCategory('raster')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Raster</span>
+                {collapsedCategories.raster ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              </div>
+
+              {!collapsedCategories.raster && (
+                <>
+                  <div className={`layer-item ${showMasterOrthophoto ? 'active' : ''}`} onClick={() => setShowMasterOrthophoto(!showMasterOrthophoto)}>
+                    <span>Mosaico Maestro (Todas)</span>
+                    {showMasterOrthophoto ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                  </div>
+
+                  <div className="layer-item" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '10px 15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Opacidad: {Math.round(ortofotoOpacity * 100)}%</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={ortofotoOpacity}
+                      onChange={(e) => setOrtofotoOpacity(parseFloat(e.target.value))}
+                      style={{ width: '100%', cursor: 'pointer' }}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="layer-category" onClick={() => toggleCategory('ortofotos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Ortofotos Individuales</span>
+                {collapsedCategories.ortofotos ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              </div>
+
+              {!collapsedCategories.ortofotos && catalogData?.features?.map((f, i) => {
+                const filename = f.properties.nombre_archivo;
+                const isVisible = individualOrthophotos[filename];
+                return (
+                  <div key={i} className={`layer-item ${isVisible ? 'active' : ''}`} style={{ paddingLeft: '20px', fontSize: '0.85rem' }}>
+                    <span onClick={() => toggleIndividualOrthophoto(filename)} style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}>{filename}</span>
+                    <Trash2 size={16} color="#ef4444" style={{ marginRight: '8px' }} onClick={() => deleteOrthophoto(filename)} />
+                    {isVisible && <Target size={16} color="#fbbf24" style={{ marginRight: '8px' }} onClick={() => zoomToOrtofoto(filename)} />}
+                    <span onClick={() => toggleIndividualOrthophoto(filename)}>{isVisible ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}</span>
+                  </div>
+                );
+              })}
+
+              <div className="layer-category" onClick={() => toggleCategory('metadatos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Catálogo Metadatos</span>
+                {collapsedCategories.metadatos ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              </div>
+
+              {!collapsedCategories.metadatos && (
+                <div className={`layer-item ${showFootprints ? 'active' : ''}`} onClick={() => setShowFootprints(!showFootprints)}>
+                  <span>Cuadros de Ortofotos</span>
+                  {showFootprints ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
                 </div>
               )}
-              
-              <div 
-                className={`layer-item ${showLineas ? 'active' : ''}`}
-                onContextMenu={(e) => {
-                  if (showLineas) {
-                    e.preventDefault();
-                    setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'lineas' });
-                  }
-                }}
-              >
-                <span onClick={toggleLineas} style={{ flex: 1 }}>Linderos (Líneas)</span>
-                <span onClick={toggleLineas} style={{ cursor: 'pointer' }}>{showLineas ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
-              </div>
-              
-              <div 
-                className={`layer-item ${showVertices ? 'active' : ''}`}
-                onContextMenu={(e) => {
-                  if (showVertices) {
-                    e.preventDefault();
-                    setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'vertices' });
-                  }
-                }}
-              >
-                <span onClick={toggleVertices} style={{ flex: 1 }}>Vértices (Puntos)</span>
-                <span onClick={toggleVertices} style={{ cursor: 'pointer' }}>{showVertices ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
-              </div>
-              
-              {/* CAPAS ADICIONALES (GENERICAS) */}
-              {capasAdicionales.length > 0 && (
-                <>
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
-                  <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Adicionales</div>
-                  {capasAdicionales.map(capa => (
-                    <React.Fragment key={capa.tabla_db}>
-                      <div 
-                        className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
-                        onContextMenu={(e) => {
-                        if (activeCapasAdicionales[capa.tabla_db]) {
-                          e.preventDefault();
-                          setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: capa.tabla_db, isAdicional: true });
-                        }
-                      }}
-                    >
-                      <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
-                        {getGeometryIcon(capa.tipo_geometria)}
-                        {capa.nombre_capa}
-                      </span>
-                      <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ cursor: 'pointer' }}>
-                        {activeCapasAdicionales[capa.tabla_db] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
-                      </span>
-                    </div>
-                    {activeCapasAdicionales[capa.tabla_db] && geoJsonCacheAdicionales[capa.tabla_db] && (
-                      <div className="feature-list" style={{ marginLeft: '10px', marginTop: '5px', maxHeight: '150px', overflowY: 'auto' }}>
-                        {geoJsonCacheAdicionales[capa.tabla_db].features.map((f, i) => {
-                          const name = f.properties.nombre || f.properties.name || f.properties.codigo || f.properties.cod_catastral || `Elemento ${i+1}`;
-                          return (
-                            <div key={i} className="feature-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', cursor: 'pointer' }} onClick={() => zoomToFeature(f)}>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={name}>{name}</span>
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <Target size={14} style={{ cursor: 'pointer', color: '#fbbf24' }} onClick={(e) => { e.stopPropagation(); zoomToFeature(f); }} />
-                                <TableProperties size={14} style={{ cursor: 'pointer', color: '#eab308' }} onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (f.layer && f.layer.openPopup) f.layer.openPopup();
-                                }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </React.Fragment>
-                ))}
-                
-              {/* CAPAS TEMPORALES */}
-              {temporalLayers.length > 0 && (
-                <>
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
-                  <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Temporales (Caché Local)</div>
-                  {temporalLayers.map(capa => (
-                    <div key={capa.id} className={`layer-item ${activeTemporalLayers[capa.id] ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center' }}>
-                      <span onClick={() => setActiveTemporalLayers(prev => ({...prev, [capa.id]: !prev[capa.id]}))} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                        <div style={{ width: '12px', height: '12px', background: capa.color, borderRadius: '2px', marginRight: '8px' }}></div>
-                        {capa.name}
-                      </span>
-                      <span onClick={() => setActiveTemporalLayers(prev => ({...prev, [capa.id]: !prev[capa.id]}))} style={{ cursor: 'pointer', marginRight: '10px' }}>
-                        {activeTemporalLayers[capa.id] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
-                      </span>
-                      <span onClick={async () => {
-                        try {
-                          await deleteTemporalLayer(capa.id);
-                          setTemporalLayers(prev => prev.filter(c => c.id !== capa.id));
-                        } catch (e) { console.error(e); }
-                      }} style={{ cursor: 'pointer', color: '#ef4444' }} title="Eliminar capa temporal local">
-                        <Trash2 size={16} />
-                      </span>
-                    </div>
-                  ))}
-                </>
-              )}
-
-                </>
-              )}
-            </>
-          )}
-
-          <div className="layer-category" onClick={() => toggleCategory('basemap')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Mapas Base</span>
-            {collapsedCategories.basemap ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-          </div>
-          
-          {!collapsedCategories.basemap && (
-            <>
-              <div className={`layer-item ${baseMap === 'osm' ? 'active' : ''}`} onClick={() => setBaseMap('osm')}>
-                <span>OpenStreetMap</span>
-                {baseMap === 'osm' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-              </div>
-              <div className={`layer-item ${baseMap === 'esri' ? 'active' : ''}`} onClick={() => setBaseMap('esri')}>
-                <span>Satélite (Esri)</span>
-                {baseMap === 'esri' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-              </div>
-              <div className={`layer-item ${baseMap === 'carto' ? 'active' : ''}`} onClick={() => setBaseMap('carto')}>
-                <span>Carto ({theme === 'dark' ? 'Oscuro' : 'Claro'})</span>
-                {baseMap === 'carto' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-              </div>
-              <div className={`layer-item ${baseMap === 'none' ? 'active' : ''}`} onClick={() => setBaseMap('none')}>
-                <span>Fondo Blanco (Ninguno)</span>
-                {baseMap === 'none' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-              </div>
-            </>
-          )}
-
-          <div className="layer-category" onClick={() => toggleCategory('raster')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Raster</span>
-            {collapsedCategories.raster ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-          </div>
-          
-          {!collapsedCategories.raster && (
-            <>
-              <div className={`layer-item ${showMasterOrthophoto ? 'active' : ''}`} onClick={() => setShowMasterOrthophoto(!showMasterOrthophoto)}>
-                <span>Mosaico Maestro (Todas)</span>
-                {showMasterOrthophoto ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-              </div>
-              
-              <div className="layer-item" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '10px 15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Opacidad: {Math.round(ortofotoOpacity * 100)}%</span>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="1" 
-                  step="0.05" 
-                  value={ortofotoOpacity} 
-                  onChange={(e) => setOrtofotoOpacity(parseFloat(e.target.value))} 
-                  style={{ width: '100%', cursor: 'pointer' }}
-                />
-              </div>
-            </>
-          )}
-
-          <div className="layer-category" onClick={() => toggleCategory('ortofotos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Ortofotos Individuales</span>
-            {collapsedCategories.ortofotos ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-          </div>
-          
-          {!collapsedCategories.ortofotos && catalogData?.features?.map((f, i) => {
-            const filename = f.properties.nombre_archivo;
-            const isVisible = individualOrthophotos[filename];
-            return (
-              <div key={i} className={`layer-item ${isVisible ? 'active' : ''}`} style={{ paddingLeft: '20px', fontSize: '0.85rem' }}>
-                <span onClick={() => toggleIndividualOrthophoto(filename)} style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}>{filename}</span>
-                <Trash2 size={16} color="#ef4444" style={{ marginRight: '8px' }} onClick={() => deleteOrthophoto(filename)} />
-                {isVisible && <Target size={16} color="#fbbf24" style={{ marginRight: '8px' }} onClick={() => zoomToOrtofoto(filename)} />}
-                <span onClick={() => toggleIndividualOrthophoto(filename)}>{isVisible ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}</span>
-              </div>
-            );
-          })}
-
-          <div className="layer-category" onClick={() => toggleCategory('metadatos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Catálogo Metadatos</span>
-            {collapsedCategories.metadatos ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-          </div>
-
-          {!collapsedCategories.metadatos && (
-            <div className={`layer-item ${showFootprints ? 'active' : ''}`} onClick={() => setShowFootprints(!showFootprints)}>
-              <span>Cuadros de Ortofotos</span>
-              {showFootprints ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
             </div>
-          )}
-        </div>
 
-        {/* PANEL: BÚSQUEDA Y HERRAMIENTAS */}
-        <div className="sidebar-section">
-          <div className="section-title">
-            <Search size={16} />
-            Escala
-          </div>
-          <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!map) return;
-              const val = document.getElementById('sidebar-scale-input').value;
-              if (!val || val <= 0) return;
-              const lat = map.getCenter().lat;
-              const mpp = val / 3779.529;
-              const targetZoom = Math.log2((156543.03392 * Math.cos(lat * Math.PI / 180)) / mpp);
-              map.setZoom(targetZoom);
-            }} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-              <span style={{ color: '#94a3b8', lineHeight: '30px' }}>1:</span>
-              <input id="sidebar-scale-input" className="sidebar-input" type="number" defaultValue="1000" min="1" />
-              <button type="submit" style={{ padding: '5px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ir</button>
-          </form>
-          <div className="section-title" style={{ marginTop: '15px' }}>
-            <Search size={16} />
-            Buscar Predio
-          </div>
-          <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-            <input 
-              className="sidebar-input"
-              type="text" 
-              placeholder="Cédula o Cód. Catastral" 
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-            <button type="submit" style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Buscar</button>
-          </form>
+            {/* PANEL: BÚSQUEDA Y HERRAMIENTAS */}
+            <div className="sidebar-section">
+              <div className="section-title">
+                <Search size={16} />
+                Escala
+              </div>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!map) return;
+                const val = document.getElementById('sidebar-scale-input').value;
+                if (!val || val <= 0) return;
+                const lat = map.getCenter().lat;
+                const mpp = val / 3779.529;
+                const targetZoom = Math.log2((156543.03392 * Math.cos(lat * Math.PI / 180)) / mpp);
+                map.setZoom(targetZoom);
+              }} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                <span style={{ color: '#94a3b8', lineHeight: '30px' }}>1:</span>
+                <input id="sidebar-scale-input" className="sidebar-input" type="number" defaultValue="1000" min="1" />
+                <button type="submit" style={{ padding: '5px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ir</button>
+              </form>
+              <div className="section-title" style={{ marginTop: '15px' }}>
+                <Search size={16} />
+                Buscar Predio
+              </div>
+              <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                <input
+                  className="sidebar-input"
+                  type="text"
+                  placeholder="Cédula o Cód. Catastral"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                <button type="submit" style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Buscar</button>
+              </form>
 
-        </div>
-        </div>
+            </div>
+          </div>
         </aside>
       </div>
 
-      <MapContainer 
-        center={defaultCenter} 
-        zoom={defaultZoom} 
+      <MapContainer
+        center={defaultCenter}
+        zoom={defaultZoom}
         zoomSnap={0.1}
         maxZoom={32}
         ref={setMap}
         className={`map-container ${isMeasuring ? 'measuring-active' : ''}`}
         zoomControl={false}
       >
-        <MeasureTool 
-          isMeasuring={isMeasuring} 
-          measurePoints={measurePoints} 
-          setMeasurePoints={setMeasurePoints} 
-          setMousePos={setMousePos} 
+        <MeasureTool
+          isMeasuring={isMeasuring}
+          measurePoints={measurePoints}
+          setMeasurePoints={setMeasurePoints}
+          setMousePos={setMousePos}
         />
 
         {!isMeasuring && !isDrawingPredio && (
-          <MapContextMenu 
+          <MapContextMenu
             onAction={(action, latlng) => {
               if (action === 'add_predio') {
                 setIsAddingPredio(true);
@@ -1915,12 +1923,12 @@ export default function Geoportal() {
                 setIsMeasuring(true);
                 setMeasurePoints([latlng]);
               }
-            }} 
+            }}
           />
         )}
 
-        <FeatureContextMenuComponent 
-          context={featureContextMenu} 
+        <FeatureContextMenuComponent
+          context={featureContextMenu}
           onClose={() => setFeatureContextMenu(null)}
           onAction={(action, feature) => {
             if (action === 'zoom') {
@@ -1941,7 +1949,7 @@ export default function Geoportal() {
             } else if (action === 'hide') {
               setHiddenFeatureIds(prev => [...prev, feature.properties.id]);
             } else if (action === 'export') {
-              proj4.defs("EPSG:32717","+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
+              proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
               const predioId = feature.properties.id;
               let posesionarioName = feature.properties.nombre_posesionario;
@@ -1983,14 +1991,14 @@ export default function Geoportal() {
                 type: 'FeatureCollection',
                 features: featuresToExport
               };
-              
+
               const prj32717 = 'PROJCS["WGS_1984_UTM_Zone_17S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",-81.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]';
 
               const options = {
                 outputType: 'blob',
                 compression: 'STORE',
                 prj: prj32717,
-                types: { 
+                types: {
                   point: `${cleanName}_punto`,
                   multipoint: `${cleanName}_punto`,
                   line: `${cleanName}_linea`,
@@ -2001,7 +2009,7 @@ export default function Geoportal() {
                   multipolygon: `${cleanName}_predio`
                 }
               };
-              
+
               Promise.resolve(shpwrite.zip(singleGeoJSON, options)).then(content => {
                 if (content && typeof content.generateAsync === 'function') return content.generateAsync({ type: 'blob', compression: 'STORE' });
                 if (content && typeof content.generate === 'function') return content.generate({ type: 'blob', compression: 'STORE' });
@@ -2023,14 +2031,14 @@ export default function Geoportal() {
             }
           }}
         />
-        
+
         {isDrawingPredio && (
-          <DrawPolygonTool 
-            isDrawing={isDrawingPredio} 
-            drawPoints={drawPoints} 
-            setDrawPoints={setDrawPoints} 
-            setMousePos={setMousePos} 
-            onFinish={handleFinishDrawing} 
+          <DrawPolygonTool
+            isDrawing={isDrawingPredio}
+            drawPoints={drawPoints}
+            setDrawPoints={setDrawPoints}
+            setMousePos={setMousePos}
+            onFinish={handleFinishDrawing}
             setIsSnapped={setIsSnapped}
           />
         )}
@@ -2039,7 +2047,7 @@ export default function Geoportal() {
         {isMeasuring && measurePoints.length > 0 && mousePos && (
           <Polyline positions={[...measurePoints, mousePos]} color="#ef4444" weight={3} dashArray="5, 10" />
         )}
-        
+
         {/* Polígono temporal para dibujo */}
         {isDrawingPredio && drawPoints.length > 0 && mousePos && (
           <Polygon positions={[...drawPoints, mousePos]} color="var(--accent-color)" fillColor="var(--accent-color)" weight={3} fillOpacity={0.2} dashArray="5, 5" />
@@ -2051,13 +2059,13 @@ export default function Geoportal() {
         ))}
         {isDrawingPredio && mousePos && (
           isSnapped ? (
-            <Marker 
-              position={mousePos} 
+            <Marker
+              position={mousePos}
               icon={L.divIcon({
                 className: 'snap-icon',
                 html: '<div style="width: 14px; height: 14px; border: 2px solid #22c55e; background: rgba(34,197,94,0.4); transform: translate(-50%, -50%);"></div>',
                 iconSize: [0, 0]
-              })} 
+              })}
             />
           ) : (
             <CircleMarker center={mousePos} radius={5} color="#fbbf24" fillColor="#fbbf24" fillOpacity={0.8} weight={2} />
@@ -2066,12 +2074,12 @@ export default function Geoportal() {
 
         {/* Marcador de Ubicación en Tiempo Real */}
         {userLocation && (
-          <CircleMarker 
-            center={userLocation} 
-            radius={8} 
-            color="#ffffff" 
-            fillColor="#a855f7" 
-            fillOpacity={0.9} 
+          <CircleMarker
+            center={userLocation}
+            radius={8}
+            color="#ffffff"
+            fillColor="#a855f7"
+            fillOpacity={0.9}
             weight={3}
           >
             <Popup>Tu ubicación actual</Popup>
@@ -2119,7 +2127,7 @@ export default function Geoportal() {
             opacity={ortofotoOpacity}
           />
         )}
-        
+
         {/* RASTER: Ortofotos Individuales (Dinámicas) */}
         {Object.keys(individualOrthophotos).map(filename => {
           if (individualOrthophotos[filename]) {
@@ -2142,9 +2150,9 @@ export default function Geoportal() {
 
         {/* VECTOR: Predios */}
         {showPredios && prediosData && prediosData.features && (
-          <GeoJSON 
+          <GeoJSON
             key={`predios-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}`}
-            data={{...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)) && (selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear))))}}
+            data={{ ...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)) && (selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))) }}
             style={(feature) => {
               const isSelected = selectedPredioId === feature.properties.id || (searchResults && searchResults.includes(feature.properties.id));
               return {
@@ -2197,7 +2205,7 @@ export default function Geoportal() {
 
         {/* VECTOR: Imported Shapefile */}
         {importedShapes && importedShapes.features && (
-          <GeoJSON 
+          <GeoJSON
             key="imported-shapes"
             data={importedShapes}
             style={() => ({
@@ -2220,8 +2228,8 @@ export default function Geoportal() {
 
         {/* VECTOR: Linderos */}
         {showLineas && lineasData && lineasData.features && (
-          <GeoJSON 
-            data={{...lineasData, features: (lineasData.features || []).filter(f => f && f.geometry)}}
+          <GeoJSON
+            data={{ ...lineasData, features: (lineasData.features || []).filter(f => f && f.geometry) }}
             style={() => ({
               color: '#f97316', // Naranja
               weight: 3,
@@ -2232,8 +2240,8 @@ export default function Geoportal() {
 
         {/* VECTOR: Vértices */}
         {showVertices && verticesData && verticesData.features && (
-          <GeoJSON 
-            data={{...verticesData, features: (verticesData.features || []).filter(f => f && f.geometry)}}
+          <GeoJSON
+            data={{ ...verticesData, features: (verticesData.features || []).filter(f => f && f.geometry) }}
             pointToLayer={(feature, latlng) => {
               return L.circleMarker(latlng, {
                 radius: 4,
@@ -2256,7 +2264,7 @@ export default function Geoportal() {
         {capasAdicionales.map(capa => {
           if (activeCapasAdicionales[capa.tabla_db] && geoJsonCacheAdicionales[capa.tabla_db]) {
             return (
-              <GeoJSON 
+              <GeoJSON
                 key={capa.tabla_db}
                 data={geoJsonCacheAdicionales[capa.tabla_db]}
                 style={(feature) => {
@@ -2285,13 +2293,13 @@ export default function Geoportal() {
                   if (feature.properties) {
                     let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 200px; overflow-y: auto;">
                       <h4 style="margin:0 0 8px 0; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">${capa.nombre_capa}</h4>`;
-                    
+
                     Object.entries(feature.properties).forEach(([key, value]) => {
                       if (key !== 'id' && value !== null && value !== '') {
                         popupContent += `<p style="margin:0 0 4px 0; font-size: 12px;"><b>${key}:</b> ${value}</p>`;
                       }
                     });
-                    
+
                     popupContent += `</div>`;
                     layer.bindPopup(popupContent);
                   }
@@ -2312,7 +2320,7 @@ export default function Geoportal() {
                       });
                     }
                   });
-                  
+
                   layer.on('contextmenu', (e) => {
                     L.DomEvent.stopPropagation(e);
                     setFeatureContextMenu({
@@ -2333,7 +2341,7 @@ export default function Geoportal() {
         {temporalLayers.map(capa => {
           if (activeTemporalLayers[capa.id] && capa.geojson) {
             return (
-              <GeoJSON 
+              <GeoJSON
                 key={capa.id}
                 data={capa.geojson}
                 style={(feature) => {
@@ -2384,8 +2392,8 @@ export default function Geoportal() {
 
         {/* VECTOR: Catálogo de Ortofotos (Footprints) */}
         {showFootprints && catalogData && (
-          <GeoJSON 
-            data={catalogData} 
+          <GeoJSON
+            data={catalogData}
             style={geojsonStyle}
             onEachFeature={(feature, layer) => {
               layer.bindPopup(`<b>Archivo:</b> ${feature.properties.nombre_archivo}`);
@@ -2398,17 +2406,17 @@ export default function Geoportal() {
         {measurePoints.length > 1 && (
           <Polyline positions={measurePoints} color="#fbbf24" weight={4} />
         )}
-        
+
         {/* Línea de la Regla dinámica al mover el ratón */}
         {isMeasuring && measurePoints.length > 0 && mousePos && (
-          <Polyline 
-            positions={[measurePoints[measurePoints.length - 1], mousePos]} 
-            color="#fbbf24" 
-            weight={4} 
-            dashArray="5, 10" 
+          <Polyline
+            positions={[measurePoints[measurePoints.length - 1], mousePos]}
+            color="#fbbf24"
+            weight={4}
+            dashArray="5, 10"
           />
         )}
-        
+
         {/* Puntos (nodos) de la Regla */}
         {measurePoints.map((pt, idx) => (
           <CircleMarker key={idx} center={pt} radius={5} fillColor="#fbbf24" color="white" weight={2} fillOpacity={1} />
@@ -2416,12 +2424,12 @@ export default function Geoportal() {
 
         {/* Marcador de Ubicación del Usuario en Tiempo Real */}
         {userLocation && (
-          <CircleMarker 
-            center={userLocation} 
-            radius={8} 
-            fillColor="#3b82f6" 
-            color="#ffffff" 
-            weight={2} 
+          <CircleMarker
+            center={userLocation}
+            radius={8}
+            fillColor="#3b82f6"
+            color="#ffffff"
+            weight={2}
             fillOpacity={0.8}
             zIndexOffset={1000}
           >
@@ -2460,12 +2468,12 @@ export default function Geoportal() {
               <span className="tracker-title">
                 <Loader2 size={16} className={task.status === 'procesando' ? 'spin' : ''} />
                 <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={task.filename}>
-                  {task.status === 'procesando' ? `Procesando: ${task.filename}` : 
-                   task.status === 'completado' ? `¡Lista: ${task.filename}!` : `Error: ${task.filename}`}
+                  {task.status === 'procesando' ? `Procesando: ${task.filename}` :
+                    task.status === 'completado' ? `¡Lista: ${task.filename}!` : `Error: ${task.filename}`}
                 </span>
               </span>
-              <div style={{display: 'flex', gap: '5px'}}>
-                <button 
+              <div style={{ display: 'flex', gap: '5px' }}>
+                <button
                   className="tracker-minimize"
                   onClick={() => setActiveTasks(prev => prev.map(t => t.id === task.id ? { ...t, minimized: !t.minimized } : t))}
                 >
@@ -2476,12 +2484,12 @@ export default function Geoportal() {
                 </button>
               </div>
             </div>
-            
+
             {!task.minimized && (
               <div className="tracker-body">
                 <div className="progress-bar-bg">
-                  <div 
-                    className={`progress-bar-fill ${task.status}`} 
+                  <div
+                    className={`progress-bar-fill ${task.status}`}
                     style={{ width: `${Math.max(0, task.progress)}%` }}
                   ></div>
                 </div>
@@ -2507,20 +2515,20 @@ export default function Geoportal() {
           }
         }
         return (
-          <AttributeTable 
-            layerName={name} 
-            data={layerData} 
+          <AttributeTable
+            layerName={name}
+            data={layerData}
             onClose={() => setActiveTableData(null)}
-          hiddenFeatureIds={hiddenFeatureIds}
-          setHiddenFeatureIds={setHiddenFeatureIds}
-          onRowContextMenu={(e, feature) => {
-            setFeatureContextMenu({
-              feature: feature,
-              mouseX: e.clientX,
-              mouseY: e.clientY
-            });
-          }}
-        />
+            hiddenFeatureIds={hiddenFeatureIds}
+            setHiddenFeatureIds={setHiddenFeatureIds}
+            onRowContextMenu={(e, feature) => {
+              setFeatureContextMenu({
+                feature: feature,
+                mouseX: e.clientX,
+                mouseY: e.clientY
+              });
+            }}
+          />
         );
       })()}
 
@@ -2552,8 +2560,8 @@ export default function Geoportal() {
             </div>
             <div>
               <label style={{ fontSize: '0.9rem', marginBottom: '8px', display: 'block' }}>Ingrese el Código Catastral del predio:</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 className="sidebar-input"
                 value={reportCodigo}
                 onChange={(e) => setReportCodigo(e.target.value)}
@@ -2584,22 +2592,22 @@ export default function Geoportal() {
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-              <button 
-                className="btn-secondary" 
+              <button
+                className="btn-secondary"
                 onClick={() => setShowReportModal(false)}
                 style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', color: 'var(--text-main)', cursor: 'pointer' }}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn-primary" 
+              <button
+                className="btn-primary"
                 onClick={async () => {
                   const cod = reportCodigo.trim();
                   if (!cod) {
                     showError('Por favor ingrese un código catastral válido.');
                     return;
                   }
-                  
+
                   try {
                     const res = await fetch(`${API_URL}/api/gis/codigos/buscar/${cod}`, {
                       headers: { 'Authorization': `Bearer ${authToken}` }
