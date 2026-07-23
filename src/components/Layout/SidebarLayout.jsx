@@ -41,6 +41,18 @@ const SystemHealthIndicator = ({ collapsed }) => {
     );
   }
 
+  const [userRole, setUserRole] = useState('');
+  
+  useEffect(() => {
+    const token = localStorage.getItem('catastro_token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUserRole(payload.role || '');
+      } catch (e) {}
+    }
+  }, []);
+
   return (
     <div style={{ padding: '15px', borderTop: '1px solid var(--sidebar-border)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -52,11 +64,11 @@ const SystemHealthIndicator = ({ collapsed }) => {
           <span>API Backend:</span>
           <span style={{ color: health.api === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.api}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', title: health.database }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.database !== 'OK' ? health.database : undefined}>
           <span>Base de Datos:</span>
           <span style={{ color: health.database === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.database === 'OK' ? 'OK' : 'ERROR'}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', title: health.storage }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.storage !== 'OK' ? health.storage : undefined}>
           <span>Almacenamiento:</span>
           <span style={{ color: health.storage === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.storage === 'OK' ? 'OK' : 'ERROR'}</span>
         </div>

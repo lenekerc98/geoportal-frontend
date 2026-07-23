@@ -392,13 +392,21 @@ export default function Geoportal() {
         });
         if (res.ok) {
           const geojson = await res.json();
-          setGeoJsonCacheAdicionales(prev => ({
-            ...prev,
-            [tabla_db]: geojson
-          }));
+          if (geojson && (geojson.type === 'FeatureCollection' || geojson.type === 'Feature')) {
+            setGeoJsonCacheAdicionales(prev => ({
+              ...prev,
+              [tabla_db]: geojson
+            }));
+          } else {
+            console.error("Invalid GeoJSON returned:", geojson);
+            setActiveCapasAdicionales(prev => ({ ...prev, [tabla_db]: false }));
+          }
+        } else {
+          setActiveCapasAdicionales(prev => ({ ...prev, [tabla_db]: false }));
         }
       } catch (err) {
         console.error("Error fetching capa adicional GeoJSON", err);
+        setActiveCapasAdicionales(prev => ({ ...prev, [tabla_db]: false }));
       }
     }
   };
@@ -448,6 +456,7 @@ export default function Geoportal() {
   const [fechaFin, setFechaFin] = useState('');
   const [fechaHistorica, setFechaHistorica] = useState('');
   const [hiddenFeatureIds, setHiddenFeatureIds] = useState([]);
+  const [loadingPredios, setLoadingPredios] = useState(false);
   const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo' o 'nombre'
 
   // Visibilidades
@@ -601,6 +610,7 @@ export default function Geoportal() {
       url += `?${params.toString()}`;
     }
 
+    setLoadingPredios(true);
     try {
       const prediosRes = await fetch(url, {
         headers: { 'Authorization': `Bearer ${authToken}` }
@@ -608,8 +618,16 @@ export default function Geoportal() {
       if (prediosRes.ok) {
         const prediosGeoJSON = await prediosRes.json();
         setPrediosData(prediosGeoJSON);
+      } else {
+        console.error("Error fetching predios:", await prediosRes.text());
+        setPrediosData({ type: "FeatureCollection", features: [] });
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error("Network error fetching predios:", err); 
+      setPrediosData({ type: "FeatureCollection", features: [] });
+    } finally {
+      setLoadingPredios(false);
+    }
   };
 
   const handleSavePredio = async (predioData) => {
@@ -1530,7 +1548,17 @@ export default function Geoportal() {
                   
                   {/* LISTA INDIVIDUAL DE PREDIOS */}
                   <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '4px', padding: '4px' }}>
-                    {(prediosData?.features || [])
+                    {loadingPredios && (
+                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        Cargando predios...
+                      </div>
+                    )}
+                    {!loadingPredios && (!prediosData?.features || prediosData.features.length === 0) && (
+                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        No hay predios en esta empresa.
+                      </div>
+                    )}
+                    {!loadingPredios && (prediosData?.features || [])
                       .filter(f => f && f.properties)
                       .filter(f => searchResults === null || searchResults.includes(f.properties.id))
                       .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
