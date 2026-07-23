@@ -810,11 +810,23 @@ export default function Geoportal() {
     const newState = !showVertices;
     setShowVertices(newState);
     if (newState && !verticesData && authToken) {
+      let url = `${API_URL}/api/gis/vertices`;
+      const params = new URLSearchParams();
+      if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
+      if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
+      if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
+      if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+      if (params.toString()) url += `?${params.toString()}`;
+
       try {
-        const res = await fetch(`${API_URL}/api/gis/vertices`, {
+        const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        setVerticesData(await res.json());
+        if (res.ok) {
+          setVerticesData(await res.json());
+        } else {
+          console.error("Error fetching vertices", await res.text());
+        }
       } catch (err) { console.error(err); }
     }
   };
@@ -823,11 +835,23 @@ export default function Geoportal() {
     const newState = !showLineas;
     setShowLineas(newState);
     if (newState && !lineasData && authToken) {
+      let url = `${API_URL}/api/gis/lineas`;
+      const params = new URLSearchParams();
+      if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
+      if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
+      if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
+      if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+      if (params.toString()) url += `?${params.toString()}`;
+
       try {
-        const res = await fetch(`${API_URL}/api/gis/lineas`, {
+        const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        setLineasData(await res.json());
+        if (res.ok) {
+          setLineasData(await res.json());
+        } else {
+          console.error("Error fetching lineas", await res.text());
+        }
       } catch (err) { console.error(err); }
     }
   };
