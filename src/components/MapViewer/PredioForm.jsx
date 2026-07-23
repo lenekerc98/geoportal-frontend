@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Loader2, Check, MousePointer2, Upload, FileDown } from 'lucide-react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
+import { X, Save, Loader2, Check, MousePointer2, Upload, FileDown, Building2 } from 'lucide-react';
+import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 import * as XLSX from 'xlsx';
+import proj4 from 'proj4';
+
+proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
 export default function PredioForm({ onSubmit, onCancel, initialData, onStartDrawing }) {
   const formatInitialCoords = (geoJsonStr) => {
@@ -10,9 +14,21 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       if (typeof geoJsonStr === 'object') geoJsonStr = JSON.stringify(geoJsonStr);
       const parsed = JSON.parse(geoJsonStr);
       if (parsed.type === 'Polygon' && parsed.coordinates && parsed.coordinates[0]) {
-        return parsed.coordinates[0].map(coord => `${coord[0]} ${coord[1]}`).join('\n');
+        return parsed.coordinates[0].map(coord => {
+          if (Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90) {
+            const utm = proj4('EPSG:4326', 'EPSG:32717', [coord[0], coord[1]]);
+            return `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}`;
+          }
+          return `${coord[0]} ${coord[1]}`;
+        }).join('\n');
       } else if (parsed.type === 'MultiPolygon' && parsed.coordinates && parsed.coordinates[0] && parsed.coordinates[0][0]) {
-        return parsed.coordinates[0][0].map(coord => `${coord[0]} ${coord[1]}`).join('\n');
+        return parsed.coordinates[0][0].map(coord => {
+          if (Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90) {
+            const utm = proj4('EPSG:4326', 'EPSG:32717', [coord[0], coord[1]]);
+            return `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}`;
+          }
+          return `${coord[0]} ${coord[1]}`;
+        }).join('\n');
       }
     } catch (e) {
       return geoJsonStr;
@@ -25,7 +41,22 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     cod_catastral: initialData?.cod_catastral || '',
     geom_geojson: initialData?.geom_text || formatInitialCoords(initialData?.geom_geojson),
   });
+  });
   const [colindantes, setColindantes] = useState([]);
+  
+  const { activeEmpresa } = useContext(AppContext);
+  const [empresasList, setEmpresasList] = useState([]);
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState(initialData?.empresa_id || activeEmpresa?.id || '');
+
+  useEffect(() => {
+    if (!activeEmpresa && !initialData) {
+      const token = localStorage.getItem('catastro_token');
+      fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => setEmpresasList(data))
+        .catch(console.error);
+    }
+  }, [activeEmpresa, initialData]);
 
   const [cedula, setCedula] = useState('');
   const [nombrePosesionario, setNombrePosesionario] = useState('');
@@ -225,6 +256,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     onSubmit({
       ...formData,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
+      empresa_id: selectedEmpresaId ? parseInt(selectedEmpresaId, 10) : null,
       geom_geojson: parsedGeojson,
       es_utm: esUtm,
       colindantes: colindantes

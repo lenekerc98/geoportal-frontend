@@ -650,7 +650,7 @@ export default function Geoportal() {
         setEditingPredio(null);
         // Recargar predios
         setPrediosData(null);
-        if (showPredios) togglePredios();
+        if (showPredios) fetchMapData();
       } else {
         const err = await res.json();
         setToastMsg({ type: 'error', title: 'Error', message: err.detail });
@@ -671,7 +671,7 @@ export default function Geoportal() {
       if (res.ok) {
         setToastMsg({ type: 'success', title: 'Éxito', message: 'Predio eliminado' });
         setPrediosData(null);
-        if (showPredios) togglePredios();
+        if (showPredios) fetchMapData();
       } else {
         const err = await res.json();
         setToastMsg({ type: 'error', title: 'Error', message: err.detail });
@@ -1241,7 +1241,7 @@ export default function Geoportal() {
               }
               const cleanName = posesionarioName.replace(/[^a-zA-Z0-9]/g, '_');
 
-              const relatedLines = (linderosData?.features || []).filter(f => f.properties.predio_id === predioId);
+              const relatedLines = (lineasData?.features || []).filter(f => f.properties.predio_id === predioId);
               const relatedPoints = (verticesData?.features || []).filter(f => f.properties.predio_id === predioId);
 
               const transformCoords = (coords) => {
@@ -1454,6 +1454,42 @@ export default function Geoportal() {
             <h3 style={{ margin: 0, color: 'var(--accent-color)' }}>Controles del Mapa</h3>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+            {/* PANEL: BÚSQUEDA Y HERRAMIENTAS */}
+            <div className="sidebar-section">
+              <div className="section-title">
+                <Search size={16} />
+                Escala
+              </div>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!map) return;
+                const val = document.getElementById('sidebar-scale-input').value;
+                if (!val || val <= 0) return;
+                const lat = map.getCenter().lat;
+                const mpp = val / 3779.529;
+                const targetZoom = Math.log2((156543.03392 * Math.cos(lat * Math.PI / 180)) / mpp);
+                map.setZoom(targetZoom);
+              }} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                <span style={{ color: '#94a3b8', lineHeight: '30px' }}>1:</span>
+                <input id="sidebar-scale-input" className="sidebar-input" type="number" defaultValue="1000" min="1" />
+                <button type="submit" style={{ padding: '5px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ir</button>
+              </form>
+              <div className="section-title" style={{ marginTop: '15px' }}>
+                <Search size={16} />
+                Buscar Predio
+              </div>
+              <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                <input
+                  className="sidebar-input"
+                  type="text"
+                  placeholder="Cédula o Cód. Catastral"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                <button type="submit" style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Buscar</button>
+              </form>
+
+            </div>
 
             {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
             <div className="sidebar-section">
@@ -1861,42 +1897,7 @@ export default function Geoportal() {
               )}
             </div>
 
-            {/* PANEL: BÚSQUEDA Y HERRAMIENTAS */}
-            <div className="sidebar-section">
-              <div className="section-title">
-                <Search size={16} />
-                Escala
-              </div>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                if (!map) return;
-                const val = document.getElementById('sidebar-scale-input').value;
-                if (!val || val <= 0) return;
-                const lat = map.getCenter().lat;
-                const mpp = val / 3779.529;
-                const targetZoom = Math.log2((156543.03392 * Math.cos(lat * Math.PI / 180)) / mpp);
-                map.setZoom(targetZoom);
-              }} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-                <span style={{ color: '#94a3b8', lineHeight: '30px' }}>1:</span>
-                <input id="sidebar-scale-input" className="sidebar-input" type="number" defaultValue="1000" min="1" />
-                <button type="submit" style={{ padding: '5px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ir</button>
-              </form>
-              <div className="section-title" style={{ marginTop: '15px' }}>
-                <Search size={16} />
-                Buscar Predio
-              </div>
-              <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-                <input
-                  className="sidebar-input"
-                  type="text"
-                  placeholder="Cédula o Cód. Catastral"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                />
-                <button type="submit" style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Buscar</button>
-              </form>
 
-            </div>
           </div>
         </aside>
       </div>
@@ -1961,7 +1962,7 @@ export default function Geoportal() {
               }
               const cleanName = posesionarioName.replace(/[^a-zA-Z0-9]/g, '_');
 
-              const relatedLines = (linderosData?.features || []).filter(f => f.properties.predio_id === predioId);
+              const relatedLines = (lineasData?.features || []).filter(f => f.properties.predio_id === predioId);
               const relatedPoints = (verticesData?.features || []).filter(f => f.properties.predio_id === predioId);
 
               const transformCoords = (coords) => {

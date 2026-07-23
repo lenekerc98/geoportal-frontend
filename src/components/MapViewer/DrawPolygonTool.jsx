@@ -158,5 +158,26 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     }
   }, [isDrawing, map]);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!isDrawing) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (setIsSnapped) setIsSnapped(false);
+        onFinish([]); // Array vacío cancelará el dibujo en Geoportal.jsx
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const finalPoints = [...drawPoints];
+        if (snappedLatLng) finalPoints.push(snappedLatLng);
+        onFinish(finalPoints);
+      } else if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        setDrawPoints(prev => prev.length > 0 ? prev.slice(0, -1) : prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDrawing, drawPoints, snappedLatLng, onFinish, setIsSnapped, setDrawPoints]);
+
   return null;
 }
