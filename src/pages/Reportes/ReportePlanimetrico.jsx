@@ -278,12 +278,9 @@ export default function ReportePlanimetrico() {
     </div>;
   }
 
-  // Remove the early return for !data so we can render the controls first
-
   const { predio = {}, vertices = [], linderos = [] } = data || {};
   
   // Extraer Polígono (WKT to LatLng array)
-  // Ej: POLYGON((lng lat, lng lat...))
   const parsePolygonWKT = (wkt) => {
     if (!wkt) return [];
     try {
@@ -443,17 +440,8 @@ export default function ReportePlanimetrico() {
                   <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                   <UtmGrid setMapGridLabels={setMapGridLabels} />
                   
-                  <LayersControl position="topright">
-                    <LayersControl.BaseLayer checked name="Ortofoto (Local)">
-                      <TileLayer url={`${API_URL}/api/gis/tiles/{z}/{x}/{y}.png?v=3`} maxNativeZoom={20} maxZoom={24} zIndex={0} />
-                    </LayersControl.BaseLayer>
-                    <LayersControl.BaseLayer name="Satélite (Esri)">
-                      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={19} maxZoom={24} zIndex={0} />
-                    </LayersControl.BaseLayer>
-                    <LayersControl.BaseLayer name="Mapa Claro">
-                      <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" maxNativeZoom={19} maxZoom={24} zIndex={0} />
-                    </LayersControl.BaseLayer>
-                  </LayersControl>
+                  {/* Capa Satelital Fija por Defecto en el Reporte */}
+                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={19} maxZoom={24} zIndex={0} />
                   
                   <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
                   
