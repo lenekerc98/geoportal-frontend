@@ -465,7 +465,8 @@ export default function Geoportal() {
   const [showFootprints, setShowFootprints] = useState(false);
   const [showMasterOrthophoto, setShowMasterOrthophoto] = useState(false);
   const [ortofotoOpacity, setOrtofotoOpacity] = useState(1);
-  const [baseMap, setBaseMap] = useState('none');
+  const [baseMap, setBaseMap] = useState('osm');
+  const [showCartoLabels, setShowCartoLabels] = useState(false);
   const [showPredios, setShowPredios] = useState(false);
   const [showVertices, setShowVertices] = useState(false);
   const [showLineas, setShowLineas] = useState(false);
@@ -1793,6 +1794,12 @@ export default function Geoportal() {
                     <span>Fondo Blanco (Ninguno)</span>
                     {baseMap === 'none' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
                   </div>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
+                  <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Superpuestas</div>
+                  <div className={`layer-item ${showCartoLabels ? 'active' : ''}`} onClick={() => setShowCartoLabels(!showCartoLabels)}>
+                    <span>Etiquetas de Calles (Carto)</span>
+                    {showCartoLabels ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                  </div>
                 </>
               )}
 
@@ -2106,6 +2113,15 @@ export default function Geoportal() {
             url={theme === 'dark' ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"}
             attribution='&copy; CARTO'
             zIndex={1}
+            maxNativeZoom={19}
+            maxZoom={32}
+          />
+        )}
+        {showCartoLabels && (
+          <TileLayer
+            url={theme === 'dark' ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"}
+            attribution='&copy; CARTO'
+            zIndex={30}
             maxNativeZoom={19}
             maxZoom={32}
           />
