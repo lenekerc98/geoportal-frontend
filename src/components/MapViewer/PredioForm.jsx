@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
+import Draggable from 'react-draggable';
+//, useEffect, useRef, useContext } from 'react';
 import { X, Save, Loader2, Check, MousePointer2, Upload, FileDown, Building2 } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
@@ -43,19 +45,47 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   });
   const [colindantes, setColindantes] = useState([]);
   
-  const { activeEmpresa } = useContext(AppContext);
+  const { activeEmpresa, activeProyecto } = useContext(AppContext);
   const [empresasList, setEmpresasList] = useState([]);
+  const [proyectosList, setProyectosList] = useState([]);
   const [selectedEmpresaId, setSelectedEmpresaId] = useState(initialData?.empresa_id || activeEmpresa?.id || '');
+  const [selectedProyectoId, setSelectedProyectoId] = useState(initialData?.proyecto_id || activeProyecto?.id || '');
 
   useEffect(() => {
     if (!activeEmpresa && !initialData) {
       const token = localStorage.getItem('catastro_token');
       fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json())
-        .then(data => setEmpresasList(data))
+        .then(data => {
+          if (Array.isArray(data)) {
+            setEmpresasList(data);
+            if (data.length === 1 && !selectedEmpresaId) {
+              setSelectedEmpresaId(data[0].id);
+            }
+          }
+        })
         .catch(console.error);
     }
-  }, [activeEmpresa, initialData]);
+  }, [activeEmpresa, initialData, selectedEmpresaId]);
+
+  useEffect(() => {
+    const targetEmpresaId = activeEmpresa?.id || selectedEmpresaId;
+    if (targetEmpresaId && (!activeProyecto || activeProyecto.empresa_id != targetEmpresaId) && !initialData) {
+      const token = localStorage.getItem('catastro_token');
+      fetch(`${API_URL}/api/proyectos`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            const filtered = data.filter(p => p.empresa_id == targetEmpresaId);
+            setProyectosList(filtered);
+            if (filtered.length === 1 && !selectedProyectoId) {
+              setSelectedProyectoId(filtered[0].id);
+            }
+          }
+        })
+        .catch(console.error);
+    }
+  }, [activeProyecto, initialData, selectedEmpresaId, activeEmpresa]);
 
   const [cedula, setCedula] = useState('');
   const [nombrePosesionario, setNombrePosesionario] = useState('');
@@ -256,12 +286,15 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       ...formData,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
       empresa_id: selectedEmpresaId ? parseInt(selectedEmpresaId, 10) : null,
+      proyecto_id: activeProyecto ? activeProyecto.id : (selectedProyectoId ? parseInt(selectedProyectoId, 10) : null),
       geom_geojson: parsedGeojson,
       es_utm: esUtm,
       colindantes: colindantes
     });
   };
 
+
+  const nodeRef = useRef(null);
 
   return (
     <div style={{
@@ -270,8 +303,9 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       backdropFilter: 'blur(3px)'
     }}>
-      <div className="glass-panel" style={{ padding: '30px', maxWidth: '600px', width: '90%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px' }}>
+      <Draggable nodeRef={nodeRef} handle=".drag-handle" cancel="button, input, select, textarea, .no-drag">
+      <div ref={nodeRef} className="glass-panel" style={{ padding: '30px', maxWidth: '600px', width: '90%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="drag-handle" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px', cursor: 'move' }}>
           <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{initialData ? 'Editar Predio' : 'Nuevo Predio (Coordenadas)'}</h2>
 
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -281,6 +315,29 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             <button type="button" onClick={onCancel} style={{ background: 'var(--bg-main)', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex' }}><X size={20} /></button>
           </div>
         </div>
+
+        {!initialData && ((!activeEmpresa && empresasList.length > 1) || (!activeProyecto && proyectosList.length > 1)) && (
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', padding: '15px', background: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--card-border)' }}>
+            {!activeEmpresa && empresasList.length > 1 && (
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Empresa *</label>
+                <select className="input-dynamic" value={selectedEmpresaId} onChange={e => { setSelectedEmpresaId(e.target.value); setSelectedProyectoId(''); }} required>
+                  <option value="">Seleccione Empresa...</option>
+                  {empresasList.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </div>
+            )}
+            {!activeProyecto && proyectosList.length > 1 && (
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Proyecto *</label>
+                <select className="input-dynamic" value={selectedProyectoId} onChange={e => setSelectedProyectoId(e.target.value)} required disabled={!selectedEmpresaId}>
+                  <option value="">Seleccione Proyecto...</option>
+                  {proyectosList.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="predio-form-header">
@@ -468,6 +525,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           </div>
         </form>
       </div>
+      </Draggable>
     </div>
   );
 }

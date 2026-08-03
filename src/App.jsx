@@ -6,6 +6,7 @@ import AnalyticsDashboard from './pages/Dashboard/AnalyticsDashboard';
 import SystemLogs from './pages/System/SystemLogs';
 import ReporteriaDashboard from './pages/Reportes/ReporteriaDashboard';
 import SystemParams from './pages/System/SystemParams';
+import GestionDPA from './pages/System/GestionDPA';
 import EmpresasManager from './pages/System/EmpresasManager';
 import ProjectsManager from './pages/System/ProjectsManager';
 import Users from './pages/Users/Users';
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/dashboard" element={<AnalyticsDashboard />} />
             <Route path="/reporteria" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
             <Route path="/usuarios" element={<Users />} />
+            <Route path="/localizacion/dpa" element={<GestionDPA />} />
             <Route path="/sistema/parametros" element={<SystemParams />} />
             <Route path="/sistema/logs" element={<SystemLogs />} />
             <Route path="/empresas" element={<EmpresasManager />} />

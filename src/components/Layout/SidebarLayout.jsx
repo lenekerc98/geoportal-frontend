@@ -33,14 +33,6 @@ const SystemHealthIndicator = ({ collapsed }) => {
   const statusColor = isAllOk ? 'var(--success)' : (hasError ? 'var(--danger)' : 'var(--warning)');
   const statusText = isAllOk ? 'Sistema en línea' : (hasError ? 'Error de conexión' : 'Verificando...');
 
-  if (collapsed) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', borderTop: '1px solid var(--sidebar-border)' }} title={statusText}>
-        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}` }}></div>
-      </div>
-    );
-  }
-
   const [userRole, setUserRole] = useState('');
   
   useEffect(() => {
@@ -52,6 +44,14 @@ const SystemHealthIndicator = ({ collapsed }) => {
       } catch (e) {}
     }
   }, []);
+
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', borderTop: '1px solid var(--sidebar-border)' }} title={statusText}>
+        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}` }}></div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '15px', borderTop: '1px solid var(--sidebar-border)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -99,18 +99,47 @@ export default function SidebarLayout() {
     localStorage.setItem('catastro_theme_v2', theme);
   }, [theme]);
 
-  const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
+  const { activeEmpresa, setGlobalEmpresa, activeProyecto, setGlobalProyecto } = useContext(AppContext);
   const [empresasList, setEmpresasList] = useState([]);
+  const [proyectosList, setProyectosList] = useState([]);
 
   useEffect(() => {
-    if (userRole?.toLowerCase() === 'superadmin') {
-      const token = localStorage.getItem('catastro_token');
-      fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(data => setEmpresasList(data))
-        .catch(console.error);
-    }
+    const token = localStorage.getItem('catastro_token');
+    if (!token) return;
+    fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setEmpresasList(data);
+          if (data.length === 1 && (!activeEmpresa || activeEmpresa.id !== data[0].id)) {
+            setGlobalEmpresa(data[0]);
+          }
+        }
+      })
+      .catch(console.error);
   }, [userRole]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('catastro_token');
+    if (!token) return;
+
+    fetch(`${API_URL}/api/proyectos`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          if (activeEmpresa) {
+            const filtered = data.filter(p => p.empresa_id === activeEmpresa.id);
+            setProyectosList(filtered);
+            if (activeProyecto && activeProyecto.empresa_id !== activeEmpresa.id) {
+              setGlobalProyecto(null);
+            }
+          } else {
+            setProyectosList(data);
+          }
+        }
+      })
+      .catch(console.error);
+  }, [activeEmpresa?.id]);
 
   // Protección de Rutas (Validar Token JWT)
   useEffect(() => {
@@ -147,7 +176,7 @@ export default function SidebarLayout() {
     if (!userRole) return false;
     // Convierte el rol del usuario a minúsculas para evitar problemas de case
     const roleLower = userRole.toLowerCase();
-    if (roleLower === 'superadmin') return true;
+    if (roleLower === 'superadmin' || roleLower === 'superadministrador') return true;
     return allowedRoles.includes(roleLower);
   };
 
@@ -191,24 +220,74 @@ export default function SidebarLayout() {
               </button>
             </div>
             
-            {!collapsed && userRole?.toLowerCase() === 'superadmin' && empresasList.length > 0 && (
-              <div style={{ marginTop: '15px', padding: '10px', background: 'var(--bg-lighter)', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
-                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Contexto Global</span>
-                <select 
-                  style={{ width: '100%', padding: '5px', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)' }}
-                  value={activeEmpresa?.id || ''}
-                  onChange={(e) => {
-                    const emp = empresasList.find(x => x.id === parseInt(e.target.value));
-                    setGlobalEmpresa(emp || null);
-                    // Opcional: forzar recarga para limpiar datos anteriores
-                    window.location.reload();
-                  }}
-                >
-                  <option value="">Todas (Vista Global)</option>
-                  {empresasList.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.nombre}</option>
-                  ))}
-                </select>
+            {!collapsed && (
+              <div style={{ marginTop: '15px', padding: '12px', background: 'var(--bg-lighter)', borderRadius: '8px', border: '1px solid var(--card-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold', letterSpacing: '0.5px' }}>Contexto Global</span>
+                  <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-color)', fontWeight: 'bold', textTransform: 'capitalize' }}>
+                    {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) ? 'Superadmin' : (userRole || 'Usuario')}
+                  </span>
+                </div>
+
+                {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) ? (
+                  <>
+                    <select 
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', marginBottom: '8px', fontWeight: '500' }}
+                      value={activeEmpresa?.id || ''}
+                      onChange={(e) => {
+                        const emp = empresasList.find(x => x.id === parseInt(e.target.value));
+                        setGlobalEmpresa(emp || null);
+                        setGlobalProyecto(null);
+                      }}
+                    >
+                      <option value="">Todas las Empresas</option>
+                      {empresasList.map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                      ))}
+                    </select>
+                    
+                    {activeEmpresa && (
+                      <select 
+                        style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
+                        value={activeProyecto?.id || ''}
+                        onChange={(e) => {
+                          const proj = proyectosList.find(x => x.id === parseInt(e.target.value));
+                          setGlobalProyecto(proj || null);
+                        }}
+                      >
+                        <option value="">Todos los Proyectos</option>
+                        {proyectosList.map(proj => (
+                          <option key={proj.id} value={proj.id}>{proj.nombre}</option>
+                        ))}
+                      </select>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ padding: '6px 10px', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', background: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--card-border)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Building2 size={14} color="var(--accent-color)" />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {activeEmpresa ? activeEmpresa.nombre : 'Empresa Asignada'}
+                      </span>
+                    </div>
+
+                    {proyectosList.length > 0 && (
+                      <select 
+                        style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
+                        value={activeProyecto?.id || ''}
+                        onChange={(e) => {
+                          const proj = proyectosList.find(x => x.id === parseInt(e.target.value));
+                          setGlobalProyecto(proj || null);
+                        }}
+                      >
+                        <option value="">Todos los Proyectos</option>
+                        {proyectosList.map(proj => (
+                          <option key={proj.id} value={proj.id}>{proj.nombre}</option>
+                        ))}
+                      </select>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -240,27 +319,35 @@ export default function SidebarLayout() {
           {hasAccess(['admin']) && (
             <div className="nav-group" style={{ marginTop: '15px' }}>
               <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default' }}>
+                <span>Localización</span>
+              </div>
+              <NavLink to="/localizacion/dpa" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                <Map size={18} />
+                <span>Gestión DPA</span>
+              </NavLink>
+              
+              <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default', marginTop: '10px' }}>
                 <span>Sistema</span>
               </div>
               <NavLink to="/sistema/parametros" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
-                <Map size={18} />
-                <span>Gestión DPA</span>
+                <Settings size={18} />
+                <span>Parámetros Generales</span>
               </NavLink>
               <NavLink to="/sistema/logs" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                 <Shield size={18} />
                 <span>Logs y Auditoría</span>
               </NavLink>
-              {userRole?.toLowerCase() === 'superadmin' && (
-                <>
-                  <NavLink to="/empresas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
-                    <Building2 size={18} />
-                    <span>Gestión de Empresas</span>
-                  </NavLink>
-                  <NavLink to="/proyectos" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
-                    <FolderGit2 size={18} />
-                    <span>Gestión de Proyectos</span>
-                  </NavLink>
-                </>
+              {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) && (
+                <NavLink to="/empresas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                  <Building2 size={18} />
+                  <span>Gestión de Empresas</span>
+                </NavLink>
+              )}
+              {['superadmin', 'superadministrador', 'admin'].includes(userRole?.toLowerCase()) && (
+                <NavLink to="/proyectos" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                  <FolderGit2 size={18} />
+                  <span>Gestión de Proyectos</span>
+                </NavLink>
               )}
             </div>
           )}

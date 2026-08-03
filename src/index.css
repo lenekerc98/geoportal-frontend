@@ -11,6 +11,7 @@
   --text-main: #ffffff;
   --text-muted: #94a3b8;
   --primary-glow: rgba(56, 189, 248, 0.15);
+  --primary: #3b82f6;
   --accent-color: #38bdf8;
   --card-border: rgba(255, 255, 255, 0.1);
   --sidebar-bg: rgba(15, 23, 42, 0.95);
@@ -28,6 +29,7 @@
   --text-main: #0f172a;
   --text-muted: #475569;
   --primary-glow: rgba(56, 189, 248, 0.05);
+  --primary: #2563eb;
   --accent-color: #0284c7;
   --card-border: rgba(0, 0, 0, 0.1);
   --sidebar-bg: #ffffff;
@@ -82,6 +84,60 @@ body {
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
   border-radius: 16px;
   color: var(--text-main);
+}
+
+.table-container {
+  background: var(--bg-panel);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+}
+
+.custom-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.custom-table th {
+  text-align: left;
+  padding: 16px 20px;
+  background: var(--table-header-bg);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--card-border);
+  white-space: nowrap;
+}
+
+.custom-table th:first-child {
+  border-top-left-radius: 16px;
+}
+
+.custom-table th:last-child {
+  border-top-right-radius: 16px;
+}
+
+.custom-table td {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.custom-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.custom-table tbody tr:hover {
+  background: var(--table-row-hover);
+  transition: background-color 0.2s ease;
 }
 
 .btn-dynamic {

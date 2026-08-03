@@ -255,6 +255,15 @@
 
 .predio-form-header { display: flex; gap: 15px; margin-bottom: 20px; }
 @media (max-width: 768px) { .predio-form-header { flex-direction: column; gap: 10px; } .predio-table-container { overflow-x: auto; width: 100%; } .predio-table-wrapper { min-width: 350px; } }
+@media (max-width: 768px) { .predio-form-header { flex-direction: column; gap: 10px; } .predio-table-container { overflow-x: auto; width: 100%; } .predio-table-wrapper { min-width: 350px; } }
 
 .table-footer { padding: 10px; background: var(--bg-main); border-top: 1px solid var(--card-border); text-align: center; }
 .btn-add-vertex { background: transparent; color: var(--accent-color); border: 1px dashed var(--accent-color); padding: 6px 15px; border-radius: 4px; font-size: 13px; cursor: pointer; width: 100%; }
+
+
+/* Overlay de OSM sobre satelite */
+.osm-overlay-blend {
+  mix-blend-mode: normal;
+  opacity: 0.45;
+  filter: contrast(1.1) brightness(1.2) grayscale(0.5);
+}

@@ -6,6 +6,7 @@ import './ReporteriaDashboard.css';
 
 const ReporteriaDashboard = () => {
   const token = localStorage.getItem('catastro_token');
+  const { activeEmpresa, activeProyecto } = useContext(AppContext);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,7 +21,7 @@ const ReporteriaDashboard = () => {
 
   useEffect(() => {
     fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeEmpresa, activeProyecto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = async () => {
     setLoading(true);
@@ -29,6 +30,8 @@ const ReporteriaDashboard = () => {
       const params = new URLSearchParams();
       if (fechaInicio) params.append('fecha_inicio', fechaInicio);
       if (fechaFin) params.append('fecha_fin', fechaFin);
+      if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+      if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
       
       const queryString = params.toString();
       if (queryString) {

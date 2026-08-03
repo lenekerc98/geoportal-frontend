@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl } from 'react-leaflet';
 import L from 'leaflet';
@@ -13,22 +13,40 @@ import { showSuccess, showError } from '../../utils/swal';
 import './ReportePlanimetrico.css';
 
 // Helper: Crear icono de texto Leaflet
-const createTextIcon = (text, className) => {
+const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, lng = 0, centerLat = 0, centerLng = 0) => {
+  const dy = lat - centerLat;
+  const dx = lng - centerLng;
+  // dy is inverted for DOM coordinates
+  const angle = Math.atan2(-dy, dx);
+  
+  // Distance to offset the label outwards
+  const dist = (pointSize / 2) + 8 + (textSize / 2);
+  
+  const offsetX = Math.cos(angle) * dist;
+  const offsetY = Math.sin(angle) * dist;
+
   return L.divIcon({
     className: className,
-    html: `<div style="white-space: nowrap; font-size: 10px; font-weight: bold;">${text}</div>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0]
+    html: `
+      <div style="position: relative; width: ${pointSize}px; height: ${pointSize}px; background: #ffb6c1; border: 1px solid black; border-radius: 50%;">
+        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px); font-size: ${textSize}px; font-weight: bold; color: black; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">${text}</span>
+      </div>
+    `,
+    iconSize: [pointSize, pointSize],
+    iconAnchor: [pointSize / 2, pointSize / 2]
   });
 };
 
-const createRotatedTextIcon = (text, p1, p2) => {
+const createRotatedTextIcon = (colindante, medida, p1, p2) => {
   let angle = Math.atan2(-(p2[0] - p1[0]), (p2[1] - p1[1])) * (180 / Math.PI);
   if (angle > 90 || angle < -90) angle += 180;
   
   return L.divIcon({
     className: 'lindero-rotated',
-    html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; margin-top: -10px;">${text}</div>`,
+    html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
+      <div style="margin-bottom: 8px; color: #1a237e;">${colindante}</div>
+      <div style="margin-top: 8px; color: #37474f;">${medida}</div>
+    </div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0]
   });
@@ -55,9 +73,9 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
       const updateGraphicScale = () => {
       const centerLatLng = map.getCenter();
       const pointC = map.latLngToContainerPoint(centerLatLng);
-      const pointX = L.point(pointC.x + 200, pointC.y); // Usar 200px de referencia
+      const pointX = L.point(pointC.x + 300, pointC.y); // Usar 300px de referencia
       const latLngX = map.containerPointToLatLng(pointX);
-      const dist200px = centerLatLng.distanceTo(latLngX);
+      const dist300px = centerLatLng.distanceTo(latLngX);
 
       const getRoundNum = (num) => {
         const pow10 = Math.pow(10, (Math.floor(num) + '').length - 1);
@@ -66,8 +84,8 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
         return pow10 * d;
       };
 
-      const maxMeters = getRoundNum(dist200px);
-      const totalWidthPx = (maxMeters / dist200px) * 200;
+      const maxMeters = getRoundNum(dist300px);
+      const totalWidthPx = (maxMeters / dist300px) * 300;
       
       const segments = 5;
       const segmentMeters = maxMeters / segments;
@@ -89,7 +107,7 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
     const center = [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2];
 
     if (scaleValue === 'Auto') {
-      map.fitBounds(polygonCoords, { padding: [40, 40] });
+      map.fitBounds(polygonCoords, { padding: [40, 40], animate: false });
       const z = map.getZoom();
       let s = Math.round(1000 * Math.pow(2, 19 - z));
       if (s > 1000) s = Math.round(s / 100) * 100;
@@ -102,7 +120,7 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
         if (!isNaN(val) && val > 0) s = val;
       }
       const z = 19 - Math.log2(s / 1000);
-      map.setView(center, z);
+      map.setView(center, z, { animate: false });
       setCalculatedScale(scaleValue);
     }
     
@@ -190,7 +208,7 @@ const UtmGrid = ({ setMapGridLabels }) => {
 export default function ReportePlanimetrico() {
   const { id, codigo } = useParams();
   const navigate = useNavigate();
-  const { activeEmpresa } = useContext(AppContext);
+  const { activeEmpresa, activeProyecto } = useContext(AppContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -201,6 +219,10 @@ export default function ReportePlanimetrico() {
   const [calculatedScale, setCalculatedScale] = useState('Auto');
   const [graphicScale, setGraphicScale] = useState({ totalWidthPx: 200, ticks: [0, 50, 100, 150, 200, 250] });
   const [mapGridLabels, setMapGridLabels] = useState({ top: [], bottom: [], left: [], right: [] });
+  
+  // Controles de tamaño de puntos y texto
+  const [pointSize, setPointSize] = useState(6);
+  const [textSize, setTextSize] = useState(10);
   
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
@@ -219,7 +241,12 @@ export default function ReportePlanimetrico() {
     const fetchAllPredios = async () => {
       try {
         const token = localStorage.getItem('catastro_token');
-        const res = await fetch(`${API_URL}/api/gis/codigos-catastrales`, {
+        const params = new URLSearchParams();
+        if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+        if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
+        const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+        const res = await fetch(`${API_URL}/api/gis/codigos-catastrales${queryStr}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
@@ -230,7 +257,7 @@ export default function ReportePlanimetrico() {
       } catch (e) {}
     };
     fetchAllPredios();
-  }, []);
+  }, [activeEmpresa, activeProyecto]);
 
   useEffect(() => {
     fetchReportData();
@@ -239,7 +266,7 @@ export default function ReportePlanimetrico() {
   const fetchReportData = async () => {
     try {
       setLoading(true);
-      setData(null); // Clear previous data
+      setData(null);
       const token = localStorage.getItem('catastro_token');
       
       let url = '';
@@ -259,48 +286,39 @@ export default function ReportePlanimetrico() {
         showError('No se pudo cargar la información del predio (Puede no tener mapa asociado)');
       }
     } catch (e) {
-      showError('Error de conexión con el servidor');
+      showError('Error de red al consultar el predio');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleManualSearch = (e) => {
-    if (e.key === 'Enter' && e.target.value.trim() !== '') {
-      navigate(`/reporte/planimetrico/codigo/${e.target.value.trim()}`);
+  const predio = data?.predio || {};
+  const vertices = data?.vertices || [];
+  const linderos = data?.linderos || [];
+
+  const polygonCoords = useMemo(() => {
+    const coords = [];
+    if (predio.geom_wkt) {
+      try {
+        const coordsStr = predio.geom_wkt.replace('POLYGON((', '').replace('))', '');
+        coordsStr.split(',').forEach(p => {
+          const [lng, lat] = p.trim().split(' ');
+          if (lat && lng) coords.push([parseFloat(lat), parseFloat(lng)]);
+        });
+      } catch (e) {}
     }
-  };
+    return coords;
+  }, [predio.geom_wkt]);
 
-  if (loading && !allPredios.length) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
-      <Loader2 size={40} className="spin" style={{ animation: 'spin 2s linear infinite' }} />
-      <h2>Cargando Atlas...</h2>
-    </div>;
-  }
-
-  const { predio = {}, vertices = [], linderos = [] } = data || {};
-  
-  // Extraer Polígono (WKT to LatLng array)
-  const parsePolygonWKT = (wkt) => {
-    if (!wkt) return [];
-    try {
-      const coordsString = wkt.replace('POLYGON((', '').replace('))', '');
-      const points = coordsString.split(',').map(p => {
-        const [lng, lat] = p.trim().split(' ');
-        return [parseFloat(lat), parseFloat(lng)];
-      });
-      return points;
-    } catch (e) { return []; }
-  };
-  const polygonCoords = parsePolygonWKT(predio?.geom_wkt);
-  
-  // Calcular centro
-  const lats = polygonCoords.map(p => p[0]);
-  const lngs = polygonCoords.map(p => p[1]);
-  const center = polygonCoords.length > 0 ? [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2] : [0,0];
+  const center = useMemo(() => {
+    if (polygonCoords.length === 0) return [0, 0];
+    const lats = polygonCoords.map(p => p[0]);
+    const lngs = polygonCoords.map(p => p[1]);
+    return [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2];
+  }, [polygonCoords]);
 
   // Calcular centroides y linderos
-  const linderosConInfo = linderos.map(l => {
+  const linderosConInfo = linderos.map((l, index) => {
     let midPoint = [0, 0];
     try {
       const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
@@ -312,7 +330,18 @@ export default function ReportePlanimetrico() {
         midPoint = [(points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2];
       }
     } catch(e){}
-    return { ...l, orientacion: getOrientacionGeometrica(center, midPoint) };
+
+    const currentCode = vertices[index]?.codigo || `P${String(index + 1).padStart(2, '0')}`;
+    const nextCode = (index < vertices.length - 1)
+      ? (vertices[index + 1]?.codigo || `P${String(index + 2).padStart(2, '0')}`)
+      : (vertices[0]?.codigo || 'P01');
+    const tramoCalculado = (l.tramo && l.tramo !== '-') ? l.tramo : `${currentCode} - ${nextCode}`;
+
+    return { 
+      ...l, 
+      tramo: tramoCalculado,
+      orientacion: getOrientacionGeometrica(center, midPoint) 
+    };
   });
 
   // Agrupar Linderos por Orientación
@@ -322,14 +351,14 @@ export default function ReportePlanimetrico() {
   const linderosOeste = linderosConInfo.filter(l => l.orientacion === 'OESTE');
 
   const renderLinderoText = (l) => {
-    return `Del ${l.tramo || ''} con una distancia de ${l.longitud.toFixed(2)} m, Rumbo ${l.rumbo}; ${l.colindante || ''}`;
+    return `Del ${l.tramo || ''} con una distancia de ${l.longitud ? l.longitud.toFixed(2) : '0.00'} m, Rumbo ${l.rumbo || '-'}; ${l.colindante || ''}`;
   };
 
   const currentDate = new Date().toLocaleDateString('es-ES');
-  const dpaProvincia = activeEmpresa?.provincia || 'N/A';
-  const dpaCanton = activeEmpresa?.canton || 'N/A';
-  const dpaParroquia = activeEmpresa?.ciudad || 'N/A';
-  const dpaSector = activeEmpresa?.sector || 'N/A';
+  const dpaProvincia = activeEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
+  const dpaCanton = activeEmpresa?.canton || predio?.canton || 'URDANETA';
+  const dpaParroquia = activeEmpresa?.ciudad || predio?.ciudad || 'CATARAMA';
+  const dpaSector = activeEmpresa?.sector || predio?.sector || 'URBANO';
   
   const displayScale = scale === 'custom' ? customScale : scale;
 
@@ -342,50 +371,51 @@ export default function ReportePlanimetrico() {
     if (currentIndex > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[currentIndex - 1].codigo}`);
   };
   const goNext = () => {
-    if (currentIndex >= 0 && currentIndex < allPredios.length - 1) navigate(`/reporte/planimetrico/codigo/${allPredios[currentIndex + 1].codigo}`);
+    if (currentIndex < allPredios.length - 1) navigate(`/reporte/planimetrico/codigo/${allPredios[currentIndex + 1].codigo}`);
   };
   const goLast = () => {
     if (allPredios.length > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[allPredios.length - 1].codigo}`);
   };
 
   return (
-    <div style={{ paddingBottom: '50px' }}>
+    <div style={{ minHeight: '100vh', paddingBottom: '40px' }}>
+      
+      {/* BARRA DE CONTROLES ATALAS DE NAVEGACIÓN */}
       <div className="report-controls no-print">
         <div className="report-controls-group">
-          <button onClick={() => window.close()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 15px', background: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-            <ArrowLeft size={16} /> Volver
+          <button onClick={() => navigate('/reporteria')} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+            <ArrowLeft size={16} /> Volver a Reportería
           </button>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '20px', background: 'white', padding: '5px 10px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', marginRight: '5px' }}>Atlas:</span>
-            <button onClick={goFirst} disabled={currentIndex <= 0} title="Primero" style={{ padding: '4px', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronsLeft size={16} /></button>
-            <button onClick={goPrev} disabled={currentIndex <= 0} title="Anterior" style={{ padding: '4px', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronLeft size={16} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '2px solid #e2e8f0', paddingLeft: '15px' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '13px' }}>Atlas:</span>
+            <button onClick={goFirst} disabled={currentIndex <= 0} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer' }}><ChevronsLeft size={16} /></button>
+            <button onClick={goPrev} disabled={currentIndex <= 0} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer' }}><ChevronLeft size={16} /></button>
             
-            <div style={{ display: 'flex', alignItems: 'center', margin: '0 10px', gap: '5px' }}>
-              <input 
-                key={codigo || (data?.predio ? data.predio.codigo : 'manual')}
-                type="text" 
-                defaultValue={codigo || (data?.predio ? data.predio.codigo : '')}
-                onKeyDown={handleManualSearch}
-                placeholder="Buscar código..."
-                style={{ width: '120px', padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 'bold' }}
-                title="Presiona Enter para buscar"
-              />
-              <span style={{ fontSize: '12px', minWidth: '40px', color: '#64748b' }}>
-                / {allPredios.length}
-              </span>
-            </div>
+            <select 
+              value={codigo || predio?.codigo || ''} 
+              onChange={(e) => navigate(`/reporte/planimetrico/codigo/${e.target.value}`)}
+              style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '13px' }}
+            >
+              {allPredios.map(p => (
+                <option key={p.codigo} value={p.codigo}>{p.codigo} ({p.nombre_posesionario || 'SIN NOMBRE'})</option>
+              ))}
+            </select>
+            
+            <span style={{ fontSize: '12px', color: '#64748b' }}>/ {allPredios.length}</span>
 
-            <button onClick={goNext} disabled={currentIndex === -1 || currentIndex >= allPredios.length - 1} title="Siguiente" style={{ padding: '4px', cursor: (currentIndex === -1 || currentIndex >= allPredios.length - 1) ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronRight size={16} /></button>
-            <button onClick={goLast} disabled={currentIndex === -1 || currentIndex >= allPredios.length - 1} title="Último" style={{ padding: '4px', cursor: (currentIndex === -1 || currentIndex >= allPredios.length - 1) ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '4px' }}><ChevronsRight size={16} /></button>
+            <button onClick={goNext} disabled={currentIndex >= allPredios.length - 1} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', cursor: currentIndex >= allPredios.length - 1 ? 'not-allowed' : 'pointer' }}><ChevronRight size={16} /></button>
+            <button onClick={goLast} disabled={currentIndex >= allPredios.length - 1} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', cursor: currentIndex >= allPredios.length - 1 ? 'not-allowed' : 'pointer' }}><ChevronsRight size={16} /></button>
           </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
-            <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Escala:</label>
+        </div>
+
+        <div className="report-controls-group">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Escala Mapa:</span>
             <select 
               value={scale} 
               onChange={(e) => setScale(e.target.value)}
-              style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+              style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}
             >
               {predefinedScales.map(s => <option key={s} value={s}>{s}</option>)}
               <option value="custom">Manual...</option>
@@ -400,11 +430,16 @@ export default function ReportePlanimetrico() {
               />
             )}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '2px solid #cbd5e1', paddingLeft: '15px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Punto (px):</span>
+            <input type="number" min="1" max="20" value={pointSize} onChange={(e) => setPointSize(Number(e.target.value))} style={{ width: '45px', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+            <span style={{ fontSize: '13px', fontWeight: 'bold', marginLeft: '5px' }}>Texto:</span>
+            <input type="number" min="5" max="30" value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} style={{ width: '45px', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+          </div>
+          <button onClick={() => window.print()} disabled={!data} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 20px', background: !data ? '#94a3b8' : 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: !data ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+            <Printer size={18} /> Imprimir PDF
+          </button>
         </div>
-        
-        <button onClick={() => window.print()} disabled={!data} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 20px', background: !data ? '#94a3b8' : 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: !data ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
-          <Printer size={18} /> Imprimir PDF
-        </button>
       </div>
 
       {loading && (
@@ -418,8 +453,7 @@ export default function ReportePlanimetrico() {
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', flexDirection: 'column', color: '#64748b' }}>
           <AlertCircle size={60} style={{ marginBottom: '20px', color: '#cbd5e1' }} />
           <h2>Predio Sin Mapa</h2>
-          <p>El código catastral <b>{codigo}</b> está registrado en la base de datos pero aún no tiene un polígono asociado.</p>
-          <p>Usa los controles del Atlas arriba para navegar al siguiente predio.</p>
+          <p>El código catastral <b>{codigo}</b> está registrado pero aún no tiene un polígono asociado.</p>
         </div>
       )}
 
@@ -427,99 +461,161 @@ export default function ReportePlanimetrico() {
         <>
         <div className="print-page">
         <div className="report-border">
-          <div className="report-header">
-            <h1>LEVANTAMIENTO PLANIMÉTRICO</h1>
+          
+          {/* HEADER OFICIAL CON LOGO GAD Y NOMBRE DE EMPRESA */}
+          <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '5px 0', borderBottom: '2px solid black' }}>
+            <img 
+              src={activeEmpresa?.logo_url || activeEmpresa?.logo || '/logo_gad.png'} 
+              alt="Logo GAD" 
+              style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', height: '46px', width: 'auto', objectFit: 'contain' }} 
+              onError={(e) => { e.target.src = '/logo_gad.png'; }}
+            />
+            <div style={{ display: 'inline-block', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                {activeEmpresa?.nombre || 'GOBIERNO AUTÓNOMO DESCENTRALIZADO MUNICIPAL DEL CANTÓN URDANETA'}
+              </div>
+              <h1 style={{ margin: '2px 0 0 0', fontSize: '16px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                LEVANTAMIENTO PLANIMÉTRICO
+              </h1>
+            </div>
           </div>
           
-          <div className="report-body">
-            <div className="report-map-container" style={{ position: 'relative', padding: '20px', backgroundColor: 'white', overflow: 'hidden' }}>
+          <div className="report-body" style={{ display: 'flex', flex: 1 }}>
+            {/* COLUMNA IZQUIERDA: Mapa + Escala Gráfica + Footer Datos */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid black' }}>
               
-              <div style={{ position: 'relative', width: '100%', height: '100%', border: '2px solid black', outline: '4px solid white', outlineOffset: '-4px' }}>
-              {polygonCoords.length > 0 && (
-                <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
-                  <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
-                  <UtmGrid setMapGridLabels={setMapGridLabels} />
-                  
-                  <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
-                  
-                  {/* Vértices Puntos */}
-                  {vertices.map(v => {
-                    const lat = parsePolygonWKT(v.geom_wkt)[0]?.[0];
-                    const lng = parsePolygonWKT(v.geom_wkt)[0]?.[1];
-                    if(!lat || !lng) return null;
-                    return (
-                      <React.Fragment key={v.id}>
-                        <Marker position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label')} />
-                      </React.Fragment>
-                    );
-                  })}
-
-                  {/* Info Central del Predio */}
-                  <Marker position={center} icon={L.divIcon({
-                    className: 'center-predio-info',
-                    html: `<div style="position: absolute; transform: translate(-50%, -50%); text-align: center; font-size: 10px; line-height: 1.2; font-weight: bold; white-space: nowrap;">
-                      Posesionario:<br/>
-                      ${predio.nombre_posesionario || 'SIN NOMBRE'}<br/>
-                      C.C.: ${predio.cedula || 'S/D'}<br/>
-                      Código: ${predio.codigo || 'S/D'}<br/>
-                      Área: ${predio.area_ha || 0} Ha
-                    </div>`,
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0]
-                  })} />
-
-                  {/* Linderos / Distancias Rotadas */}
-                  {linderos.map((l, i) => {
-                    try {
-                      const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
-                      const points = coordsStr.split(',').map(p => {
-                        const [lng, lat] = p.trim().split(' ');
-                        return [parseFloat(lat), parseFloat(lng)];
-                      });
-                      if(points.length >= 2) {
-                        const midLat = (points[0][0] + points[1][0]) / 2;
-                        const midLng = (points[0][1] + points[1][1]) / 2;
-                        const label = `${l.longitud.toFixed(2)}m - ${l.colindante || ''}`;
-                        return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(label, points[0], points[1])} />;
+              {/* Mapa */}
+              <div className="report-map-container" style={{ flex: 1, position: 'relative', padding: '25px 25px 20px 25px', backgroundColor: 'white', overflow: 'hidden', borderRight: 'none' }}>
+                <div style={{ position: 'relative', width: '100%', height: '100%', border: '2px solid black', backgroundColor: '#e2e8f0', zIndex: 0 }}>
+                {polygonCoords.length > 0 && (
+                  <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                    {/* Se desactiva la ortofoto a petición del usuario para evitar parpadeos y mejorar la impresión */}
+                    {/* <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /> */}
+                    
+                    <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
+                    <UtmGrid setMapGridLabels={setMapGridLabels} />
+                    
+                    <Polygon positions={polygonCoords} pathOptions={{ color: 'yellow', weight: 2, fillColor: 'transparent' }} />
+                    
+                    {vertices.map(v => {
+                      let lat = 0, lng = 0;
+                      if (v.geom_wkt) {
+                        try {
+                          const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
+                          lng = parseFloat(parts[0]);
+                          lat = parseFloat(parts[1]);
+                        } catch(e) {}
                       }
-                    } catch(e){}
-                    return null;
-                  })}
-                  
-                  {/* Rosa de los Vientos estática (Norte) */}
-                  <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, textAlign: 'center' }}>
-                    <div style={{ width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '30px solid black', margin: '0 auto' }}></div>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px', marginTop: '5px' }}>N</div>
-                  </div>
-                </MapContainer>
-              )}
+                      if (!lat || !lng) return null;
+                      return (
+                        <React.Fragment key={v.id}>
+                          <Marker position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label', pointSize, textSize, lat, lng, center[0], center[1])} />
+                        </React.Fragment>
+                      );
+                    })}
+
+                    <Marker position={center} icon={L.divIcon({
+                      className: 'center-predio-info',
+                      html: `<div style="position: absolute; transform: translate(-50%, -50%); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
+                        <div>POSESIONARIO: ${predio?.nombre_posesionario || 'SIN NOMBRE'}</div>
+                        <div>C.C.: ${predio?.cedula || 'S/D'} | CÓDIGO: ${predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
+                        <div>ÁREA: ${predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
+                      </div>`,
+                      iconSize: [0, 0],
+                      iconAnchor: [0, 0]
+                    })} />
+
+                    {linderos.map((l, i) => {
+                      try {
+                        const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
+                        const points = coordsStr.split(',').map(p => {
+                          const [lng, lat] = p.trim().split(' ');
+                          return [parseFloat(lat), parseFloat(lng)];
+                        });
+                        if(points.length >= 2) {
+                          const midLat = (points[0][0] + points[1][0]) / 2;
+                          const midLng = (points[0][1] + points[1][1]) / 2;
+                          const medida = `${l.longitud.toFixed(2)}m`;
+                          const colindante = l.colindante || '';
+                          return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindante, medida, points[0], points[1])} />;
+                        }
+                      } catch(e){}
+                      return null;
+                    })}
+                    
+                    <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, textAlign: 'center' }}>
+                      <div style={{ width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '30px solid white', filter: 'drop-shadow(0px 0px 1px black)', margin: '0 auto' }}></div>
+                      <div style={{ fontWeight: 'bold', fontSize: '14px', marginTop: '5px', color: 'white', textShadow: '1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000' }}>N</div>
+                    </div>
+                  </MapContainer>
+                )}
+                </div>
+
+                {mapGridLabels.top.map((lbl, i) => (
+                  <div key={`t-${i}`} style={{ position: 'absolute', top: '5px', left: `${lbl.val + 25}px`, transform: 'translateX(-50%)', fontSize: '10px', fontWeight: 'bold' }}>{lbl.text}</div>
+                ))}
+                {mapGridLabels.bottom.map((lbl, i) => (
+                  <div key={`b-${i}`} style={{ position: 'absolute', bottom: '2px', left: `${lbl.val + 25}px`, transform: 'translateX(-50%)', fontSize: '10px', fontWeight: 'bold' }}>{lbl.text}</div>
+                ))}
+                {mapGridLabels.left.map((lbl, i) => (
+                  <div key={`l-${i}`} style={{ position: 'absolute', left: '2px', top: `${lbl.val + 25}px`, transform: 'translateY(-50%) rotate(-90deg)', fontSize: '10px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{lbl.text}</div>
+                ))}
+                {mapGridLabels.right.map((lbl, i) => (
+                  <div key={`r-${i}`} style={{ position: 'absolute', right: '2px', top: `${lbl.val + 25}px`, transform: 'translateY(-50%) rotate(90deg)', fontSize: '10px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{lbl.text}</div>
+                ))}
               </div>
 
-              {/* Etiquetas Top */}
-              {mapGridLabels.top.map((lbl, i) => (
-                <div key={`t-${i}`} style={{ position: 'absolute', top: '5px', left: `${lbl.val + 20}px`, transform: 'translateX(-50%)', fontSize: '10px', fontWeight: 'bold' }}>{lbl.text}</div>
-              ))}
-              {/* Etiquetas Bottom */}
-              {mapGridLabels.bottom.map((lbl, i) => (
-                <div key={`b-${i}`} style={{ position: 'absolute', bottom: '5px', left: `${lbl.val + 20}px`, transform: 'translateX(-50%)', fontSize: '10px', fontWeight: 'bold' }}>{lbl.text}</div>
-              ))}
-              {/* Etiquetas Left */}
-              {mapGridLabels.left.map((lbl, i) => (
-                <div key={`l-${i}`} style={{ position: 'absolute', left: '-5px', top: `${lbl.val + 20}px`, transform: 'translateY(-50%) rotate(-90deg)', fontSize: '10px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{lbl.text}</div>
-              ))}
-              {/* Etiquetas Right */}
-              {mapGridLabels.right.map((lbl, i) => (
-                <div key={`r-${i}`} style={{ position: 'absolute', right: '-5px', top: `${lbl.val + 20}px`, transform: 'translateY(-50%) rotate(90deg)', fontSize: '10px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{lbl.text}</div>
-              ))}
+              {/* Escala Gráfica debajo del mapa */}
+              <div style={{ padding: '0 25px 15px 25px', display: 'flex', alignItems: 'center' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', marginRight: '15px' }}>ESCALA GRÁFICA:</div>
+                <div style={{ position: 'relative', width: `${Math.min(graphicScale.totalWidthPx || 300, 350)}px`, height: '8px', display: 'flex', border: '1px solid black' }}>
+                  {graphicScale.ticks?.map((tick, i) => (
+                    <div key={i} style={{ position: 'absolute', left: `${(i / (graphicScale.ticks.length - 1)) * 100}%`, top: '10px', transform: 'translateX(-50%)', fontSize: '8px', fontWeight: 'bold' }}>
+                      {tick}
+                    </div>
+                  ))}
+                  {graphicScale.ticks?.slice(0, -1).map((_, i) => (
+                    <div key={i} style={{ flex: 1, backgroundColor: i % 2 === 0 ? 'black' : 'white', borderRight: i < graphicScale.ticks.length - 2 ? '1px solid black' : 'none' }}></div>
+                  ))}
+                  <div style={{ position: 'absolute', right: '-35px', top: '10px', fontSize: '8px', fontWeight: 'bold' }}>
+                    Metros
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Boxes */}
+              <div style={{ display: 'flex', borderTop: '1px solid black', height: '48px' }}>
+                <div className="footer-box" style={{ flex: 1 }}>
+                  <div className="box-title">FECHA:</div>
+                  <div className="box-content" style={{ textAlign: 'center' }}>{currentDate}</div>
+                </div>
+                <div className="footer-box" style={{ flex: 1 }}>
+                  <div className="box-title">ÁREA:</div>
+                  <div className="box-content" style={{ textAlign: 'center' }}>{predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
+                </div>
+                <div className="footer-box" style={{ flex: 1 }}>
+                  <div className="box-title">ESCALA:</div>
+                  <div className="box-content" style={{ textAlign: 'center' }}>{scale === 'custom' ? customScale : calculatedScale}</div>
+                </div>
+                <div className="footer-box" style={{ flex: 1.5, borderRight: 'none' }}>
+                  <div className="box-title">COORDENADAS PLANAS:</div>
+                  <div className="box-content" style={{ fontSize: '7.5px', lineHeight: '1.2', fontWeight: 'bold', paddingTop: '2px', textAlign: 'center' }}>
+                    SISTEMA DE COORDENADAS: WGS 1984 UTM ZONE 17S<br/>
+                    PROYECCIÓN: TRANSVERSE MERCATOR<br/>
+                    DATUM: WGS 1984
+                  </div>
+                </div>
+              </div>
 
             </div>
             
+            {/* COLUMNA DERECHA: Sidebar */}
             <div className="report-sidebar">
               <div className="sidebar-box">
                 <div className="minimap-box">
-                  {/* Carta Topográfica Scale 1:50000 */}
                   <MapContainer center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false}>
                     <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                    <UtmGrid />
                     <Polygon positions={polygonCoords} pathOptions={{ color: 'yellow', weight: 1, fillColor: 'transparent' }} />
                   </MapContainer>
                 </div>
@@ -538,90 +634,60 @@ export default function ReportePlanimetrico() {
                 </div>
               </div>
               
-              <div className="sidebar-box dpa-grid">
-                <div className="dpa-col">
-                  <div className="box-title-no-border">PROVINCIA:</div>
-                  <div className="box-content-center">{dpaProvincia}</div>
+              <div className="sidebar-box">
+                <div className="box-title">PROVINCIA:</div>
+                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  {dpaProvincia}
                 </div>
-                <div className="dpa-col">
-                  <div className="box-title-no-border">CANTÓN:</div>
-                  <div className="box-content-center">{dpaCanton}</div>
+              </div>
+              
+              <div className="sidebar-box">
+                <div className="box-title">CANTÓN:</div>
+                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  {dpaCanton}
                 </div>
-                <div className="dpa-col">
-                  <div className="box-title-no-border">PARROQUIA:</div>
-                  <div className="box-content-center">{dpaParroquia}</div>
+              </div>
+              
+              <div className="sidebar-box">
+                <div className="box-title">PARROQUIA:</div>
+                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  {dpaParroquia}
                 </div>
               </div>
               
               <div className="sidebar-box">
                 <div className="box-title">SECTOR:</div>
-                <div className="box-content-center">{dpaSector}</div>
+                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  {dpaSector}
+                </div>
               </div>
               
               <div className="sidebar-box">
                 <div className="box-title">NOMBRE DEL PREDIO:</div>
-                <div className="box-content-center">SIN NOMBRE</div>
+                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  {predio?.nombre_predio || 'SIN NOMBRE'}
+                </div>
               </div>
               
               <div className="sidebar-box" style={{ flex: 1, justifyContent: 'flex-end', borderBottom: 'none' }}>
-                <div style={{ display: 'flex' }}>
-                  <div style={{ flex: 1, borderRight: '1px solid black', borderTop: '1px solid black', padding: '5px' }}>
-                    <div className="box-title-no-border" style={{ padding: 0 }}>RESP. TÉCNICO:</div>
-                    <div style={{ marginTop: '30px', borderTop: '1px solid black', textAlign: 'center', fontSize: '9px', paddingTop: '2px' }}>FIRMA RESPONSABLE</div>
-                  </div>
-                  <div style={{ flex: 1, borderTop: '1px solid black', padding: '5px' }}>
-                    <div className="box-title-no-border" style={{ padding: 0 }}>REVISADO Y APROBADO:</div>
-                    <div style={{ marginTop: '30px', borderTop: '1px solid black', textAlign: 'center', fontSize: '9px', paddingTop: '2px' }}>AUTORIDAD AGRARIA</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="report-footer">
-            <div className="footer-box" style={{ flex: 1.5 }}>
-              <div className="box-title">ESCALA GRÁFICA:</div>
-              <div className="box-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
-                <div style={{ position: 'relative', width: `${Math.min(graphicScale.totalWidthPx || 200, 250)}px`, height: '8px', display: 'flex', border: '1px solid black', marginTop: '-10px' }}>
-                  
-                  {/* Ticks Numbers */}
-                  {graphicScale.ticks?.map((tick, i) => (
-                    <div key={i} style={{ position: 'absolute', left: `${(i / (graphicScale.ticks.length - 1)) * 100}%`, top: '10px', transform: 'translateX(-50%)', fontSize: '8px', fontWeight: 'bold' }}>
-                      {tick}
+                <div style={{ display: 'flex', width: '100%', marginTop: 'auto' }}>
+                  <div style={{ flex: 1, borderRight: '1px solid black', borderTop: '1px solid black', padding: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '80px', boxSizing: 'border-box' }}>
+                    <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>RESP. TÉCNICO:</div>
+                    <div style={{ textAlign: 'center', fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto', paddingTop: '3px' }}>
+                        FIRMA RESPONSABLE
+                      </div>
                     </div>
-                  ))}
-
-                  {/* Segments alternating black and white */}
-                  {graphicScale.ticks?.slice(0, -1).map((_, i) => (
-                    <div key={i} style={{ flex: 1, backgroundColor: i % 2 === 0 ? 'black' : 'white', borderRight: i < graphicScale.ticks.length - 2 ? '1px solid black' : 'none' }}></div>
-                  ))}
-                  
-                  {/* Label 'Metros' */}
-                  <div style={{ position: 'absolute', right: '-28px', top: '10px', fontSize: '8px', fontWeight: 'bold' }}>
-                    Metros
+                  </div>
+                  <div style={{ flex: 1, borderTop: '1px solid black', padding: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '80px', boxSizing: 'border-box' }}>
+                    <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>REVISADO Y APROBADO POR:</div>
+                    <div style={{ textAlign: 'center', fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto', paddingTop: '3px' }}>
+                        AUTORIDAD AGRARIA NACIONAL
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div className="footer-box">
-              <div className="box-title">FECHA:</div>
-              <div className="box-content">{currentDate}</div>
-            </div>
-            <div className="footer-box">
-              <div className="box-title">ÁREA:</div>
-              <div className="box-content">{predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
-            </div>
-            <div className="footer-box">
-              <div className="box-title">ESCALA:</div>
-              <div className="box-content">{scale === 'custom' ? customScale : calculatedScale}</div>
-            </div>
-            <div className="footer-box" style={{ flex: 1.5 }}>
-              <div className="box-title">COORDENADAS PLANAS:</div>
-              <div className="box-content" style={{ fontSize: '8px', lineHeight: '1', fontWeight: 'normal', paddingTop: '2px' }}>
-                SISTEMA DE COORDENADAS<br/>
-                WGS 1984 UTM ZONE 17S<br/>
-                PROYECCIÓN: TRANSVERSE MERCATOR<br/>
-                DATUM: WGS 1984
               </div>
             </div>
           </div>
@@ -632,13 +698,13 @@ export default function ReportePlanimetrico() {
       <div className="print-page">
         <div className="report-inner-border">
           <div className="page2-header">
-            <div className="page2-title" style={{ borderRight: '2px solid black' }}>INFORME DE LINDERACIÓN</div>
+            <div className="page2-title">INFORME DE LINDERACIÓN</div>
             <div className="page2-title">DESCRIPCIÓN DE LINDEROS</div>
           </div>
           
           <div className="page2-body">
             {/* LADO IZQUIERDO: TABLA VERTICES */}
-            <div className="page2-col-left" style={{ padding: '0 10px' }}>
+            <div className="page2-col-left">
               <div className="dpa-grid" style={{ border: '1px solid black', marginBottom: '10px' }}>
                 <div className="dpa-col" style={{ padding: '4px' }}><div style={{fontWeight:'bold', fontSize:'9px'}}>PROVINCIA:</div><div style={{textAlign:'center', fontSize:'11px'}}>{dpaProvincia}</div></div>
                 <div className="dpa-col" style={{ padding: '4px' }}><div style={{fontWeight:'bold', fontSize:'9px'}}>CANTÓN:</div><div style={{textAlign:'center', fontSize:'11px'}}>{dpaCanton}</div></div>
@@ -674,25 +740,43 @@ export default function ReportePlanimetrico() {
                 </thead>
                 <tbody>
                   {vertices.map((v, i) => {
-                    const l = linderos[i] || {};
+                    const l = linderosConInfo[i] || linderos[i] || {};
+                    const currentCode = v.codigo || `P${String(i + 1).padStart(2, '0')}`;
+                    const nextCode = (i < vertices.length - 1)
+                      ? (vertices[i + 1]?.codigo || `P${String(i + 2).padStart(2, '0')}`)
+                      : (vertices[0]?.codigo || 'P01');
+                    const desdeHasta = (l.tramo && l.tramo !== '-') ? l.tramo : `${currentCode} - ${nextCode}`;
+
                     return (
-                      <tr key={v.id}>
-                        <td>{v.codigo}</td>
+                      <tr key={v.id || i}>
+                        <td>{currentCode}</td>
                         <td>{v.coord_x ? v.coord_x.toFixed(3) : '-'}</td>
                         <td>{v.coord_y ? v.coord_y.toFixed(3) : '-'}</td>
-                        <td>{l.tramo || '-'}</td>
+                        <td>{desdeHasta}</td>
                         <td>{l.longitud ? l.longitud.toFixed(2) : '-'}</td>
                         <td>{l.rumbo || '-'}</td>
                         <td style={{ fontSize: '8px' }}>{l.colindante || '-'}</td>
                       </tr>
                     );
                   })}
+                  {/* Filas vacías de relleno si hay pocos vértices */}
+                  {vertices.length < 22 && Array.from({ length: 22 - vertices.length }).map((_, i) => (
+                    <tr key={`empty-${i}`}>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
             
             {/* LADO DERECHO: DESCRIPCION ORIENTACION */}
-            <div className="page2-col-right" style={{ padding: '0 10px', display: 'flex', flexDirection: 'column' }}>
+            <div className="page2-col-right" style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="desc-box">
                 <div className="desc-box-title">COLINDANTE NORTE</div>
                 <div className="desc-box-content">
@@ -724,7 +808,6 @@ export default function ReportePlanimetrico() {
                 <div className="firma-box">
                   <div className="firma-box-title">RESPONSABILIDAD TÉCNICA</div>
                   <div>
-                    <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 5px auto' }}></div>
                     Ingeniero Topógrafo<br/>Registro:
                   </div>
                 </div>

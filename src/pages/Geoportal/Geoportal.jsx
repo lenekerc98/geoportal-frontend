@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, Polyline, CircleMarker, Polygon, Popup, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, useMap, Polyline, CircleMarker, Polygon, Popup, Marker, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin } from 'lucide-react';
@@ -27,11 +27,12 @@ const getGeometryIcon = (tipo) => {
   return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
 };
 
-// --- NEW COMPONENT FOR BOX ZOOM ---
-const BoxZoomHandler = ({ isActive, setIsActive }) => {
-  const map = useMapEvents({});
+// --- INTERACTIVE ZOOM HANDLER ---
+const InteractiveZoomHandler = ({ mode, setMode }) => {
+  const map = useMap();
+  
   useEffect(() => {
-    if (!isActive) {
+    if (!mode) {
       if (map && map.boxZoom && !map.boxZoom.enabled()) {
         map.boxZoom.enable();
       }
@@ -45,7 +46,9 @@ const BoxZoomHandler = ({ isActive, setIsActive }) => {
       if (e.originalEvent.button !== 0) return; // solo click izquierdo
       map.dragging.disable();
       startLatLng = e.latlng;
-      box = L.rectangle([startLatLng, startLatLng], { color: '#0078ff', weight: 2, fillOpacity: 0.2, interactive: false }).addTo(map);
+      if (mode === 'in' || mode === 'out') {
+        box = L.rectangle([startLatLng, startLatLng], { color: mode === 'in' ? '#0078ff' : '#ff0000', weight: 2, fillOpacity: 0.2, interactive: false }).addTo(map);
+      }
     };
 
     const onMouseMove = (e) => {
@@ -54,22 +57,42 @@ const BoxZoomHandler = ({ isActive, setIsActive }) => {
     };
 
     const onMouseUp = (e) => {
-      if (!startLatLng || !box) return;
-      const bounds = box.getBounds();
-      map.removeLayer(box);
-      startLatLng = null;
-      box = null;
-      map.dragging.enable();
+      if (!startLatLng) return;
+      
+      const clickLatLng = startLatLng;
+      
+      if (box) {
+        const bounds = box.getBounds();
+        map.removeLayer(box);
+        box = null;
+        startLatLng = null;
+        map.dragging.enable();
 
-      if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
-        setIsActive(false);
-        return;
+        if (!bounds.getNorthEast().equals(bounds.getSouthWest())) {
+          if (mode === 'in') {
+            map.fitBounds(bounds);
+          } else if (mode === 'out') {
+            const boundsZoom = map.getBoundsZoom(bounds);
+            const zoomDiff = boundsZoom - map.getZoom();
+            const newZoom = map.getZoom() - zoomDiff;
+            map.setView(bounds.getCenter(), newZoom > 0 ? newZoom : 0);
+          }
+          return;
+        }
+      } else {
+        startLatLng = null;
+        map.dragging.enable();
       }
-      map.fitBounds(bounds);
-      setIsActive(false);
+      
+      // If it was just a click (no box drawn)
+      if (mode === 'in') {
+        map.setZoomAround(clickLatLng, map.getZoom() + 1);
+      } else if (mode === 'out') {
+        map.setZoomAround(clickLatLng, map.getZoom() - 1);
+      }
     };
 
-    map.getContainer().style.cursor = 'crosshair';
+    map.getContainer().style.cursor = mode === 'in' ? 'zoom-in' : 'zoom-out';
     map.on('mousedown', onMouseDown);
     map.on('mousemove', onMouseMove);
     map.on('mouseup', onMouseUp);
@@ -79,10 +102,9 @@ const BoxZoomHandler = ({ isActive, setIsActive }) => {
       map.off('mousedown', onMouseDown);
       map.off('mousemove', onMouseMove);
       map.off('mouseup', onMouseUp);
-      if (box) map.removeLayer(box);
       map.dragging.enable();
     };
-  }, [isActive, map, setIsActive]);
+  }, [mode, map]);
 
   return null;
 };
@@ -599,7 +621,7 @@ export default function Geoportal() {
     };
   }, [map]);
 
-  const { activeEmpresa } = useContext(AppContext);
+  const { activeEmpresa, activeProyecto } = useContext(AppContext);
 
   const fetchMapData = async () => {
     let url = `${API_URL}/api/gis/predios`;
@@ -608,6 +630,7 @@ export default function Geoportal() {
     if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
     if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
     if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+    if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
 
     if (params.toString()) {
       url += `?${params.toString()}`;
@@ -686,7 +709,7 @@ export default function Geoportal() {
 
   // Estados de la Regla
   const [isMeasuring, setIsMeasuring] = useState(false);
-  const [isBoxZooming, setIsBoxZooming] = useState(false);
+  const [zoomMode, setZoomMode] = useState(null); // 'in', 'out', or null
   const [measurePoints, setMeasurePoints] = useState([]);
   const [mousePos, setMousePos] = useState(null);
 
@@ -890,7 +913,10 @@ export default function Geoportal() {
       setToastMsg({ type: 'info', title: 'Buscando...', message: 'Cargando base de predios...' });
       try {
         let currentUrl = `${API_URL}/api/gis/predios`;
-        if (activeEmpresa) currentUrl += `?empresa_id=${activeEmpresa.id}`;
+        const params = new URLSearchParams();
+        if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+        if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
+        if (params.toString()) currentUrl += `?${params.toString()}`;
 
         const res = await fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } });
         dataToSearch = await res.json();
@@ -1346,8 +1372,8 @@ export default function Geoportal() {
         {/* PREMIUM FLOATING TOOLBAR DOCK */}
         <div className="floating-dock">
           <button
-            onClick={() => { setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false); setIsBoxZooming(false); }}
-            className={`dock-button navegar ${(!isMeasuring && !isAddingPredio && !isDrawingPredio && !isBoxZooming) ? 'active' : ''}`}
+            onClick={() => { setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false); setZoomMode(null); }}
+            className={`dock-button navegar ${(!isMeasuring && !isAddingPredio && !isDrawingPredio && !zoomMode) ? 'active' : ''}`}
           >
             <MousePointer2 size={18} /> <span className="dock-button-text">Navegar</span>
           </button>
@@ -1356,26 +1382,21 @@ export default function Geoportal() {
 
           <button
             onClick={() => {
-              setIsBoxZooming(!isBoxZooming);
+              setZoomMode(zoomMode === 'in' ? null : 'in');
               setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false);
             }}
-            className={`dock-button ${isBoxZooming ? 'active' : ''}`}
-            title="Acercamiento por Caja (Zoom Box)"
-          >
-            <Scan size={18} />
-          </button>
-
-          <button
-            onClick={() => map && map.zoomIn()}
-            className="dock-button"
-            title="Acercar (Zoom In)"
+            className={`dock-button ${zoomMode === 'in' ? 'active' : ''}`}
+            title="Acercar (Zoom In - Haga clic o dibuje un recuadro)"
           >
             <ZoomIn size={18} />
           </button>
           <button
-            onClick={() => map && map.zoomOut()}
-            className="dock-button"
-            title="Alejar (Zoom Out)"
+            onClick={() => {
+              setZoomMode(zoomMode === 'out' ? null : 'out');
+              setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false);
+            }}
+            className={`dock-button ${zoomMode === 'out' ? 'active' : ''}`}
+            title="Alejar (Zoom Out - Haga clic)"
           >
             <ZoomOut size={18} />
           </button>
@@ -1577,7 +1598,10 @@ export default function Geoportal() {
                     setTimeout(() => {
                       // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
                       let currentUrl = `${API_URL}/api/gis/predios`;
-                      if (activeEmpresa) currentUrl += `?empresa_id=${activeEmpresa.id}`;
+                      const urlParams = new URLSearchParams();
+                      if (activeEmpresa) urlParams.append('empresa_id', activeEmpresa.id);
+                      if (activeProyecto) urlParams.append('proyecto_id', activeProyecto.id);
+                      if (urlParams.toString()) currentUrl += `?${urlParams.toString()}`;
                       fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
                         .then(r => r.json())
                         .then(d => setPrediosData(d))
@@ -1821,6 +1845,10 @@ export default function Geoportal() {
                   <div className={`layer-item ${baseMap === 'esri' ? 'active' : ''}`} onClick={() => setBaseMap('esri')}>
                     <span>Satélite (Esri)</span>
                     {baseMap === 'esri' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                  </div>
+                  <div className={`layer-item ${baseMap === 'osm-hybrid' ? 'active' : ''}`} onClick={() => setBaseMap('osm-hybrid')}>
+                    <span>Satélite + Calles</span>
+                    {baseMap === 'osm-hybrid' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
                   </div>
                   <div className={`layer-item ${baseMap === 'carto' ? 'active' : ''}`} onClick={() => setBaseMap('carto')}>
                     <span>Carto ({theme === 'dark' ? 'Oscuro' : 'Claro'})</span>
@@ -2108,6 +2136,32 @@ export default function Geoportal() {
             maxNativeZoom={17}
             maxZoom={32}
           />
+        )}
+        {baseMap === 'osm-hybrid' && (
+          <LayerGroup>
+            <TileLayer
+              key="esri-base-hybrid"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution="Tiles &copy; Esri"
+              zIndex={1}
+              maxNativeZoom={17}
+              maxZoom={32}
+            />
+            <TileLayer
+              key="esri-trans-hybrid"
+              url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+              zIndex={2}
+              maxNativeZoom={15}
+              maxZoom={32}
+            />
+            <TileLayer
+              key="esri-bound-hybrid"
+              url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+              zIndex={3}
+              maxNativeZoom={15}
+              maxZoom={32}
+            />
+          </LayerGroup>
         )}
         {baseMap === 'carto' && (
           <TileLayer
@@ -2451,7 +2505,7 @@ export default function Geoportal() {
         )}
 
         <MapInteractionHandler onInteraction={() => setFeatureContextMenu(null)} />
-        <BoxZoomHandler isActive={isBoxZooming} setIsActive={setIsBoxZooming} />
+        <InteractiveZoomHandler mode={zoomMode} setMode={setZoomMode} />
 
         {/* Escalímetro (Métrico) en la esquina inferior derecha */}
         <ScaleControl position="bottomright" imperial={false} />

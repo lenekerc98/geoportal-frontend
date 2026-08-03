@@ -3,29 +3,34 @@ import { Settings, Map, Layers, Plus, Building2, Save } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
+import ProyectosManager from '../../components/System/ProyectosManager';
 import './SystemParams.css';
 
 export default function SystemParams() {
-  const [activeTab, setActiveTab] = useState('dpa');
+  const [activeTab, setActiveTab] = useState('empresa');
   
   const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
-  const [empresaConfig, setEmpresaConfig] = useState({ modo_historico: 'automatico' });
+  const [empresaConfig, setEmpresaConfig] = useState({ 
+    modo_historico: 'automatico',
+    logo_url: '',
+    nombre_alcalde: '',
+    nombre_director: '',
+    sbu_actual: '',
+    valor_m2_urbano: '',
+    valor_m2_rural: ''
+  });
   const [isSaving, setIsSaving] = useState(false);
-  const [provincias, setProvincias] = useState([]);
-  const [cantones, setCantones] = useState([]);
-  const [ciudades, setCiudades] = useState([]);
-  
-  const [selectedProv, setSelectedProv] = useState('');
-  const [selectedCanton, setSelectedCanton] = useState('');
-
-  useEffect(() => {
-    fetchProvincias();
-  }, []);
   
   useEffect(() => {
     if (activeEmpresa) {
       setEmpresaConfig({
-        modo_historico: activeEmpresa.parametros?.modo_historico || 'automatico'
+        modo_historico: activeEmpresa.parametros?.modo_historico || 'automatico',
+        logo_url: activeEmpresa.logo_url || '',
+        nombre_alcalde: activeEmpresa.nombre_alcalde || '',
+        nombre_director: activeEmpresa.nombre_director || '',
+        sbu_actual: activeEmpresa.sbu_actual || '',
+        valor_m2_urbano: activeEmpresa.valor_m2_urbano || '',
+        valor_m2_rural: activeEmpresa.valor_m2_rural || ''
       });
     }
   }, [activeEmpresa]);
@@ -35,7 +40,15 @@ export default function SystemParams() {
     setIsSaving(true);
     try {
       const token = localStorage.getItem('catastro_token');
-      const payload = { ...activeEmpresa, parametros: { ...activeEmpresa.parametros, ...empresaConfig } };
+      const updateData = {
+          parametros: { ...activeEmpresa.parametros, modo_historico: empresaConfig.modo_historico },
+          logo_url: empresaConfig.logo_url || null,
+          nombre_alcalde: empresaConfig.nombre_alcalde || null,
+          nombre_director: empresaConfig.nombre_director || null,
+          sbu_actual: empresaConfig.sbu_actual ? parseFloat(empresaConfig.sbu_actual) : null,
+          valor_m2_urbano: empresaConfig.valor_m2_urbano ? parseFloat(empresaConfig.valor_m2_urbano) : null,
+          valor_m2_rural: empresaConfig.valor_m2_rural ? parseFloat(empresaConfig.valor_m2_rural) : null
+      };
       
       const res = await fetch(`${API_URL}/api/empresas/${activeEmpresa.id}`, {
         method: 'PUT',
@@ -43,7 +56,7 @@ export default function SystemParams() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ parametros: payload.parametros })
+        body: JSON.stringify(updateData)
       });
       
       if (res.ok) {
@@ -61,115 +74,29 @@ export default function SystemParams() {
     }
   };
 
-  const fetchProvincias = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/system/dpa/provincias`);
-      const data = await res.json();
-      setProvincias(data);
-    } catch(e) { console.error(e); }
-  };
-
-  const fetchCantones = async (provId) => {
-    try {
-      const res = await fetch(`${API_URL}/api/system/dpa/cantones?provincia_id=${provId}`);
-      const data = await res.json();
-      setCantones(data);
-      setCiudades([]);
-      setSelectedCanton('');
-    } catch(e) { console.error(e); }
-  };
-
-  const fetchCiudades = async (cantonId) => {
-    try {
-      const res = await fetch(`${API_URL}/api/system/dpa/ciudades?canton_id=${cantonId}`);
-      const data = await res.json();
-      setCiudades(data);
-    } catch(e) { console.error(e); }
-  };
-
   return (
     <div className="params-container">
       <h1 className="params-title">Parámetros Generales</h1>
       
       <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', borderBottom: '1px solid var(--card-border)' }}>
-        <button 
-          onClick={() => setActiveTab('dpa')}
-          style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'dpa' ? '2px solid var(--primary)' : '2px solid transparent', color: activeTab === 'dpa' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          Gestión DPA
-        </button>
+
         <button 
           onClick={() => setActiveTab('empresa')}
           style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'empresa' ? '2px solid var(--primary)' : '2px solid transparent', color: activeTab === 'empresa' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold' }}
         >
           Configuración de Empresa
         </button>
+        <button 
+          onClick={() => setActiveTab('proyectos')}
+          style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'proyectos' ? '2px solid var(--primary)' : '2px solid transparent', color: activeTab === 'proyectos' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          Gestión de Proyectos
+        </button>
       </div>
 
-      {activeTab === 'dpa' && (
-      <div className="params-grid">
-        {/* Provincias */}
-        <div className="param-card">
-          <div className="card-header">
-            <h3><Map size={20} /> Provincias</h3>
-            <button className="icon-btn"><Plus size={16} /></button>
-          </div>
-          <ul className="dpa-list">
-            {provincias.map(p => (
-              <li 
-                key={p.id} 
-                className={selectedProv === p.id ? 'active' : ''}
-                onClick={() => { setSelectedProv(p.id); fetchCantones(p.id); }}
-              >
-                {p.nombre}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {activeTab === 'proyectos' && <ProyectosManager />}
 
-        {/* Cantones */}
-        <div className="param-card">
-          <div className="card-header">
-            <h3><Layers size={20} /> Cantones</h3>
-            <button className="icon-btn" disabled={!selectedProv}><Plus size={16} /></button>
-          </div>
-          {selectedProv ? (
-            <ul className="dpa-list">
-              {cantones.map(c => (
-                <li 
-                  key={c.id}
-                  className={selectedCanton === c.id ? 'active' : ''}
-                  onClick={() => { setSelectedCanton(c.id); fetchCiudades(c.id); }}
-                >
-                  {c.nombre}
-                </li>
-              ))}
-              {cantones.length === 0 && <p className="empty-msg">No hay cantones registrados.</p>}
-            </ul>
-          ) : (
-            <p className="empty-msg">Seleccione una provincia.</p>
-          )}
-        </div>
 
-        {/* Ciudades */}
-        <div className="param-card">
-          <div className="card-header">
-            <h3><Settings size={20} /> Ciudades / Parroquias</h3>
-            <button className="icon-btn" disabled={!selectedCanton}><Plus size={16} /></button>
-          </div>
-          {selectedCanton ? (
-            <ul className="dpa-list">
-              {ciudades.map(ciu => (
-                <li key={ciu.id}>{ciu.nombre}</li>
-              ))}
-              {ciudades.length === 0 && <p className="empty-msg">No hay ciudades registradas.</p>}
-            </ul>
-          ) : (
-            <p className="empty-msg">Seleccione un cantón.</p>
-          )}
-        </div>
-      </div>
-      )}
 
       {activeTab === 'empresa' && (
         <div style={{ background: 'var(--bg-panel)', padding: '25px', borderRadius: '8px', border: '1px solid var(--card-border)' }}>
@@ -192,6 +119,93 @@ export default function SystemParams() {
                   Si seleccionas "Manual", aparecerá un campo de fecha opcional al subir un Shapefile.
                 </small>
               </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Logotipo de la Empresa / GAD (Reportes)</label>
+                
+                {/* Vista Previa del Logo Actual */}
+                {empresaConfig.logo_url && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '12px', padding: '10px', background: 'var(--bg-lighter)', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
+                    <img 
+                      src={empresaConfig.logo_url} 
+                      alt="Vista previa logo" 
+                      style={{ height: '50px', width: 'auto', objectFit: 'contain', background: 'white', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>Logotipo Seleccionado</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {empresaConfig.logo_url.startsWith('data:') ? '✔ Imagen Cargada desde el Equipo' : empresaConfig.logo_url}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEmpresaConfig({...empresaConfig, logo_url: ''})}
+                      style={{ marginLeft: 'auto', background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      Quitar Logo
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <label style={{ cursor: 'pointer', padding: '8px 14px', background: 'var(--accent-color)', color: 'white', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Plus size={16} /> Subir Imagen desde Equipo
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              setEmpresaConfig({...empresaConfig, logo_url: event.target.result});
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>o ingresa una URL web:</span>
+                  </div>
+
+                  <input 
+                    type="text" 
+                    value={empresaConfig.logo_url}
+                    onChange={(e) => setEmpresaConfig({...empresaConfig, logo_url: e.target.value})}
+                    placeholder="https://ejemplo.com/logo.png"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-lighter)', color: 'var(--text-main)', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <small style={{ display: 'block', marginTop: '6px', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                  Este logotipo se aplicará en el encabezado oficial de todos los Reportes Planimétricos.
+                </small>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Nombre del Alcalde</label>
+                  <input 
+                    type="text" 
+                    value={empresaConfig.nombre_alcalde}
+                    onChange={(e) => setEmpresaConfig({...empresaConfig, nombre_alcalde: e.target.value})}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-lighter)', color: 'var(--text-main)' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Director(a) de Catastro</label>
+                  <input 
+                    type="text" 
+                    value={empresaConfig.nombre_director}
+                    onChange={(e) => setEmpresaConfig({...empresaConfig, nombre_director: e.target.value})}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-lighter)', color: 'var(--text-main)' }}
+                  />
+                </div>
+              </div>
+
+
               
               <button 
                 onClick={handleSaveEmpresaConfig}

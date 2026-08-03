@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import Swal from 'sweetalert2';
@@ -12,6 +12,7 @@ if (!proj4.defs('EPSG:32717')) {
 export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, setMousePos, onFinish, setIsSnapped }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
   const [cachedSnapPoints, setCachedSnapPoints] = useState([]);
+  const latestMousePos = useRef(null);
 
   const map = useMap();
 
@@ -86,6 +87,7 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
       }
     },
     mousemove(e) {
+      latestMousePos.current = e.latlng;
       if (isDrawing) {
         let bestSnap = null;
         let minDistance = 20; // 20 pixels threshold for snapping
@@ -156,6 +158,9 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     } else {
       mapContainer.style.cursor = ''; // Restaurar por defecto
     }
+    return () => {
+      mapContainer.style.cursor = '';
+    };
   }, [isDrawing, map]);
 
   React.useEffect(() => {
@@ -168,7 +173,12 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const finalPoints = [...drawPoints];
-        if (snappedLatLng) finalPoints.push(snappedLatLng);
+        if (snappedLatLng) {
+            finalPoints.push(snappedLatLng);
+        } else if (latestMousePos.current) {
+            finalPoints.push(latestMousePos.current);
+        }
+        if (setIsSnapped) setIsSnapped(false);
         onFinish(finalPoints);
       } else if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
