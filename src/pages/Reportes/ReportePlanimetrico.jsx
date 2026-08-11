@@ -546,7 +546,7 @@ export default function ReportePlanimetrico() {
                   />
                 )}
 
-                <div style={{ display: 'inline-block', textAlign: 'center', padding: '0 90px' }}>
+                <div className="report-header-text" style={{ display: 'inline-block', textAlign: 'center', padding: '0 90px' }}>
                   <div style={{ fontSize: '15px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
                     {activeEmpresa?.nombre || 'GOBIERNO AUTÓNOMO DESCENTRALIZADO MUNICIPAL DEL CANTÓN URDANETA'}
                   </div>

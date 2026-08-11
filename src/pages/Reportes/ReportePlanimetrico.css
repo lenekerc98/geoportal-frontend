@@ -275,6 +275,140 @@
   padding-bottom: 3px;
 }
 
+/* ============================================= */
+/* RESPONSIVE: TELÉFONOS Y TABLETS PEQUEÑAS      */
+/* ============================================= */
+@media screen and (max-width: 768px) {
+
+  /* --- BARRA DE CONTROLES --- */
+  .report-controls {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .report-controls-group {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  /* --- PÁGINAS: quitar tamaño fijo A4 --- */
+  .print-page {
+    width: 100% !important;
+    height: auto !important;
+    padding: 10px !important;
+    margin: 10px 0 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  /* --- MARCO: adaptable --- */
+  .report-border,
+  .report-inner-border {
+    height: auto;
+  }
+
+  /* --- HEADER --- */
+  .report-header {
+    min-height: 60px !important;
+    padding: 8px 0 !important;
+  }
+  .report-header h1 {
+    font-size: 14px;
+    letter-spacing: 0;
+  }
+  .report-header-text {
+    padding: 0 10px !important;
+  }
+  .report-header img {
+    height: 40px !important;
+  }
+
+  /* --- PAG 1: Mapa + Sidebar en columna --- */
+  .report-body {
+    flex-direction: column;
+  }
+
+  .report-map-container {
+    border-right: none !important;
+    border-bottom: 1px solid black;
+    min-height: 300px;
+    padding: 10px !important;
+  }
+
+  .report-sidebar {
+    width: 100%;
+    height: auto;
+  }
+
+  .minimap-box {
+    height: 180px;
+  }
+
+  /* --- PAG 2: Tablas en columna --- */
+  .page2-header {
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px;
+  }
+  .page2-title {
+    font-size: 14px;
+    padding: 6px;
+  }
+
+  .page2-body {
+    flex-direction: column;
+    gap: 15px;
+    padding: 8px;
+  }
+
+  /* Tabla con scroll horizontal si no cabe */
+  .page2-col-left {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .report-table {
+    font-size: 9px;
+    min-width: 500px;
+  }
+
+  /* --- DPA grid en columna --- */
+  .dpa-grid {
+    flex-direction: column;
+  }
+  .dpa-col {
+    border-right: none;
+    border-bottom: 1px solid black;
+  }
+  .dpa-col:last-child {
+    border-bottom: none;
+  }
+
+  /* --- Descripciones de colindantes --- */
+  .desc-box-content {
+    min-height: 30px;
+    font-size: 11px;
+  }
+
+  /* --- Firmas --- */
+  .firmas-grid {
+    flex-direction: column;
+    gap: 0;
+  }
+  .firma-box {
+    height: 90px;
+    border-left: 1px solid black !important;
+  }
+
+  /* --- Footer boxes --- */
+  .footer-box {
+    font-size: 9px;
+  }
+  .footer-box .box-content {
+    font-size: 10px;
+  }
+}
+
 @media print {
   @page {
     size: 297mm 210mm;
