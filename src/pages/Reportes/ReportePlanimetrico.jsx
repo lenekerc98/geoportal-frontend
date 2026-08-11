@@ -694,7 +694,7 @@ export default function ReportePlanimetrico() {
                   <div className="sidebar-box">
                     <div className="minimap-box">
                       <MapContainer center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false}>
-                        <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
                         <UtmGrid />
                         <Polygon positions={polygonCoords} pathOptions={{ color: 'yellow', weight: 1, fillColor: 'transparent' }} />
                       </MapContainer>
@@ -853,7 +853,7 @@ export default function ReportePlanimetrico() {
                         );
                       })}
                       {/* Filas vacías de relleno si hay pocos vértices */}
-                      {vertices.length < 25 && Array.from({ length: 25 - vertices.length }).map((_, i) => (
+                      {vertices.length < 24 && Array.from({ length: 24 - vertices.length }).map((_, i) => (
                         <tr key={`empty-${i}`}>
                           <td>&nbsp;</td>
                           <td>&nbsp;</td>
