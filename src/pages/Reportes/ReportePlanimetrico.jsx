@@ -424,7 +424,7 @@ export default function ReportePlanimetrico() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', paddingBottom: '40px' }}>
+    <div className="report-wrapper" style={{ minHeight: '100vh', paddingBottom: '40px' }}>
 
       {/* BARRA DE CONTROLES ATALAS DE NAVEGACIÓN */}
       <div className="report-controls no-print">
