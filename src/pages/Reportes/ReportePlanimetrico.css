@@ -55,6 +55,8 @@
   box-sizing: border-box;
   position: relative;
   font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
 /* MARCO PRINCIPAL */
@@ -118,6 +120,7 @@
 
 .vertex-label {
   /* Estilos manejados en línea por createTextIcon */
+  background-color: transparent;
 }
 
 .lindero-label {

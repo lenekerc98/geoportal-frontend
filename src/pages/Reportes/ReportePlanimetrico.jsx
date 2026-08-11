@@ -37,15 +37,25 @@ const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, 
   });
 };
 
-const createRotatedTextIcon = (colindante, medida, p1, p2) => {
+const createRotatedTextIcon = (colindante, medida, p1, p2, centerLat, centerLng) => {
   let angle = Math.atan2(-(p2[0] - p1[0]), (p2[1] - p1[1])) * (180 / Math.PI);
   if (angle > 90 || angle < -90) angle += 180;
 
+  const midLat = (p1[0] + p2[0]) / 2;
+  const midLng = (p1[1] + p2[1]) / 2;
+  const dy = midLat - centerLat;
+  const dx = midLng - centerLng;
+  const outAngle = Math.atan2(-dy, dx);
+
+  const offsetDist = 12;
+  const offsetX = Math.cos(outAngle) * offsetDist;
+  const offsetY = Math.sin(outAngle) * offsetDist;
+
   return L.divIcon({
     className: 'lindero-rotated',
-    html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
-      <div style="margin-bottom: 8px; color: #1a237e;">${colindante}</div>
-      <div style="margin-top: 8px; color: #37474f;">${medida}</div>
+    html: `<div style="position: absolute; transform: translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
+      ${colindante ? `<div style="color: #1a237e;">${colindante}</div>` : ''}
+      <div style="color: #37474f;">${medida}</div>
     </div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0]
@@ -325,10 +335,29 @@ export default function ReportePlanimetrico() {
     const maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs);
     const maxLng = Math.max(...lngs);
+    let maxDist = 0;
+    let mainAngle = 0;
+    for (let i = 0; i < polygonCoords.length; i++) {
+      for (let j = i + 1; j < polygonCoords.length; j++) {
+        const dx = polygonCoords[j][1] - polygonCoords[i][1];
+        const dy = polygonCoords[j][0] - polygonCoords[i][0];
+        const dist = dx * dx + dy * dy;
+        if (dist > maxDist) {
+          maxDist = dist;
+          // dy is inverted because latitude increases UP, but DOM Y increases DOWN
+          let angle = Math.atan2(-dy, dx) * (180 / Math.PI);
+          // Normalize angle so text is always readable (left-to-right / top-to-bottom)
+          if (angle > 90 || angle < -90) angle += 180;
+          mainAngle = angle;
+        }
+      }
+    }
+
     return {
       center: [(minLat + maxLat) / 2, (minLng + maxLng) / 2],
       height: maxLat - minLat || 1,
-      width: maxLng - minLng || 1
+      width: maxLng - minLng || 1,
+      mainAngle
     };
   }, [polygonCoords]);
   const center = centerInfo.center;
@@ -573,7 +602,7 @@ export default function ReportePlanimetrico() {
 
                           <Marker position={center} icon={L.divIcon({
                             className: 'center-predio-info',
-                            html: `<div style="position: absolute; transform: translate(-50%, -50%); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
+                            html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${centerInfo.mainAngle}deg); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
                         <div>POSESIONARIO: ${predio?.nombre_posesionario || 'SIN NOMBRE'}</div>
                         <div>C.C.: ${predio?.cedula || 'S/D'} | CÓDIGO: ${predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
                         <div>ÁREA: ${predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
@@ -594,7 +623,7 @@ export default function ReportePlanimetrico() {
                                 const midLng = (points[0][1] + points[1][1]) / 2;
                                 const medida = `${l.longitud.toFixed(2)}m`;
                                 const colindante = l.colindante || '';
-                                return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindante, medida, points[0], points[1])} />;
+                                return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindante, medida, points[0], points[1], center[0], center[1])} />;
                               }
                             } catch (e) { }
                             return null;
@@ -732,14 +761,19 @@ export default function ReportePlanimetrico() {
                     <div style={{ display: 'flex', width: '100%', height: '100%' }}>
                       <div style={{ flex: 1, borderRight: '1px solid black', padding: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
                         <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>RESP. TÉCNICO:</div>
-                        <div style={{ textAlign: 'center', marginBottom: '15px' }}>
-                          <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto' }}></div>
+                        <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+                          <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
+                          <div style={{ fontSize: '7px', fontWeight: 'bold' }}>{activeEmpresa?.nombre_director || '______________________'}</div>
+                          <div style={{ fontSize: '7px' }}>Director(a) de Catastro</div>
                         </div>
                       </div>
                       <div style={{ flex: 1, padding: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
                         <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>REVISADO Y APROBADO POR:</div>
-                        <div style={{ textAlign: 'center', marginBottom: '15px' }}>
-                          <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto' }}></div>
+                        <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+                          <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
+                          {/* Textos ocultos para igualar la altura de la caja izquierda y alinear la línea */}
+                          <div style={{ fontSize: '7px', fontWeight: 'bold', visibility: 'hidden' }}>Espacio</div>
+                          <div style={{ fontSize: '7px', visibility: 'hidden' }}>Espacio</div>
                         </div>
                       </div>
                     </div>
@@ -819,7 +853,7 @@ export default function ReportePlanimetrico() {
                         );
                       })}
                       {/* Filas vacías de relleno si hay pocos vértices */}
-                      {vertices.length < 22 && Array.from({ length: 22 - vertices.length }).map((_, i) => (
+                      {vertices.length < 25 && Array.from({ length: 25 - vertices.length }).map((_, i) => (
                         <tr key={`empty-${i}`}>
                           <td>&nbsp;</td>
                           <td>&nbsp;</td>
@@ -866,14 +900,19 @@ export default function ReportePlanimetrico() {
                   <div className="firmas-grid">
                     <div className="firma-box">
                       <div className="firma-box-title">RESPONSABILIDAD TÉCNICA</div>
-                      <div style={{ marginTop: 'auto', marginBottom: '15px' }}>
-                        <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto' }}></div>
+                      <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center' }}>
+                        <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
+                        <div style={{ fontSize: '8px', fontWeight: 'bold' }}>{activeEmpresa?.nombre_director || '______________________'}</div>
+                        <div style={{ fontSize: '8px' }}>Director(a) de Catastro</div>
                       </div>
                     </div>
                     <div className="firma-box" style={{ borderLeft: 'none' }}>
                       <div className="firma-box-title">REVISADO Y APROBADO POR:</div>
-                      <div style={{ marginTop: 'auto', marginBottom: '15px' }}>
-                        <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto' }}></div>
+                      <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center' }}>
+                        <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
+                        {/* Textos ocultos para igualar la altura de la caja izquierda y alinear la línea */}
+                        <div style={{ fontSize: '8px', fontWeight: 'bold', visibility: 'hidden' }}>Espacio</div>
+                        <div style={{ fontSize: '8px', visibility: 'hidden' }}>Espacio</div>
                       </div>
                     </div>
                   </div>
