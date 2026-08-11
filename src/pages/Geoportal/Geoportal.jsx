@@ -668,7 +668,7 @@ export default function Geoportal() {
         body: JSON.stringify(predioData)
       });
       if (res.ok) {
-        setToastMsg({ type: 'success', title: 'Éxito', message: 'Predio guardado correctamente' });
+        showSuccess('Predio guardado correctamente');
         setIsAddingPredio(false);
         setEditingPredio(null);
         // Recargar predios

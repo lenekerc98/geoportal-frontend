@@ -173,11 +173,6 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const finalPoints = [...drawPoints];
-        if (snappedLatLng) {
-            finalPoints.push(snappedLatLng);
-        } else if (latestMousePos.current) {
-            finalPoints.push(latestMousePos.current);
-        }
         if (setIsSnapped) setIsSnapped(false);
         onFinish(finalPoints);
       } else if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {

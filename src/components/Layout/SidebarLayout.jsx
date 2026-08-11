@@ -128,9 +128,9 @@ export default function SidebarLayout() {
       .then(data => {
         if (Array.isArray(data)) {
           if (activeEmpresa) {
-            const filtered = data.filter(p => p.empresa_id === activeEmpresa.id);
+            const filtered = data.filter(p => p.empresas_ids && p.empresas_ids.includes(activeEmpresa.id));
             setProyectosList(filtered);
-            if (activeProyecto && activeProyecto.empresa_id !== activeEmpresa.id) {
+            if (activeProyecto && (!activeProyecto.empresas_ids || !activeProyecto.empresas_ids.includes(activeEmpresa.id))) {
               setGlobalProyecto(null);
             }
           } else {

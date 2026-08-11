@@ -26,7 +26,7 @@ export default function ProyectosManager() {
       const token = localStorage.getItem('catastro_token');
       const res = await fetch(`${API_URL}/api/proyectos`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
-      setProyectos(data.filter(p => p.empresa_id === activeEmpresa.id));
+      setProyectos(data.filter(p => p.empresas_ids && p.empresas_ids.includes(activeEmpresa.id)));
     } catch(e) {
       console.error(e);
     }
@@ -65,7 +65,7 @@ export default function ProyectosManager() {
       const url = editingId === 'new' ? `${API_URL}/api/proyectos` : `${API_URL}/api/proyectos/${editingId}`;
       const payload = {
           ...formData,
-          empresa_id: activeEmpresa.id
+          empresas_ids: [activeEmpresa.id]
       };
 
       const res = await fetch(url, {

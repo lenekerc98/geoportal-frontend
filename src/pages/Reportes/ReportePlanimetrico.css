@@ -113,6 +113,7 @@
   width: 100%;
   height: 100%;
   z-index: 1;
+  background-color: white !important;
 }
 
 .vertex-label {
@@ -141,7 +142,7 @@
 }
 
 .minimap-box {
-  height: 280px;
+  height: 230px;
   padding: 5px;
   display: flex;
   flex-direction: column;
@@ -292,7 +293,7 @@
 @media print {
   @page {
     size: A4 landscape;
-    margin: 0;
+    margin: 10mm;
   }
   body {
     margin: 0;
@@ -305,6 +306,9 @@
   }
   .print-page {
     margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
     page-break-after: always;
     page-break-inside: avoid;
     box-shadow: none;

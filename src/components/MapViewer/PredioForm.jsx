@@ -52,7 +52,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   const [selectedProyectoId, setSelectedProyectoId] = useState(initialData?.proyecto_id || activeProyecto?.id || '');
 
   useEffect(() => {
-    if (!activeEmpresa && !initialData) {
+    if (!activeEmpresa) {
       const token = localStorage.getItem('catastro_token');
       fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json())
@@ -66,17 +66,17 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         })
         .catch(console.error);
     }
-  }, [activeEmpresa, initialData, selectedEmpresaId]);
+  }, [activeEmpresa, selectedEmpresaId]);
 
   useEffect(() => {
     const targetEmpresaId = activeEmpresa?.id || selectedEmpresaId;
-    if (targetEmpresaId && (!activeProyecto || activeProyecto.empresa_id != targetEmpresaId) && !initialData) {
+    if (targetEmpresaId && (!activeProyecto || !activeProyecto.empresas_ids || !activeProyecto.empresas_ids.includes(parseInt(targetEmpresaId)))) {
       const token = localStorage.getItem('catastro_token');
       fetch(`${API_URL}/api/proyectos`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => {
           if (Array.isArray(data)) {
-            const filtered = data.filter(p => p.empresa_id == targetEmpresaId);
+            const filtered = data.filter(p => p.empresas_ids && p.empresas_ids.includes(parseInt(targetEmpresaId)));
             setProyectosList(filtered);
             if (filtered.length === 1 && !selectedProyectoId) {
               setSelectedProyectoId(filtered[0].id);
@@ -85,7 +85,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         })
         .catch(console.error);
     }
-  }, [activeProyecto, initialData, selectedEmpresaId, activeEmpresa]);
+  }, [activeProyecto, selectedEmpresaId, activeEmpresa]);
 
   const [cedula, setCedula] = useState('');
   const [nombrePosesionario, setNombrePosesionario] = useState('');
@@ -131,7 +131,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   };
 
   useEffect(() => {
-    if (formData.cod_catastral && formData.cod_catastral.length >= 5) {
+    if (formData.cod_catastral && formData.cod_catastral.trim().length >= 5) {
       const delay = setTimeout(() => {
         buscarCodigo();
       }, 500);
@@ -140,6 +140,41 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       setCodigoMsg('');
     }
   }, [formData.cod_catastral]);
+
+  // Auto-llenado de Provincia y Cantón basado en la Empresa activa
+  useEffect(() => {
+    if (!initialData?.id && activeEmpresa && formData.cod_catastral.replace(/\s/g, '').length === 0) {
+      const autoFillDPA = async () => {
+        try {
+          const provRes = await fetch(`${API_URL}/api/system/dpa/provincias`);
+          const provincias = await provRes.json();
+          const normalize = str => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+          
+          const provMatch = provincias.find(p => normalize(p.nombre) === normalize(activeEmpresa.provincia));
+          
+          if (provMatch) {
+            let newCod = provMatch.codigo_dpa;
+            const cantRes = await fetch(`${API_URL}/api/system/dpa/cantones?provincia_id=${provMatch.id}`);
+            const cantones = await cantRes.json();
+            const cantMatch = cantones.find(c => normalize(c.nombre) === normalize(activeEmpresa.canton));
+            
+            if (cantMatch && cantMatch.codigo_dpa) {
+              // El código de cantón tiene 4 dígitos (ej: 1211), tomamos los dos últimos
+              newCod += cantMatch.codigo_dpa.substring(2, 4);
+            }
+            
+            setFormData(prev => ({
+               ...prev,
+               cod_catastral: (newCod + prev.cod_catastral.substring(newCod.length)).padEnd(19, ' ').substring(0, 19)
+            }));
+          }
+        } catch (e) {
+          console.error('Error auto-llenando DPA:', e);
+        }
+      };
+      autoFillDPA();
+    }
+  }, [activeEmpresa, initialData]);
 
   const buscarCodigo = async () => {
     setLoadingCodigo(true);
@@ -209,6 +244,12 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const finalCod = formData.cod_catastral.replace(/\s/g, '');
+    if (finalCod.length !== 19) {
+      alert('La Clave Catastral debe tener exactamente 19 dígitos.');
+      return;
+    }
 
     let finalPosesionarioId = formData.posesionario_id;
     if (!finalPosesionarioId && cedula && nombrePosesionario) {
@@ -284,6 +325,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
     onSubmit({
       ...formData,
+      cod_catastral: finalCod,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
       empresa_id: selectedEmpresaId ? parseInt(selectedEmpresaId, 10) : null,
       proyecto_id: activeProyecto ? activeProyecto.id : (selectedProyectoId ? parseInt(selectedProyectoId, 10) : null),
@@ -306,7 +348,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       <Draggable nodeRef={nodeRef} handle=".drag-handle" cancel="button, input, select, textarea, .no-drag">
       <div ref={nodeRef} className="glass-panel" style={{ padding: '30px', maxWidth: '600px', width: '90%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="drag-handle" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px', cursor: 'move' }}>
-          <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{initialData ? 'Editar Predio' : 'Nuevo Predio (Coordenadas)'}</h2>
+          <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{initialData && initialData.id ? 'Editar Predio' : 'Nuevo Predio (Coordenadas)'}</h2>
 
           <div style={{ display: 'flex', gap: '10px' }}>
             {initialData && initialData.id && (
@@ -316,7 +358,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           </div>
         </div>
 
-        {!initialData && ((!activeEmpresa && empresasList.length > 1) || (!activeProyecto && proyectosList.length > 1)) && (
+        {((!activeEmpresa && empresasList.length > 1) || (!activeProyecto && proyectosList.length > 1)) && (
           <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', padding: '15px', background: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--card-border)' }}>
             {!activeEmpresa && empresasList.length > 1 && (
               <div style={{ flex: 1 }}>
@@ -340,28 +382,85 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="predio-form-header">
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Código Catastral *</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  value={formData.cod_catastral}
-                  onChange={e => setFormData({ ...formData, cod_catastral: e.target.value })}
-                  className="input-dynamic"
-                  placeholder="Ej. 17-01-..."
-                  required
-                />
-                <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)' }}>
-                  {loadingCodigo && <Loader2 size={16} className="spin" color="var(--accent-color)" />}
-                  {!loadingCodigo && codigoMsg === 'Registrado' && <Check size={16} color="var(--warning)" />}
-                </div>
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+              <span>Clave Catastral (19 dígitos) *</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Prov-Cant-Parr-Zona-Sect-Pol-Pred-Div</span>
+            </label>
+            <div style={{ display: 'flex', gap: '4px', position: 'relative', width: '100%', overflowX: 'auto', paddingBottom: '5px' }}>
+              <input id="cc-0" type="text" maxLength="2" placeholder="Pr" title="Provincia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(0, 2).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let newCod = (val + formData.cod_catastral.substring(2)).padEnd(19, ' ').substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+                if (val.length === 2) document.getElementById('cc-1')?.focus();
+              }} required />
+              <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+              <input id="cc-1" type="text" maxLength="2" placeholder="Ca" title="Cantón (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(2, 4).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let curr = formData.cod_catastral.padEnd(19, ' ');
+                let newCod = (curr.substring(0, 2) + val.padEnd(2, ' ') + curr.substring(4)).substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+                if (val.length === 2) document.getElementById('cc-2')?.focus();
+              }} required />
+              <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+              <input id="cc-2" type="text" maxLength="2" placeholder="Pa" title="Parroquia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(4, 6).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let curr = formData.cod_catastral.padEnd(19, ' ');
+                let newCod = (curr.substring(0, 4) + val.padEnd(2, ' ') + curr.substring(6)).substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+                if (val.length === 2) document.getElementById('cc-3')?.focus();
+              }} required />
+              <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+              <input id="cc-3" type="text" maxLength="2" placeholder="Zo" title="Zona (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(6, 8).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let curr = formData.cod_catastral.padEnd(19, ' ');
+                let newCod = (curr.substring(0, 6) + val.padEnd(2, ' ') + curr.substring(8)).substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+                if (val.length === 2) document.getElementById('cc-4')?.focus();
+              }} required />
+              <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+              <input id="cc-4" type="text" maxLength="2" placeholder="Se" title="Sector (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(8, 10).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let curr = formData.cod_catastral.padEnd(19, ' ');
+                let newCod = (curr.substring(0, 8) + val.padEnd(2, ' ') + curr.substring(10)).substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+                if (val.length === 2) document.getElementById('cc-5')?.focus();
+              }} required />
+              <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+              <input id="cc-5" type="text" maxLength="3" placeholder="Pol" title="Polígono (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(10, 13).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let curr = formData.cod_catastral.padEnd(19, ' ');
+                let newCod = (curr.substring(0, 10) + val.padEnd(3, ' ') + curr.substring(13)).substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+                if (val.length === 3) document.getElementById('cc-6')?.focus();
+              }} required />
+              <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+              <input id="cc-6" type="text" maxLength="3" placeholder="Pre" title="Predio (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(13, 16).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let curr = formData.cod_catastral.padEnd(19, ' ');
+                let newCod = (curr.substring(0, 13) + val.padEnd(3, ' ') + curr.substring(16)).substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+                if (val.length === 3) document.getElementById('cc-7')?.focus();
+              }} required />
+              <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+              <input id="cc-7" type="text" maxLength="3" placeholder="Div" title="División (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(16, 19).trim()} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                let curr = formData.cod_catastral.padEnd(19, ' ');
+                let newCod = (curr.substring(0, 16) + val.padEnd(3, ' ') + curr.substring(19)).substring(0, 19);
+                setFormData({ ...formData, cod_catastral: newCod });
+              }} required />
+              
+              <div style={{ position: 'absolute', right: '-25px', top: '50%', transform: 'translateY(-50%)' }}>
+                {loadingCodigo && <Loader2 size={16} className="spin" color="var(--accent-color)" />}
+                {!loadingCodigo && codigoMsg === 'Registrado' && <Check size={16} color="var(--warning)" />}
               </div>
-              <small style={{ color: codigoMsg === 'Código libre' ? 'var(--success)' : 'var(--text-muted)', marginTop: '5px', display: 'block', minHeight: '15px' }}>
-                {codigoMsg === 'Registrado' ? 'Código existente (asignando posesionario...)' : codigoMsg}
-              </small>
             </div>
+            <small style={{ color: codigoMsg === 'Código libre' ? 'var(--success)' : 'var(--text-muted)', marginTop: '5px', display: 'block', minHeight: '15px' }}>
+              {codigoMsg === 'Registrado' ? 'Código existente (asignando posesionario...)' : (formData.cod_catastral.replace(/\s/g, '').length !== 19 && formData.cod_catastral.length > 0 ? 'Faltan dígitos (19 obligatorios)' : codigoMsg)}
+            </small>
+          </div>
 
+          <div className="predio-form-header">
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Cédula Posesionario *</label>
               <div style={{ position: 'relative' }}>
@@ -412,7 +511,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   </button>
                 </div>
               </div>
-              {!initialData && onStartDrawing && (
+              {!(initialData && initialData.id) && onStartDrawing && (
                 <button
                   type="button"
                   onClick={onStartDrawing}
@@ -434,7 +533,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   className="input-dynamic"
                   style={{ height: '200px', fontFamily: 'monospace', padding: '15px', resize: 'vertical' }}
                   placeholder={"599202.0 9796078.0\n599245.9 9796098.8\n599287.0 9796030.0"}
-                  required={!initialData}
+                  required={!(initialData && initialData.id)}
                 />
               </>
             ) : (

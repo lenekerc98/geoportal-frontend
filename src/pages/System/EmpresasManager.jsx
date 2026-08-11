@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Edit2, Trash2, Loader2, Calendar } from 'lucide-react';
 import { API_URL } from '../../services/api';
+import { showSuccess, showError } from '../../utils/swal';
 
 export default function EmpresasManager() {
   const [empresas, setEmpresas] = useState([]);
@@ -9,7 +10,9 @@ export default function EmpresasManager() {
   
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ nombre: '', ruc: '', proyecto_id: '' });
+  const [formData, setFormData] = useState({ nombre: '', ruc: '', proyectos_ids: [] });
+  const [logoFile, setLogoFile] = useState(null);
+  const [banderaFile, setBanderaFile] = useState(null);
   const [proyectos, setProyectos] = useState([]);
 
   const [provinciasList, setProvinciasList] = useState([]);
@@ -80,6 +83,8 @@ export default function EmpresasManager() {
   }, []);
 
   const openModal = (emp = null) => {
+    setLogoFile(null);
+    setBanderaFile(null);
     if (emp) {
       setFormData({ 
         nombre: emp.nombre, 
@@ -92,11 +97,13 @@ export default function EmpresasManager() {
         ciudad: emp.ciudad || '',
         sector: emp.sector || '',
         parametros: emp.parametros ? JSON.stringify(emp.parametros, null, 2) : '{}',
-        proyecto_id: emp.proyecto_id || ''
+        proyectos_ids: emp.proyectos_ids || [],
+        logo_url: emp.logo_url || emp.logo || '',
+        bandera_url: emp.bandera_url || ''
       });
       setEditingId(emp.id);
     } else {
-      setFormData({ nombre: '', ruc: '', telefono: '', correo: '', direccion: '', provincia: '', canton: '', ciudad: '', sector: '', parametros: '{}', proyecto_id: '' });
+      setFormData({ nombre: '', ruc: '', telefono: '', correo: '', direccion: '', provincia: '', canton: '', ciudad: '', sector: '', parametros: '{}', proyectos_ids: [], logo_url: '', bandera_url: '' });
       setEditingId(null);
     }
     setShowModal(true);
@@ -120,11 +127,6 @@ export default function EmpresasManager() {
         ...formData,
         parametros: parsedParams
       };
-      if (payload.proyecto_id === '') {
-        payload.proyecto_id = null;
-      } else {
-        payload.proyecto_id = parseInt(payload.proyecto_id);
-      }
 
       const res = await fetch(url, {
         method,
@@ -135,15 +137,35 @@ export default function EmpresasManager() {
         body: JSON.stringify(payload)
       });
       
+      
       if (!res.ok) {
         const d = await res.json();
         throw new Error(d.detail || 'Error al guardar empresa');
       }
       
+      const savedData = await res.json();
+      const empresaId = savedData.id;
+
+      if (logoFile || banderaFile) {
+        const fileData = new FormData();
+        if (logoFile) fileData.append('logo', logoFile);
+        if (banderaFile) fileData.append('bandera', banderaFile);
+        
+        const uploadRes = await fetch(`${API_URL}/api/empresas/${empresaId}/upload-images`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: fileData
+        });
+        if (!uploadRes.ok) {
+          showError('La empresa se guardó, pero hubo un error subiendo las imágenes.');
+        }
+      }
+      
+      showSuccess('Empresa guardada con éxito');
       setShowModal(false);
       fetchEmpresas();
     } catch (err) {
-      alert(err.message);
+      showError(err.message);
     }
   };
 
@@ -187,7 +209,11 @@ export default function EmpresasManager() {
                   <div>{emp.canton || '-'}</div>
                   <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.sector || '-'}</div>
                 </td>
-                <td>{emp.proyecto_id ? proyectos.find(p => p.id === emp.proyecto_id)?.nombre || emp.proyecto_id : '-'}</td>
+                <td>
+                  {emp.proyectos_ids && emp.proyectos_ids.length > 0 
+                    ? emp.proyectos_ids.map(id => proyectos.find(p => p.id === id)?.nombre || id).join(', ') 
+                    : '-'}
+                </td>
                 <td style={{ textAlign: 'right' }}>
                   <button onClick={() => openModal(emp)} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
                     <Edit2 size={14} />
@@ -247,17 +273,29 @@ export default function EmpresasManager() {
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Proyecto Vinculado</label>
-                <select 
-                  value={formData.proyecto_id} 
-                  onChange={e => setFormData({...formData, proyecto_id: e.target.value})}
-                  className="input-dynamic"
-                >
-                  <option value="">Ninguno</option>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Proyectos Vinculados</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', background: 'var(--bg-main)', padding: '10px', borderRadius: '5px', border: '1px solid var(--card-border)', maxHeight: '150px', overflowY: 'auto' }}>
                   {proyectos.map(p => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={formData.proyectos_ids.includes(p.id)}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setFormData(prev => ({
+                            ...prev,
+                            proyectos_ids: isChecked 
+                              ? [...prev.proyectos_ids, p.id] 
+                              : prev.proyectos_ids.filter(id => id !== p.id)
+                          }));
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      {p.nombre}
+                    </label>
                   ))}
-                </select>
+                  {proyectos.length === 0 && <span style={{ fontSize: '12px', color: 'gray' }}>No hay proyectos disponibles</span>}
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Dirección</label>
@@ -267,6 +305,48 @@ export default function EmpresasManager() {
                   onChange={e => setFormData({...formData, direccion: e.target.value})}
                   className="input-dynamic"
                 />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>
+                    Logo {formData.logo_url && <span style={{color: '#10b981'}}>(✓ Guardado)</span>}
+                  </label>
+                  {formData.logo_url && (
+                    <div style={{ marginBottom: '5px', padding: '5px', background: 'white', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+                      <img src={formData.logo_url.startsWith('http') ? formData.logo_url : `${API_URL}${formData.logo_url}`} alt="Logo actual" style={{ height: '40px', objectFit: 'contain' }} />
+                      <button type="button" onClick={() => { setFormData({...formData, logo_url: ''}); setLogoFile(null); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }} title="Eliminar Logo">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={e => setLogoFile(e.target.files[0])}
+                    className="input-dynamic"
+                    style={{ padding: '8px', marginTop: '5px', display: 'block' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>
+                    Bandera {formData.bandera_url && <span style={{color: '#10b981'}}>(✓ Guardada)</span>}
+                  </label>
+                  {formData.bandera_url && (
+                    <div style={{ marginBottom: '5px', padding: '5px', background: 'white', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+                      <img src={formData.bandera_url.startsWith('http') ? formData.bandera_url : `${API_URL}${formData.bandera_url}`} alt="Bandera actual" style={{ height: '40px', objectFit: 'contain' }} />
+                      <button type="button" onClick={() => { setFormData({...formData, bandera_url: ''}); setBanderaFile(null); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }} title="Eliminar Bandera">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={e => setBanderaFile(e.target.files[0])}
+                    className="input-dynamic"
+                    style={{ padding: '8px', marginTop: '5px', display: 'block' }}
+                  />
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>

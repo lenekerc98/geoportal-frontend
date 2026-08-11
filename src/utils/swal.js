@@ -13,8 +13,8 @@ export const confirmDelete = async (title, text = "Esta acción no se puede desh
     cancelButtonColor: '#334155',
     confirmButtonText: 'Sí, eliminar',
     cancelButtonText: 'Cancelar',
-    background: '#1e293b',
-    color: '#f8fafc',
+    background: 'var(--bg-panel)',
+    color: 'var(--text-main)',
     customClass: {
       popup: 'swal-custom-popup',
       title: 'swal-custom-title',
@@ -27,22 +27,30 @@ export const confirmDelete = async (title, text = "Esta acción no se puede desh
 
 export const showSuccess = (title, text = "") => {
   MySwal.fire({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
     title: title,
     text: text,
     icon: 'success',
-    confirmButtonColor: '#10b981',
-    background: '#1e293b',
-    color: '#f8fafc'
+    background: 'var(--bg-panel)',
+    color: 'var(--text-main)'
   });
 };
 
 export const showError = (title, text = "") => {
   MySwal.fire({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 4000,
+    timerProgressBar: true,
     title: title,
     text: text,
     icon: 'error',
-    confirmButtonColor: '#ef4444',
-    background: '#1e293b',
-    color: '#f8fafc'
+    background: 'var(--bg-panel)',
+    color: 'var(--text-main)'
   });
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FolderGit2, Plus, Edit2, Trash2, Loader2, Calendar } from 'lucide-react';
 import { API_URL } from '../../services/api';
+import { showSuccess, showError } from '../../utils/swal';
 
 export default function ProjectsManager() {
   const [proyectos, setProyectos] = useState([]);
@@ -9,7 +10,8 @@ export default function ProjectsManager() {
   
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ nombre: '', descripcion: '' });
+  const [formData, setFormData] = useState({ nombre: '', descripcion: '', empresas_ids: [] });
+  const [empresas, setEmpresas] = useState([]);
 
   const fetchProyectos = async () => {
     try {
@@ -30,17 +32,23 @@ export default function ProjectsManager() {
 
   useEffect(() => {
     fetchProyectos();
+    const token = localStorage.getItem('catastro_token');
+    fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(setEmpresas)
+      .catch(console.error);
   }, []);
 
   const openModal = (proj = null) => {
     if (proj) {
       setFormData({ 
         nombre: proj.nombre, 
-        descripcion: proj.descripcion || ''
+        descripcion: proj.descripcion || '',
+        empresas_ids: proj.empresas_ids || []
       });
       setEditingId(proj.id);
     } else {
-      setFormData({ nombre: '', descripcion: '' });
+      setFormData({ nombre: '', descripcion: '', empresas_ids: [] });
       setEditingId(null);
     }
     setShowModal(true);
@@ -67,10 +75,11 @@ export default function ProjectsManager() {
         throw new Error(d.detail || 'Error al guardar proyecto');
       }
       
+      showSuccess('Proyecto guardado con éxito');
       setShowModal(false);
       fetchProyectos();
     } catch (err) {
-      alert(err.message);
+      showError(err.message);
     }
   };
 
@@ -86,9 +95,10 @@ export default function ProjectsManager() {
         const d = await res.json();
         throw new Error(d.detail || 'Error al eliminar');
       }
+      showSuccess('Proyecto eliminado con éxito');
       fetchProyectos();
     } catch (err) {
-      alert(err.message);
+      showError(err.message);
     }
   };
 
@@ -112,6 +122,7 @@ export default function ProjectsManager() {
               <th>ID</th>
               <th>Nombre</th>
               <th>Descripción</th>
+              <th>Empresas</th>
               <th>Fecha Creación</th>
               <th>Acciones</th>
             </tr>
@@ -122,6 +133,11 @@ export default function ProjectsManager() {
                 <td>{proj.id}</td>
                 <td style={{ fontWeight: 'bold' }}>{proj.nombre}</td>
                 <td>{proj.descripcion || '-'}</td>
+                <td>
+                  {proj.empresas_ids && proj.empresas_ids.length > 0
+                    ? proj.empresas_ids.map(id => empresas.find(e => e.id === id)?.nombre || id).join(', ')
+                    : '-'}
+                </td>
                 <td><Calendar size={14} style={{marginRight:5, verticalAlign:'middle', color:'gray'}}/> {new Date(proj.fecha_creacion).toLocaleString()}</td>
                 <td>
                   <button onClick={() => openModal(proj)} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
@@ -161,6 +177,31 @@ export default function ProjectsManager() {
                   rows="3"
                   className="input-dynamic"
                 />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Empresas Asociadas</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', background: 'var(--bg-main)', padding: '10px', borderRadius: '5px', border: '1px solid var(--card-border)', maxHeight: '150px', overflowY: 'auto' }}>
+                  {empresas.map(emp => (
+                    <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={formData.empresas_ids.includes(emp.id)}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setFormData(prev => ({
+                            ...prev,
+                            empresas_ids: isChecked 
+                              ? [...prev.empresas_ids, emp.id] 
+                              : prev.empresas_ids.filter(id => id !== emp.id)
+                          }));
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      {emp.nombre}
+                    </label>
+                  ))}
+                  {empresas.length === 0 && <span style={{ fontSize: '12px', color: 'gray' }}>No hay empresas disponibles</span>}
+                </div>
               </div>
               
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
