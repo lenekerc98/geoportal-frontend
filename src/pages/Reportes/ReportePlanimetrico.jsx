@@ -531,8 +531,10 @@ export default function ReportePlanimetrico() {
               </div>
             </div>
           )}
-          <div className="print-page">
-            <div className="report-border">
+          
+          <div className="report-pages-container">
+            <div className="print-page">
+              <div className="report-border">
 
               {/* HEADER OFICIAL CON LOGO GAD Y NOMBRE DE EMPRESA */}
               <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '10px 0', borderBottom: '2px solid black', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -920,7 +922,7 @@ export default function ReportePlanimetrico() {
               </div>
             </div>
           </div>
-        </>
+      </div>
       )}
     </div>
   );

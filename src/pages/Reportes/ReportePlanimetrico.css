@@ -4,7 +4,17 @@
 
 .report-wrapper {
   height: 100vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: #f1f5f9;
+}
+
+.report-pages-container {
+  overflow-x: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -316,10 +326,14 @@
   .report-controls-group {
     display: none !important;
   }
-  .report-wrapper {
+  .report-wrapper,
+  .report-pages-container {
     min-height: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
   }
   .print-page {
     margin: 0 !important;
