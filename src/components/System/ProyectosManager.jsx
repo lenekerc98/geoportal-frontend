@@ -197,10 +197,10 @@ export default function ProyectosManager() {
             <tbody>
               {proyectos.map(p => (
                 <tr key={p.id}>
-                  <td style={{ fontWeight: '600' }}>{p.nombre}</td>
-                  <td style={{ color: 'var(--text-muted)' }}>{p.descripcion}</td>
-                  <td style={{ color: 'var(--text-muted)' }}>Lat: {p.map_lat}, Lng: {p.map_lng}</td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td data-label="Nombre del Proyecto" style={{ fontWeight: '600' }}>{p.nombre}</td>
+                  <td data-label="Descripción" style={{ color: 'var(--text-muted)' }}>{p.descripcion}</td>
+                  <td data-label="Mapa Inicial" style={{ color: 'var(--text-muted)' }}>Lat: {p.map_lat}, Lng: {p.map_lng}</td>
+                  <td data-label="Acciones" style={{ textAlign: 'center' }}>
                     <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', marginRight: '10px' }} title="Editar"><Edit size={18}/></button>
                     <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Eliminar"><Trash2 size={18}/></button>
                   </td>

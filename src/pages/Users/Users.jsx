@@ -362,15 +362,15 @@ export default function Users() {
               <tbody>
                 {users.map(u => (
                   <tr key={u.id_usuario}>
-                    <td style={{ color: 'var(--text-muted)' }}>{u.id_usuario}</td>
-                    <td style={{ fontWeight: '600' }}>{u.username}</td>
-                    <td>{getRoleBadge(u)}</td>
-                    <td>
+                    <td data-label="ID" style={{ color: 'var(--text-muted)' }}>{u.id_usuario}</td>
+                    <td data-label="Usuario" style={{ fontWeight: '600' }}>{u.username}</td>
+                    <td data-label="Rol / Perfil">{getRoleBadge(u)}</td>
+                    <td data-label="Estado">
                       <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', backgroundColor: u.activo ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: u.activo ? 'var(--success)' : 'var(--danger)', border: `1px solid ${u.activo ? 'var(--success)' : 'var(--danger)'}` }}>
                         {u.activo ? 'ACTIVO' : 'INACTIVO'}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td data-label="Acciones" style={{ textAlign: 'right' }}>
                       <button onClick={() => { setFormData({ username: u.username, password: '', id_rol: u.id_rol, id_empresa: u.id_empresa || '' }); setEditingId(u.id_usuario); setIsEditing(true); }} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '8px', borderRadius: '6px', marginRight: '10px' }} title="Editar">
                         <Edit size={16} />
                       </button>

@@ -160,11 +160,11 @@ const ReporteriaDashboard = () => {
                 {currentItems.length > 0 ? (
                   currentItems.map((item, idx) => (
                     <tr key={item.codigo || idx}>
-                      <td className="fw-bold">{item.codigo}</td>
-                      <td>{item.nombre_posesionario || 'SIN NOMBRE'}</td>
-                      <td>{item.cedula_posesionario || 'S/D'}</td>
-                      <td>{item.fecha_creacion ? new Date(item.fecha_creacion).toLocaleDateString() : 'S/D'}</td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td data-label="Código Catastral" className="fw-bold">{item.codigo}</td>
+                      <td data-label="Posesionario">{item.nombre_posesionario || 'SIN NOMBRE'}</td>
+                      <td data-label="Cédula">{item.cedula_posesionario || 'S/D'}</td>
+                      <td data-label="Fecha Registro">{item.fecha_creacion ? new Date(item.fecha_creacion).toLocaleDateString() : 'S/D'}</td>
+                      <td data-label="Acción" style={{ textAlign: 'right' }}>
                         <button 
                           className="btn-generar-sm" 
                           onClick={() => handleGenerarReporte(item.codigo)}
