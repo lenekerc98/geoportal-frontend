@@ -46,7 +46,9 @@ export default function Users() {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (res.ok) {
-        setUsers(await res.json());
+        const fetchedUsers = await res.json();
+        fetchedUsers.sort((a, b) => a.id_usuario - b.id_usuario);
+        setUsers(fetchedUsers);
       }
       
       // 2. Fetch Roles
