@@ -430,6 +430,34 @@ export default function ReportePlanimetrico() {
   const [reportZoom, setReportZoom] = useState(window.innerWidth <= 768 ? 0.4 : 1);
   const [textAngleOffset, setTextAngleOffset] = useState(0);
 
+  useEffect(() => {
+    if (predio?.angulo_texto !== undefined) {
+      setTextAngleOffset(predio.angulo_texto);
+    }
+  }, [predio]);
+
+  const handleSaveAngle = async () => {
+    if (!predio?.id) return;
+    try {
+      const token = localStorage.getItem('catastro_token');
+      const res = await fetch(`${API_URL}/api/gis/predios/${predio.id}/angulo`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ angulo_texto: textAngleOffset })
+      });
+      if (res.ok) {
+        Swal.fire({ title: 'Ángulo guardado', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+      } else {
+        showError('No se pudo guardar el ángulo');
+      }
+    } catch (e) {
+      showError('Error de red al guardar');
+    }
+  };
+
   return (
     <div className="report-wrapper" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -495,6 +523,9 @@ export default function ReportePlanimetrico() {
             <span className="rc-counter" style={{ width: '40px', textAlign: 'center' }}>{textAngleOffset}°</span>
             <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => a + 15)}>+</button>
           </div>
+          <button className="rc-btn-nav" onClick={handleSaveAngle} style={{ marginLeft: '5px', padding: '0 8px', fontSize: '11px' }}>
+            Guardar
+          </button>
         </div>
 
         {/* FILA 6: Botones de acción */}
