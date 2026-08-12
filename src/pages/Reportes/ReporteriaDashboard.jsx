@@ -6,7 +6,9 @@ import './ReporteriaDashboard.css';
 
 const ReporteriaDashboard = () => {
   const token = localStorage.getItem('catastro_token');
-  const { activeEmpresa, activeProyecto } = useContext(AppContext);
+  const { activeEmpresa, activeProyecto, user } = useContext(AppContext);
+  const userRole = user?.role || user?.rol?.nombre || user?.rol || '';
+  const isSuperAdmin = ['superadmin', 'superadministrador', 'admin'].includes(String(userRole).toLowerCase());
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -152,6 +154,7 @@ const ReporteriaDashboard = () => {
                   <th>Código Catastral</th>
                   <th>Posesionario</th>
                   <th>Cédula</th>
+                  {isSuperAdmin && <th>Empresa</th>}
                   <th>Fecha Registro</th>
                   <th style={{ textAlign: 'right' }}>Acción</th>
                 </tr>
@@ -163,6 +166,7 @@ const ReporteriaDashboard = () => {
                       <td data-label="Código Catastral" className="fw-bold">{item.codigo}</td>
                       <td data-label="Posesionario">{item.nombre_posesionario || 'SIN NOMBRE'}</td>
                       <td data-label="Cédula">{item.cedula_posesionario || 'S/D'}</td>
+                      {isSuperAdmin && <td data-label="Empresa">{item.empresa_nombre || 'N/A'}</td>}
                       <td data-label="Fecha Registro">{item.fecha_creacion ? new Date(item.fecha_creacion).toLocaleDateString() : 'S/D'}</td>
                       <td data-label="Acción" style={{ textAlign: 'right' }}>
                         <button 
@@ -177,7 +181,7 @@ const ReporteriaDashboard = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" className="empty-state">No se encontraron predios.</td>
+                    <td colSpan={isSuperAdmin ? "6" : "5"} className="empty-state">No se encontraron predios.</td>
                   </tr>
                 )}
               </tbody>
