@@ -11,7 +11,7 @@ export default function Users() {
   const [authToken] = useState(localStorage.getItem('catastro_token'));
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({ username: '', password: '', id_rol: 1, id_empresa: '' });
+  const [formData, setFormData] = useState({ username: '', password: '', id_rol: 1, id_empresa: '', nombres: '', apellidos: '', cedula: '', correo: '' });
   const [editingId, setEditingId] = useState(null);
   const [empresas, setEmpresas] = useState([]);
   const [userRole, setUserRole] = useState('');
@@ -108,7 +108,7 @@ export default function Users() {
       if (res.ok) {
         setIsEditing(false);
         setIsCreating(false);
-        setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '' });
+        setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '', nombres: '', apellidos: '', cedula: '', correo: '' });
         setEditingId(null);
         showSuccess('Guardado', 'El usuario fue guardado correctamente');
         fetchData();
@@ -205,13 +205,13 @@ export default function Users() {
     <div style={{ padding: '30px', minHeight: '100vh', position: 'relative', color: 'var(--text-color)' }}>
       <div style={{ position: 'absolute', top: '10%', right: '10%', width: '300px', height: '300px', background: 'var(--primary-glow)', borderRadius: '50%', filter: 'blur(80px)', zIndex: -1 }}></div>
 
-      <header className="glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '25px', padding: '20px' }}>
-        <div>
+      <header className="glass-panel" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '25px', padding: '20px', gap: '15px' }}>
+        <div style={{ minWidth: '250px', flex: '1 1 auto' }}>
           <h1 className="title" style={{ margin: 0, fontSize: '24px' }}>Gestión de Usuarios y Accesos</h1>
           <p className="subtitle" style={{ margin: '4px 0 0 0' }}>Administra el acceso al Geoportal, roles y permisos de seguridad</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Tab Switcher */}
           <div style={{ 
             display: 'flex', 
@@ -265,7 +265,7 @@ export default function Users() {
 
           {activeTab === 'users' && !isEditing && !isCreating && (
             <button 
-              onClick={() => { setIsCreating(true); setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '' }); }}
+              onClick={() => { setIsCreating(true); setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '', nombres: '', apellidos: '', cedula: '', correo: '' }); }}
               className="btn-dynamic"
               style={{
                 display: 'flex',
@@ -292,6 +292,26 @@ export default function Users() {
           <div className="glass-panel" style={{ padding: '30px', maxWidth: '500px', margin: '0 auto' }}>
             <h2 style={{ marginTop: 0, marginBottom: '25px', color: 'var(--accent-color)' }}>{isCreating ? 'Crear Usuario' : 'Editar Usuario'}</h2>
             <form onSubmit={handleSaveUser}>
+              <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 calc(50% - 15px)', minWidth: '200px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Nombres</label>
+                  <input type="text" value={formData.nombres || ''} onChange={e => setFormData({...formData, nombres: e.target.value})} className="input-dynamic" />
+                </div>
+                <div style={{ flex: '1 1 calc(50% - 15px)', minWidth: '200px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Apellidos</label>
+                  <input type="text" value={formData.apellidos || ''} onChange={e => setFormData({...formData, apellidos: e.target.value})} className="input-dynamic" />
+                </div>
+              </div>
+              <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 calc(50% - 15px)', minWidth: '200px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Cédula</label>
+                  <input type="text" value={formData.cedula || ''} onChange={e => setFormData({...formData, cedula: e.target.value})} className="input-dynamic" />
+                </div>
+                <div style={{ flex: '1 1 calc(50% - 15px)', minWidth: '200px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Correo Electrónico</label>
+                  <input type="email" value={formData.correo || ''} onChange={e => setFormData({...formData, correo: e.target.value})} className="input-dynamic" />
+                </div>
+              </div>
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Nombre de Usuario (Login)</label>
                 <input type="text" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} required className="input-dynamic" />
@@ -354,6 +374,9 @@ export default function Users() {
                 <tr>
                   <th>ID</th>
                   <th>Usuario</th>
+                  <th>Nombres Completos</th>
+                  <th>Cédula</th>
+                  <th>Correo</th>
                   <th>Rol / Perfil</th>
                   <th>Estado</th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
@@ -364,6 +387,9 @@ export default function Users() {
                   <tr key={u.id_usuario}>
                     <td data-label="ID" style={{ color: 'var(--text-muted)' }}>{u.id_usuario}</td>
                     <td data-label="Usuario" style={{ fontWeight: '600' }}>{u.username}</td>
+                    <td data-label="Nombres Completos">{u.nombres_completos || '-'}</td>
+                    <td data-label="Cédula">{u.cedula || '-'}</td>
+                    <td data-label="Correo">{u.correo || '-'}</td>
                     <td data-label="Rol / Perfil">{getRoleBadge(u)}</td>
                     <td data-label="Estado">
                       <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', backgroundColor: u.activo ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: u.activo ? 'var(--success)' : 'var(--danger)', border: `1px solid ${u.activo ? 'var(--success)' : 'var(--danger)'}` }}>
@@ -371,7 +397,7 @@ export default function Users() {
                       </span>
                     </td>
                     <td data-label="Acciones" style={{ textAlign: 'right' }}>
-                      <button onClick={() => { setFormData({ username: u.username, password: '', id_rol: u.id_rol, id_empresa: u.id_empresa || '' }); setEditingId(u.id_usuario); setIsEditing(true); }} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '8px', borderRadius: '6px', marginRight: '10px' }} title="Editar">
+                      <button onClick={() => { setFormData({ username: u.username, password: '', id_rol: u.id_rol, id_empresa: u.id_empresa || '', nombres: u.nombres || '', apellidos: u.apellidos || '', cedula: u.cedula || '', correo: u.correo || '' }); setEditingId(u.id_usuario); setIsEditing(true); }} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '8px', borderRadius: '6px', marginRight: '10px' }} title="Editar">
                         <Edit size={16} />
                       </button>
                       <button onClick={() => handleDeleteUser(u.id_usuario, u.username)} style={{ background: 'rgba(239, 68, 68, 0.2)', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '8px', borderRadius: '6px' }} title="Eliminar">

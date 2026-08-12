@@ -491,7 +491,7 @@ export default function Geoportal() {
   const [ortofotoOpacity, setOrtofotoOpacity] = useState(1);
   const [baseMap, setBaseMap] = useState('osm');
   const [showCartoLabels, setShowCartoLabels] = useState(false);
-  const [showPredios, setShowPredios] = useState(false);
+  const [showPredios, setShowPredios] = useState(true);
   const [showVertices, setShowVertices] = useState(false);
   const [showLineas, setShowLineas] = useState(false);
 
