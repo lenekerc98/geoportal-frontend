@@ -51,7 +51,7 @@ const createRotatedTextIcon = (colindante, medida, p1, p2, centerLat, centerLng)
   const offMx = Math.cos(outAngle) * offsetMedida;
   const offMy = Math.sin(outAngle) * offsetMedida;
 
-  const offsetColindante = 26;
+  const offsetColindante = 40;
   const offCx = Math.cos(outAngle) * offsetColindante;
   const offCy = Math.sin(outAngle) * offsetColindante;
 
@@ -666,27 +666,28 @@ export default function ReportePlanimetrico() {
                             })} />
 
                             {(() => {
-                              // Agrupar linderos por nombre de colindante
-                              const groupsByName = {};
+                              // Agrupar linderos contiguos por nombre de colindante
+                              const contiguousGroups = [];
+                              let currGroup = null;
                               linderos.forEach((l, idx) => {
                                 const cName = (l.colindante || '').trim();
-                                if (cName === '') return;
-                                if (!groupsByName[cName]) groupsByName[cName] = [];
-                                groupsByName[cName].push({ idx, len: l.longitud });
+                                if (cName === '') {
+                                  currGroup = null;
+                                  return;
+                                }
+                                if (currGroup && currGroup.name === cName) {
+                                  currGroup.indices.push(idx);
+                                } else {
+                                  currGroup = { name: cName, indices: [idx] };
+                                  contiguousGroups.push(currGroup);
+                                }
                               });
                               
-                              // Seleccionar el índice con la mayor longitud para cada colindante
+                              // Seleccionar el índice central geométrico para cada grupo contiguo
                               const centerIndices = new Set();
-                              Object.values(groupsByName).forEach(group => {
-                                let maxLenIdx = group[0].idx;
-                                let maxLen = group[0].len;
-                                group.forEach(item => {
-                                  if (item.len > maxLen) {
-                                    maxLen = item.len;
-                                    maxLenIdx = item.idx;
-                                  }
-                                });
-                                centerIndices.add(maxLenIdx);
+                              contiguousGroups.forEach(group => {
+                                const midIndex = group.indices[Math.floor(group.indices.length / 2)];
+                                centerIndices.add(midIndex);
                               });
 
                               return linderos.map((l, i) => {
