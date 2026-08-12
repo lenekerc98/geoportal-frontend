@@ -45,6 +45,23 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   });
   const [colindantes, setColindantes] = useState([]);
   
+  useEffect(() => {
+    if (initialData && initialData.id) {
+      const token = localStorage.getItem('catastro_token');
+      fetch(`${API_URL}/api/gis/predios/detalle-id/${initialData.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.linderos && data.linderos.length > 0) {
+          const sorted = data.linderos.sort((a, b) => a.id - b.id);
+          setColindantes(sorted.map(l => l.colindante || ''));
+        }
+      })
+      .catch(e => console.error("Error cargando colindantes:", e));
+    }
+  }, [initialData]);
+
   const { activeEmpresa, activeProyecto } = useContext(AppContext);
   const [empresasList, setEmpresasList] = useState([]);
   const [proyectosList, setProyectosList] = useState([]);

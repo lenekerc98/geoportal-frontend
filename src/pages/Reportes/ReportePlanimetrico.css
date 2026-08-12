@@ -295,15 +295,17 @@
 
   /* --- BARRA DE CONTROLES --- */
   .report-controls {
-    padding: 10px 12px;
-    flex-wrap: wrap;
+    padding: 10px;
+    flex-direction: column;
+    align-items: stretch;
     gap: 10px;
   }
   .report-controls-group {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
     width: 100%;
+    gap: 10px;
   }
+
 
 
 }
