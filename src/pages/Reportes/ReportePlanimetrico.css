@@ -10,12 +10,13 @@
 }
 
 .report-pages-container {
-  overflow-x: auto;
+  overflow: auto;
   padding: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .report-controls {
@@ -375,6 +376,7 @@
     overflow: visible !important;
     height: auto !important;
     display: block !important;
+    transform: none !important;
   }
   .print-page {
     margin: 0 !important;

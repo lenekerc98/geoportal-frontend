@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl } from 'react-leaflet';
 import L from 'leaflet';
@@ -423,6 +423,50 @@ export default function ReportePlanimetrico() {
     if (allPredios.length > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[allPredios.length - 1].codigo}`);
   };
 
+  // Pinch-to-zoom en las páginas del reporte
+  const pagesRef = useRef(null);
+  const [reportZoom, setReportZoom] = useState(1);
+  const initialDistance = useRef(null);
+  const initialZoom = useRef(1);
+
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      initialDistance.current = Math.sqrt(dx * dx + dy * dy);
+      initialZoom.current = reportZoom;
+    }
+  }, [reportZoom]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length === 2 && initialDistance.current) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const newZoom = Math.min(Math.max(initialZoom.current * (dist / initialDistance.current), 0.3), 3);
+      setReportZoom(newZoom);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    initialDistance.current = null;
+  }, []);
+
+  useEffect(() => {
+    const el = pagesRef.current;
+    if (!el) return;
+    el.addEventListener('touchstart', handleTouchStart, { passive: false });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+
   return (
     <div className="report-wrapper" style={{ height: '100vh', overflow: 'auto', paddingBottom: '40px' }}>
 
@@ -485,7 +529,7 @@ export default function ReportePlanimetrico() {
           <button onClick={() => setShowTextModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
             Textos Carta
           </button>
-          <button onClick={() => window.print()} disabled={!data} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 20px', background: !data ? '#94a3b8' : 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: !data ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+          <button onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }} disabled={!data} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 20px', background: !data ? '#94a3b8' : 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: !data ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
             <Printer size={18} /> Imprimir PDF
           </button>
         </div>
@@ -532,7 +576,7 @@ export default function ReportePlanimetrico() {
             </div>
           )}
 
-          <div className="report-pages-container">
+          <div ref={pagesRef} className="report-pages-container" style={{ transform: `scale(${reportZoom})`, transformOrigin: 'top center' }}>
             <div className="print-page">
               <div className="report-border">
 
@@ -576,7 +620,7 @@ export default function ReportePlanimetrico() {
                     <div className="report-map-container" style={{ flex: 1, position: 'relative', padding: '30px 25px 20px 30px', backgroundColor: 'white', overflow: 'hidden', borderRight: 'none' }}>
                       <div style={{ position: 'relative', width: '100%', height: '100%', border: '2px solid black', backgroundColor: 'white', zIndex: 0 }}>
                         {polygonCoords.length > 0 && (
-                          <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={true} scrollWheelZoom={true} doubleClickZoom={true} dragging={true} touchZoom={true}>
+                          <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                             {/* Se desactiva la ortofoto a petición del usuario para evitar parpadeos y mejorar la impresión */}
                             {/* <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /> */}
 
