@@ -460,8 +460,8 @@
     text-overflow: ellipsis;
   }
 
-  /* Fila Escala */
-  .rc-scale {
+  /* Fila Escala y Zoom */
+  .rc-scale, .rc-zoom {
     justify-content: space-between;
   }
   

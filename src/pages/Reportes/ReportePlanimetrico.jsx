@@ -423,49 +423,8 @@ export default function ReportePlanimetrico() {
     if (allPredios.length > 0) navigate(`/reporte/planimetrico/codigo/${allPredios[allPredios.length - 1].codigo}`);
   };
 
-  // Pinch-to-zoom en las páginas del reporte
-  const pagesRef = useRef(null);
+  // Zoom del reporte (documento)
   const [reportZoom, setReportZoom] = useState(1);
-  const initialDistance = useRef(null);
-  const initialZoom = useRef(1);
-
-  const handleTouchStart = useCallback((e) => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      initialDistance.current = Math.sqrt(dx * dx + dy * dy);
-      initialZoom.current = reportZoom;
-    }
-  }, [reportZoom]);
-
-  const handleTouchMove = useCallback((e) => {
-    if (e.touches.length === 2 && initialDistance.current) {
-      e.preventDefault();
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const newZoom = Math.min(Math.max(initialZoom.current * (dist / initialDistance.current), 0.3), 3);
-      setReportZoom(newZoom);
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    initialDistance.current = null;
-  }, []);
-
-  useEffect(() => {
-    const el = pagesRef.current;
-    if (!el) return;
-    el.addEventListener('touchstart', handleTouchStart, { passive: false });
-    el.addEventListener('touchmove', handleTouchMove, { passive: false });
-    el.addEventListener('touchend', handleTouchEnd);
-    return () => {
-      el.removeEventListener('touchstart', handleTouchStart);
-      el.removeEventListener('touchmove', handleTouchMove);
-      el.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   return (
     <div className="report-wrapper" style={{ height: '100vh', overflow: 'auto', paddingBottom: '40px' }}>
@@ -518,7 +477,17 @@ export default function ReportePlanimetrico() {
           <input type="number" className="rc-input" min="5" max="30" value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} />
         </div>
 
-        {/* FILA 5: Botones de acción */}
+        {/* FILA 5: Zoom Documento */}
+        <div className="rc-row rc-zoom">
+          <span className="rc-label">Zoom Documento:</span>
+          <div className="rc-scale-controls">
+            <button className="rc-btn-nav" onClick={() => setReportZoom(z => Math.max(0.2, z - 0.2))}>-</button>
+            <span className="rc-counter" style={{ width: '40px', textAlign: 'center' }}>{Math.round(reportZoom * 100)}%</span>
+            <button className="rc-btn-nav" onClick={() => setReportZoom(z => Math.min(3, z + 0.2))}>+</button>
+          </div>
+        </div>
+
+        {/* FILA 6: Botones de acción */}
         <div className="rc-row rc-actions">
           <button className="rc-btn-outline" onClick={() => setShowTextModal(true)}>Textos Carta</button>
           <button className="rc-btn-primary" onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }} disabled={!data}>
@@ -568,7 +537,7 @@ export default function ReportePlanimetrico() {
             </div>
           )}
 
-          <div ref={pagesRef} className="report-pages-container" style={{ transform: `scale(${reportZoom})`, transformOrigin: 'top center' }}>
+          <div className="report-pages-container" style={{ zoom: reportZoom }}>
             <div className="print-page">
               <div className="report-border">
 
