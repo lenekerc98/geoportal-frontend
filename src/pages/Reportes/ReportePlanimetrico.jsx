@@ -120,7 +120,7 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
     const center = [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2];
 
     if (scaleValue === 'Auto') {
-      map.fitBounds(polygonCoords, { padding: [40, 40], animate: false });
+      map.fitBounds(polygonCoords, { padding: [80, 80], animate: false });
       const z = map.getZoom();
       let s = Math.round(1000 * Math.pow(2, 19 - z));
       if (s > 1000) s = Math.round(s / 100) * 100;
@@ -576,7 +576,7 @@ export default function ReportePlanimetrico() {
                     <div className="report-map-container" style={{ flex: 1, position: 'relative', padding: '30px 25px 20px 30px', backgroundColor: 'white', overflow: 'hidden', borderRight: 'none' }}>
                       <div style={{ position: 'relative', width: '100%', height: '100%', border: '2px solid black', backgroundColor: 'white', zIndex: 0 }}>
                         {polygonCoords.length > 0 && (
-                          <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                          <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={true} scrollWheelZoom={true} doubleClickZoom={true} dragging={true} touchZoom={true}>
                             {/* Se desactiva la ortofoto a petición del usuario para evitar parpadeos y mejorar la impresión */}
                             {/* <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /> */}
 

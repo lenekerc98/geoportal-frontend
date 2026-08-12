@@ -327,7 +327,8 @@
   }
   .no-print,
   .report-header-controls,
-  .report-controls-group {
+  .report-controls-group,
+  .leaflet-control-container {
     display: none !important;
   }
   .report-wrapper,
