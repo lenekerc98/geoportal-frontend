@@ -19,6 +19,9 @@
   touch-action: pan-x pan-y pinch-zoom;
 }
 
+/* ============================================= */
+/* CONTROLES DEL REPORTE                         */
+/* ============================================= */
 .report-controls {
   padding: 15px 30px;
   background: white;
@@ -26,19 +29,140 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
   position: sticky;
   top: 0;
   z-index: 1000;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Filas de controles */
+.rc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
-.report-controls-group {
+.rc-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.rc-counter {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* Botones de navegación del atlas */
+.rc-btn-nav {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 15px;
+}
+.rc-btn-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Botón de volver */
+.rc-btn-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: #334155;
+}
+
+/* Selects */
+.rc-select-atlas {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-weight: 600;
+  font-size: 13px;
+}
+.rc-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Inputs */
+.rc-input {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  width: 50px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Atlas nav container */
+.rc-atlas-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+/* Scale controls container */
+.rc-scale-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Botón outline */
+.rc-btn-outline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: #334155;
+}
+
+/* Botón primario */
+.rc-btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 24px;
+  background: var(--primary, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+}
+.rc-btn-primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
 }
 
 .print-page {
@@ -294,54 +418,74 @@
 /* RESPONSIVE: TELÉFONOS Y TABLETS PEQUEÑAS      */
 /* ============================================= */
 @media screen and (max-width: 768px) {
-
-  /* --- BARRA DE CONTROLES --- */
   .report-controls {
-    padding: 8px 10px;
+    padding: 12px;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 12px;
   }
 
-  .report-controls-group {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: 6px;
+  .rc-row {
     width: 100%;
+    justify-content: space-between;
   }
 
-  /* Ocultar texto largo en botón volver */
-  .hide-on-mobile {
-    display: none !important;
+  /* El botón de volver ocupa toda la fila 1 */
+  .rc-back {
+    justify-content: flex-start;
+  }
+  .rc-btn-back {
+    width: 100%;
+    justify-content: center;
+    padding: 10px;
   }
 
-  /* Select de atlas más compacto */
-  .report-controls select {
-    max-width: 160px;
-    font-size: 11px !important;
-    padding: 4px 6px !important;
+  /* Fila de Atlas */
+  .rc-atlas {
+    background: white;
+  }
+  .rc-label {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+  }
+  .rc-atlas-nav {
+    width: 100%;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+  .rc-select-atlas {
+    flex: 1;
+    min-width: 0;
+    text-overflow: ellipsis;
   }
 
-  .report-controls button {
-    padding: 5px 8px !important;
-    font-size: 11px !important;
+  /* Fila Escala */
+  .rc-scale {
+    justify-content: space-between;
+  }
+  
+  /* Fila Punto / Texto */
+  .rc-sizes {
+    justify-content: space-between;
+  }
+  .rc-sizes .rc-label {
+    margin-left: 0 !important;
   }
 
-  .report-controls input {
-    font-size: 11px !important;
+  /* Fila Botones de Acción */
+  .rc-actions {
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .rc-btn-outline, .rc-btn-primary {
+    width: 100%;
+    padding: 12px;
   }
 
-  .report-controls span {
-    font-size: 11px !important;
-  }
-
-  /* Quitar bordes separadores en móvil */
-  .report-controls-group > div {
-    border-left: none !important;
-    padding-left: 0 !important;
-  }
+  /* Ocultar texto largo en botón volver de ser necesario, pero ahora el botón es full width así que no hace falta */
+  /* .hide-on-mobile { display: none !important; } */
 
   /* Ocultar controles de zoom de Leaflet en el reporte */
   .print-page .leaflet-control-container {
