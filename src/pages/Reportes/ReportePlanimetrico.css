@@ -419,15 +419,16 @@
 /* ============================================= */
 @media screen and (max-width: 768px) {
   .report-controls {
-    padding: 12px;
+    padding: 6px 10px;
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    gap: 6px;
   }
 
   .rc-row {
     width: 100%;
     justify-content: space-between;
+    gap: 4px;
   }
 
   /* El botón de volver ocupa toda la fila 1 */
@@ -437,7 +438,8 @@
   .rc-btn-back {
     width: 100%;
     justify-content: center;
-    padding: 10px;
+    padding: 6px;
+    font-size: 11px;
   }
 
   /* Fila de Atlas */
@@ -445,14 +447,19 @@
     background: white;
   }
   .rc-label {
-    font-size: 11px;
+    font-size: 10px;
     color: #64748b;
     text-transform: uppercase;
   }
   .rc-atlas-nav {
     width: 100%;
     justify-content: space-between;
-    margin-top: 4px;
+    margin-top: 2px;
+    gap: 4px;
+  }
+  .rc-select-atlas, .rc-select, .rc-input, .rc-btn-nav, .rc-counter {
+    font-size: 11px !important;
+    padding: 3px 6px !important;
   }
   .rc-select-atlas {
     flex: 1;
@@ -476,12 +483,13 @@
   /* Fila Botones de Acción */
   .rc-actions {
     flex-direction: column;
-    gap: 8px;
-    margin-top: 8px;
+    gap: 4px;
+    margin-top: 4px;
   }
   .rc-btn-outline, .rc-btn-primary {
     width: 100%;
-    padding: 12px;
+    padding: 8px;
+    font-size: 12px;
   }
 
   /* Ocultar texto largo en botón volver de ser necesario, pero ahora el botón es full width así que no hace falta */
