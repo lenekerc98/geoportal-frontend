@@ -427,7 +427,7 @@ export default function ReportePlanimetrico() {
   const [reportZoom, setReportZoom] = useState(1);
 
   return (
-    <div className="report-wrapper" style={{ height: '100vh', overflow: 'auto', paddingBottom: '40px' }}>
+    <div className="report-wrapper" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* BARRA DE CONTROLES ATLAS DE NAVEGACIÓN */}
       <div className="report-controls no-print">
