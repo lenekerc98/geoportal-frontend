@@ -424,10 +424,10 @@ export default function ReportePlanimetrico() {
   };
 
   return (
-    <div className="report-wrapper" style={{ minHeight: '100vh', paddingBottom: '40px' }}>
+    <div className="report-wrapper" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden', paddingBottom: '40px' }}>
 
       {/* BARRA DE CONTROLES ATALAS DE NAVEGACIÓN */}
-      <div className="report-controls no-print">
+      <div className="report-controls no-print" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
         <div className="report-controls-group" style={{ flexWrap: 'wrap', justifyContent: 'center', flex: 1 }}>
           <button onClick={() => navigate('/reporteria')} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
             <ArrowLeft size={16} /> <span className="hide-on-mobile">Volver a Reportería</span>

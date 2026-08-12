@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, FileText, Printer, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 import './ReporteriaDashboard.css';
 
 const ReporteriaDashboard = () => {
+  const navigate = useNavigate();
   const token = localStorage.getItem('catastro_token');
   const { activeEmpresa, activeProyecto, user } = useContext(AppContext);
   const userRole = user?.role || user?.rol?.nombre || user?.rol || '';
@@ -73,7 +75,7 @@ const ReporteriaDashboard = () => {
   const handleGenerarReporte = (codigo) => {
     if (!codigo) return;
     const url = `/reporte/planimetrico/codigo/${codigo}`;
-    window.open(url, '_blank');
+    navigate(url);
   };
 
   // Pagination logic

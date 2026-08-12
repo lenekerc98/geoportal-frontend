@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, useMap, Polyline, CircleMarker, Polygon, Popup, Marker, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -290,6 +291,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
 export default function Geoportal() {
+  const navigate = useNavigate();
   const authToken = localStorage.getItem('catastro_token');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null);
@@ -2647,7 +2649,7 @@ export default function Geoportal() {
                       });
                       if (res.ok) {
                         setShowReportModal(false);
-                        window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
+                        navigate(`/reporte/planimetrico/codigo/${cod}`);
                       } else {
                         showError('El predio con el código especificado no existe en la base de datos.');
                       }
@@ -2681,7 +2683,7 @@ export default function Geoportal() {
                     });
                     if (res.ok) {
                       setShowReportModal(false);
-                      window.open(`/reporte/planimetrico/codigo/${cod}`, '_blank');
+                      navigate(`/reporte/planimetrico/codigo/${cod}`);
                     } else {
                       showError('El predio con el código especificado no existe en la base de datos.');
                     }
