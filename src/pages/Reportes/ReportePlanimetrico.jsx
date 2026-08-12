@@ -424,7 +424,7 @@ export default function ReportePlanimetrico() {
   };
 
   return (
-    <div className="report-wrapper" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden', paddingBottom: '40px' }}>
+    <div className="report-wrapper" style={{ height: '100vh', overflow: 'auto', paddingBottom: '40px' }}>
 
       {/* BARRA DE CONTROLES ATALAS DE NAVEGACIÓN */}
       <div className="report-controls no-print" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
