@@ -296,19 +296,56 @@
 
   /* --- BARRA DE CONTROLES --- */
   .report-controls {
-    padding: 10px;
+    padding: 8px 10px;
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 6px;
   }
+
   .report-controls-group {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
     width: 100%;
-    gap: 10px;
   }
 
+  /* Ocultar texto largo en botón volver */
+  .hide-on-mobile {
+    display: none !important;
+  }
 
+  /* Select de atlas más compacto */
+  .report-controls select {
+    max-width: 160px;
+    font-size: 11px !important;
+    padding: 4px 6px !important;
+  }
 
+  .report-controls button {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .report-controls input {
+    font-size: 11px !important;
+  }
+
+  .report-controls span {
+    font-size: 11px !important;
+  }
+
+  /* Quitar bordes separadores en móvil */
+  .report-controls-group > div {
+    border-left: none !important;
+    padding-left: 0 !important;
+  }
+
+  /* Ocultar controles de zoom de Leaflet en el reporte */
+  .print-page .leaflet-control-container {
+    display: none !important;
+  }
 }
 
 @media print {

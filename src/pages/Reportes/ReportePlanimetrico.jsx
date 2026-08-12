@@ -426,14 +426,14 @@ export default function ReportePlanimetrico() {
   return (
     <div className="report-wrapper" style={{ height: '100vh', overflow: 'auto', paddingBottom: '40px' }}>
 
-      {/* BARRA DE CONTROLES ATALAS DE NAVEGACIÓN */}
-      <div className="report-controls no-print" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
-        <div className="report-controls-group" style={{ flexWrap: 'wrap', justifyContent: 'center', flex: 1 }}>
+      {/* BARRA DE CONTROLES ATLAS DE NAVEGACIÓN */}
+      <div className="report-controls no-print">
+        <div className="report-controls-group">
           <button onClick={() => navigate('/reporteria')} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
             <ArrowLeft size={16} /> <span className="hide-on-mobile">Volver a Reportería</span>
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', borderLeft: '2px solid #e2e8f0', paddingLeft: '15px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', borderLeft: '2px solid #e2e8f0', paddingLeft: '12px' }}>
             <span style={{ fontWeight: 'bold', fontSize: '13px' }}>Atlas:</span>
             <button onClick={goFirst} disabled={currentIndex <= 0} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer' }}><ChevronsLeft size={16} /></button>
             <button onClick={goPrev} disabled={currentIndex <= 0} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer' }}><ChevronLeft size={16} /></button>
@@ -441,7 +441,7 @@ export default function ReportePlanimetrico() {
             <select
               value={codigo || predio?.codigo || ''}
               onChange={(e) => navigate(`/reporte/planimetrico/codigo/${e.target.value}`)}
-              style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '13px', maxWidth: '200px', textOverflow: 'ellipsis' }}
+              style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '13px' }}
             >
               {allPredios.map(p => (
                 <option key={p.codigo} value={p.codigo}>{p.codigo} ({p.nombre_posesionario || 'SIN NOMBRE'})</option>
@@ -455,9 +455,9 @@ export default function ReportePlanimetrico() {
           </div>
         </div>
 
-        <div className="report-controls-group" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Escala Mapa:</span>
+        <div className="report-controls-group">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Escala:</span>
             <select
               value={scale}
               onChange={(e) => setScale(e.target.value)}
@@ -476,11 +476,11 @@ export default function ReportePlanimetrico() {
               />
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '2px solid #cbd5e1', paddingLeft: '15px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Punto (px):</span>
-            <input type="number" min="1" max="20" value={pointSize} onChange={(e) => setPointSize(Number(e.target.value))} style={{ width: '45px', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-            <span style={{ fontSize: '13px', fontWeight: 'bold', marginLeft: '5px' }}>Texto:</span>
-            <input type="number" min="5" max="30" value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} style={{ width: '45px', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', borderLeft: '2px solid #cbd5e1', paddingLeft: '12px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Pto:</span>
+            <input type="number" min="1" max="20" value={pointSize} onChange={(e) => setPointSize(Number(e.target.value))} style={{ width: '40px', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Txt:</span>
+            <input type="number" min="5" max="30" value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} style={{ width: '40px', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
           </div>
           <button onClick={() => setShowTextModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
             Textos Carta
