@@ -659,23 +659,44 @@ export default function ReportePlanimetrico() {
                               iconAnchor: [0, 0]
                             })} />
 
-                            {linderos.map((l, i) => {
-                              try {
-                                const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
-                                const points = coordsStr.split(',').map(p => {
-                                  const [lng, lat] = p.trim().split(' ');
-                                  return [parseFloat(lat), parseFloat(lng)];
-                                });
-                                if (points.length >= 2) {
-                                  const midLat = (points[0][0] + points[1][0]) / 2;
-                                  const midLng = (points[0][1] + points[1][1]) / 2;
-                                  const medida = `${l.longitud.toFixed(2)}m`;
-                                  const colindante = l.colindante || '';
-                                  return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindante, medida, points[0], points[1], center[0], center[1])} />;
+                            {(() => {
+                              // Agrupar linderos contiguos con el mismo nombre de colindante
+                              const colGroups = [];
+                              let currGroup = null;
+                              linderos.forEach((l, idx) => {
+                                const cName = (l.colindante || '').trim();
+                                if (currGroup && currGroup.name === cName && cName !== '') {
+                                  currGroup.indices.push(idx);
+                                } else {
+                                  currGroup = { name: cName, indices: [idx] };
+                                  colGroups.push(currGroup);
                                 }
-                              } catch (e) { }
-                              return null;
-                            })}
+                              });
+                              // Determinar el índice central para cada grupo
+                              const centerIndices = new Set(colGroups.map(g => g.indices[Math.floor(g.indices.length / 2)]));
+
+                              return linderos.map((l, i) => {
+                                try {
+                                  const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
+                                  const points = coordsStr.split(',').map(p => {
+                                    const [lng, lat] = p.trim().split(' ');
+                                    return [parseFloat(lat), parseFloat(lng)];
+                                  });
+                                  if (points.length >= 2) {
+                                    const midLat = (points[0][0] + points[1][0]) / 2;
+                                    const midLng = (points[0][1] + points[1][1]) / 2;
+                                    const medida = `${l.longitud.toFixed(2)}m`;
+                                    
+                                    // Solo pasar el nombre del colindante si este es el segmento central del grupo
+                                    const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
+                                    
+                                    return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindanteToRender, medida, points[0], points[1], center[0], center[1])} />;
+                                  }
+                                } catch (e) { }
+                                return null;
+                              });
+                            })()}
+
 
                             <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, textAlign: 'center' }}>
                               <div style={{ width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '30px solid white', filter: 'drop-shadow(0px 0px 1px black)', margin: '0 auto' }}></div>
