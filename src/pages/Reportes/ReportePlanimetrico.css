@@ -1,9 +1,12 @@
-
 .leaflet-control-attribution {
   display: none !important;
 }
 
-
+.report-wrapper {
+  height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
 .report-controls {
   padding: 15px 30px;
