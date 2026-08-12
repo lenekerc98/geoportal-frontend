@@ -198,23 +198,23 @@ export default function EmpresasManager() {
           <tbody>
             {empresas.map(emp => (
               <tr key={emp.id}>
-                <td>{emp.id}</td>
-                <td style={{ fontWeight: 'bold' }}>{emp.nombre}</td>
-                <td>{emp.ruc || '-'}</td>
-                <td>
+                <td data-label="ID">{emp.id}</td>
+                <td data-label="Nombre" style={{ fontWeight: 'bold' }}>{emp.nombre}</td>
+                <td data-label="RUC">{emp.ruc || '-'}</td>
+                <td data-label="Contacto">
                   <div style={{ fontSize: '0.8rem' }}>{emp.correo || '-'}</div>
                   <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.telefono || '-'}</div>
                 </td>
-                <td>
+                <td data-label="Ubicación">
                   <div>{emp.canton || '-'}</div>
                   <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.sector || '-'}</div>
                 </td>
-                <td>
+                <td data-label="Proyecto">
                   {emp.proyectos_ids && emp.proyectos_ids.length > 0 
                     ? emp.proyectos_ids.map(id => proyectos.find(p => p.id === id)?.nombre || id).join(', ') 
                     : '-'}
                 </td>
-                <td style={{ textAlign: 'right' }}>
+                <td data-label="Acciones" style={{ textAlign: 'right' }}>
                   <button onClick={() => openModal(emp)} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
                     <Edit2 size={14} />
                   </button>
