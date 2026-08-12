@@ -201,97 +201,95 @@ export default function SidebarLayout() {
       )}
 
       <aside className={`global-sidebar ${collapsed ? 'collapsed' : ''}`}>
-        {!isMobile && (
-          <div className="sidebar-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-              {!collapsed && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
-                    C
-                  </div>
-                  <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
-                </div>
-              )}
-              <button 
-                onClick={() => setCollapsed(!collapsed)} 
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px' }}
-              >
-                <Menu size={20} />
-              </button>
-            </div>
-            
+        <div className="sidebar-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             {!collapsed && (
-              <div style={{ marginTop: '15px', padding: '12px', background: 'var(--bg-lighter)', borderRadius: '8px', border: '1px solid var(--card-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold', letterSpacing: '0.5px' }}>Contexto Global</span>
-                  <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-color)', fontWeight: 'bold', textTransform: 'capitalize' }}>
-                    {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) ? 'Superadmin' : (userRole || 'Usuario')}
-                  </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '30px', height: '30px', background: 'var(--accent-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
+                  C
                 </div>
-
-                {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) ? (
-                  <>
-                    <select 
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', marginBottom: '8px', fontWeight: '500' }}
-                      value={activeEmpresa?.id || ''}
-                      onChange={(e) => {
-                        const emp = empresasList.find(x => x.id === parseInt(e.target.value));
-                        setGlobalEmpresa(emp || null);
-                        setGlobalProyecto(null);
-                      }}
-                    >
-                      <option value="">Todas las Empresas</option>
-                      {empresasList.map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.nombre}</option>
-                      ))}
-                    </select>
-                    
-                    {activeEmpresa && (
-                      <select 
-                        style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
-                        value={activeProyecto?.id || ''}
-                        onChange={(e) => {
-                          const proj = proyectosList.find(x => x.id === parseInt(e.target.value));
-                          setGlobalProyecto(proj || null);
-                        }}
-                      >
-                        <option value="">Todos los Proyectos</option>
-                        {proyectosList.map(proj => (
-                          <option key={proj.id} value={proj.id}>{proj.nombre}</option>
-                        ))}
-                      </select>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div style={{ padding: '6px 10px', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', background: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--card-border)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Building2 size={14} color="var(--accent-color)" />
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {activeEmpresa ? activeEmpresa.nombre : 'Empresa Asignada'}
-                      </span>
-                    </div>
-
-                    {proyectosList.length > 0 && (
-                      <select 
-                        style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
-                        value={activeProyecto?.id || ''}
-                        onChange={(e) => {
-                          const proj = proyectosList.find(x => x.id === parseInt(e.target.value));
-                          setGlobalProyecto(proj || null);
-                        }}
-                      >
-                        <option value="">Todos los Proyectos</option>
-                        {proyectosList.map(proj => (
-                          <option key={proj.id} value={proj.id}>{proj.nombre}</option>
-                        ))}
-                      </select>
-                    )}
-                  </>
-                )}
+                <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
               </div>
             )}
+            <button 
+              onClick={() => setCollapsed(!collapsed)} 
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px' }}
+            >
+              <Menu size={20} />
+            </button>
           </div>
-        )}
+          
+          {!collapsed && (
+            <div style={{ marginTop: '15px', padding: '12px', background: 'var(--bg-lighter)', borderRadius: '8px', border: '1px solid var(--card-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold', letterSpacing: '0.5px' }}>Contexto Global</span>
+                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-color)', fontWeight: 'bold', textTransform: 'capitalize' }}>
+                  {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) ? 'Superadmin' : (userRole || 'Usuario')}
+                </span>
+              </div>
+
+              {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) ? (
+                <>
+                  <select 
+                    style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', marginBottom: '8px', fontWeight: '500' }}
+                    value={activeEmpresa?.id || ''}
+                    onChange={(e) => {
+                      const emp = empresasList.find(x => x.id === parseInt(e.target.value));
+                      setGlobalEmpresa(emp || null);
+                      setGlobalProyecto(null);
+                    }}
+                  >
+                    <option value="">Todas las Empresas</option>
+                    {empresasList.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                    ))}
+                  </select>
+                  
+                  {activeEmpresa && (
+                    <select 
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
+                      value={activeProyecto?.id || ''}
+                      onChange={(e) => {
+                        const proj = proyectosList.find(x => x.id === parseInt(e.target.value));
+                        setGlobalProyecto(proj || null);
+                      }}
+                    >
+                      <option value="">Todos los Proyectos</option>
+                      {proyectosList.map(proj => (
+                        <option key={proj.id} value={proj.id}>{proj.nombre}</option>
+                      ))}
+                    </select>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ padding: '6px 10px', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', background: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--card-border)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Building2 size={14} color="var(--accent-color)" />
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {activeEmpresa ? activeEmpresa.nombre : 'Empresa Asignada'}
+                    </span>
+                  </div>
+
+                  {proyectosList.length > 0 && (
+                    <select 
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
+                      value={activeProyecto?.id || ''}
+                      onChange={(e) => {
+                        const proj = proyectosList.find(x => x.id === parseInt(e.target.value));
+                        setGlobalProyecto(proj || null);
+                      }}
+                    >
+                      <option value="">Todos los Proyectos</option>
+                      {proyectosList.map(proj => (
+                        <option key={proj.id} value={proj.id}>{proj.nombre}</option>
+                      ))}
+                    </select>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
         <nav className="sidebar-nav">
           <NavLink to="/geoportal" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>

@@ -424,7 +424,7 @@ export default function ReportePlanimetrico() {
   };
 
   // Zoom del reporte (documento)
-  const [reportZoom, setReportZoom] = useState(1);
+  const [reportZoom, setReportZoom] = useState(0.4);
 
   return (
     <div className="report-wrapper" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
