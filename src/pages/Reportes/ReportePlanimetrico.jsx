@@ -47,19 +47,25 @@ const createRotatedTextIcon = (colindante, medida, p1, p2, centerLat, centerLng)
   const dx = midLng - centerLng;
   const outAngle = Math.atan2(-dy, dx);
 
-  const offsetDist = 20;
-  const offsetX = Math.cos(outAngle) * offsetDist;
-  const offsetY = Math.sin(outAngle) * offsetDist;
+  const offsetMedida = 10;
+  const offMx = Math.cos(outAngle) * offsetMedida;
+  const offMy = Math.sin(outAngle) * offsetMedida;
 
-  const isTopEdge = dy > 0;
+  const offsetColindante = 26;
+  const offCx = Math.cos(outAngle) * offsetColindante;
+  const offCy = Math.sin(outAngle) * offsetColindante;
 
   return L.divIcon({
     className: 'lindero-rotated',
-    html: `<div style="position: absolute; transform: translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
-      ${isTopEdge ? (colindante ? `<div style="color: #1a237e;">${colindante}</div>` : '') : ''}
-      <div style="color: #37474f;">${medida}</div>
-      ${!isTopEdge ? (colindante ? `<div style="color: #1a237e;">${colindante}</div>` : '') : ''}
-    </div>`,
+    html: `
+      <div style="position: absolute; transform: translate(-50%, -50%) translate(${offMx}px, ${offMy}px) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; color: #37474f; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
+        ${medida}
+      </div>
+      ${colindante ? `
+      <div style="position: absolute; transform: translate(-50%, -50%) translate(${offCx}px, ${offCy}px) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; color: #1a237e; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
+        ${colindante}
+      </div>` : ''}
+    `,
     iconSize: [0, 0],
     iconAnchor: [0, 0]
   });
@@ -660,20 +666,28 @@ export default function ReportePlanimetrico() {
                             })} />
 
                             {(() => {
-                              // Agrupar linderos contiguos con el mismo nombre de colindante
-                              const colGroups = [];
-                              let currGroup = null;
+                              // Agrupar linderos por nombre de colindante
+                              const groupsByName = {};
                               linderos.forEach((l, idx) => {
                                 const cName = (l.colindante || '').trim();
-                                if (currGroup && currGroup.name === cName && cName !== '') {
-                                  currGroup.indices.push(idx);
-                                } else {
-                                  currGroup = { name: cName, indices: [idx] };
-                                  colGroups.push(currGroup);
-                                }
+                                if (cName === '') return;
+                                if (!groupsByName[cName]) groupsByName[cName] = [];
+                                groupsByName[cName].push({ idx, len: l.longitud });
                               });
-                              // Determinar el índice central para cada grupo
-                              const centerIndices = new Set(colGroups.map(g => g.indices[Math.floor(g.indices.length / 2)]));
+                              
+                              // Seleccionar el índice con la mayor longitud para cada colindante
+                              const centerIndices = new Set();
+                              Object.values(groupsByName).forEach(group => {
+                                let maxLenIdx = group[0].idx;
+                                let maxLen = group[0].len;
+                                group.forEach(item => {
+                                  if (item.len > maxLen) {
+                                    maxLen = item.len;
+                                    maxLenIdx = item.idx;
+                                  }
+                                });
+                                centerIndices.add(maxLenIdx);
+                              });
 
                               return linderos.map((l, i) => {
                                 try {
