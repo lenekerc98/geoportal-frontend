@@ -47,15 +47,18 @@ const createRotatedTextIcon = (colindante, medida, p1, p2, centerLat, centerLng)
   const dx = midLng - centerLng;
   const outAngle = Math.atan2(-dy, dx);
 
-  const offsetDist = 12;
+  const offsetDist = 20;
   const offsetX = Math.cos(outAngle) * offsetDist;
   const offsetY = Math.sin(outAngle) * offsetDist;
+
+  const isTopEdge = dy > 0;
 
   return L.divIcon({
     className: 'lindero-rotated',
     html: `<div style="position: absolute; transform: translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
-      ${colindante ? `<div style="color: #1a237e;">${colindante}</div>` : ''}
+      ${isTopEdge ? (colindante ? `<div style="color: #1a237e;">${colindante}</div>` : '') : ''}
       <div style="color: #37474f;">${medida}</div>
+      ${!isTopEdge ? (colindante ? `<div style="color: #1a237e;">${colindante}</div>` : '') : ''}
     </div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0]
@@ -425,6 +428,7 @@ export default function ReportePlanimetrico() {
 
   // Zoom del reporte (documento)
   const [reportZoom, setReportZoom] = useState(window.innerWidth <= 768 ? 0.4 : 1);
+  const [textAngleOffset, setTextAngleOffset] = useState(0);
 
   return (
     <div className="report-wrapper" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -484,6 +488,12 @@ export default function ReportePlanimetrico() {
             <button className="rc-btn-nav" onClick={() => setReportZoom(z => Math.max(0.2, z - 0.2))}>-</button>
             <span className="rc-counter" style={{ width: '40px', textAlign: 'center' }}>{Math.round(reportZoom * 100)}%</span>
             <button className="rc-btn-nav" onClick={() => setReportZoom(z => Math.min(3, z + 0.2))}>+</button>
+          </div>
+          <span className="rc-label" style={{ marginLeft: '10px' }}>Ángulo Texto:</span>
+          <div className="rc-scale-controls">
+            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => a - 15)}>-</button>
+            <span className="rc-counter" style={{ width: '40px', textAlign: 'center' }}>{textAngleOffset}°</span>
+            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => a + 15)}>+</button>
           </div>
         </div>
 
@@ -588,7 +598,7 @@ export default function ReportePlanimetrico() {
                             <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                             <UtmGrid setMapGridLabels={setMapGridLabels} />
 
-                            <Polygon positions={polygonCoords} pathOptions={{ color: 'yellow', weight: 2, fillColor: 'transparent' }} />
+                            <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
 
                             {vertices.map(v => {
                               let lat = 0, lng = 0;
@@ -609,7 +619,7 @@ export default function ReportePlanimetrico() {
 
                             <Marker position={center} icon={L.divIcon({
                               className: 'center-predio-info',
-                              html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${centerInfo.mainAngle}deg); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
+                              html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${centerInfo.mainAngle + textAngleOffset}deg); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
                         <div>POSESIONARIO: ${predio?.nombre_posesionario || 'SIN NOMBRE'}</div>
                         <div>C.C.: ${predio?.cedula || 'S/D'} | CÓDIGO: ${predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
                         <div>ÁREA: ${predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
@@ -860,7 +870,7 @@ export default function ReportePlanimetrico() {
                           );
                         })}
                         {/* Filas vacías de relleno si hay pocos vértices */}
-                        {vertices.length < 24 && Array.from({ length: 24 - vertices.length }).map((_, i) => (
+                        {vertices.length < 22 && Array.from({ length: 22 - vertices.length }).map((_, i) => (
                           <tr key={`empty-${i}`}>
                             <td>&nbsp;</td>
                             <td>&nbsp;</td>
@@ -907,19 +917,19 @@ export default function ReportePlanimetrico() {
                     <div className="firmas-grid">
                       <div className="firma-box">
                         <div className="firma-box-title">RESPONSABILIDAD TÉCNICA</div>
-                        <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center' }}>
+                        <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center', height: '35px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                           <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
-                          <div style={{ fontSize: '8px', fontWeight: 'bold' }}>{activeEmpresa?.nombre_director || '______________________'}</div>
+                          <div style={{ fontSize: '8px', fontWeight: 'bold' }}>{activeEmpresa?.nombre_director || ' '}</div>
                           <div style={{ fontSize: '8px' }}>Director(a) de Catastro</div>
                         </div>
                       </div>
                       <div className="firma-box" style={{ borderLeft: 'none' }}>
                         <div className="firma-box-title">REVISADO Y APROBADO POR:</div>
-                        <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center' }}>
+                        <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center', height: '35px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                           <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
                           {/* Textos ocultos para igualar la altura de la caja izquierda y alinear la línea */}
-                          <div style={{ fontSize: '8px', fontWeight: 'bold', visibility: 'hidden' }}>Espacio</div>
-                          <div style={{ fontSize: '8px', visibility: 'hidden' }}>Espacio</div>
+                          <div style={{ fontSize: '8px', fontWeight: 'bold', color: 'transparent', userSelect: 'none' }}>.</div>
+                          <div style={{ fontSize: '8px', color: 'transparent', userSelect: 'none' }}>.</div>
                         </div>
                       </div>
                     </div>

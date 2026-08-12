@@ -18,6 +18,7 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
 
   React.useEffect(() => {
     if (isDrawing) {
+      map.doubleClickZoom.disable();
       const points = [];
       map.eachLayer((layer) => {
         if (layer.getLatLngs) {
@@ -36,6 +37,7 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
       });
       setCachedSnapPoints(points);
     } else {
+      map.doubleClickZoom.enable();
       setCachedSnapPoints([]);
     }
   }, [isDrawing, map]);
@@ -137,15 +139,12 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     },
     dblclick(e) {
       if (isDrawing) {
-        // Prevenir zoom por doble clic
         L.DomEvent.stopPropagation(e);
         L.DomEvent.preventDefault(e);
         
-        const pointToAdd = snappedLatLng ? snappedLatLng : e.latlng;
-        const finalPoints = [...drawPoints, pointToAdd];
-        
-        // Finalizar
-        onFinish(finalPoints);
+        // El primer clic del doble clic ya añadió el punto, así que solo finalizamos
+        // usando los puntos que ya tenemos recolectados.
+        onFinish(drawPoints);
       }
     }
   });
