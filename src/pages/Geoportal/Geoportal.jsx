@@ -1551,8 +1551,6 @@ export default function Geoportal() {
 
             {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
             <div className="sidebar-section">
-              {false && (
-                <>
                   <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <Database size={16} color="var(--primary)" />
@@ -1588,8 +1586,6 @@ export default function Geoportal() {
                       </div>
                     </>
                   )}
-                </>
-              )}
 
               <div className="section-title" onClick={() => toggleCategory('historico')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
