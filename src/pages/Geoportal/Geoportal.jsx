@@ -827,7 +827,7 @@ export default function Geoportal() {
   const togglePredios = async () => {
     const newState = !showPredios;
     setShowPredios(newState);
-    if (newState && !prediosData && authToken) {
+    if (newState && (!prediosData || !prediosData.features || prediosData.features.length === 0) && authToken) {
       fetchMapData();
     }
   };
@@ -2220,7 +2220,7 @@ export default function Geoportal() {
         {/* VECTOR: Predios */}
         {showPredios && prediosData && prediosData.features && (
           <GeoJSON
-            key={`predios-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}`}
+            key={`predios-${showPredios}-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}-${Date.now()}`}
             data={{ ...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)) && (selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))) }}
             style={(feature) => {
               const isSelected = selectedPredioId === feature.properties.id || (searchResults && searchResults.includes(feature.properties.id));
