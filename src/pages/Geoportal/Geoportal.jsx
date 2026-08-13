@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, useMap, Polyline, CircleMarker, Polygon, Popup, Marker, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin } from 'lucide-react';
+import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin, Clock, Database, Image, Map, Settings, Info } from 'lucide-react';
 import proj4 from 'proj4';
 import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
@@ -1504,7 +1504,7 @@ export default function Geoportal() {
             <div className="sidebar-section">
               <div className="section-title" onClick={() => toggleCategory('escala')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Search size={16} color="var(--primary)" />
+                  <Ruler size={16} color="var(--primary)" />
                   <span style={{ color: 'var(--text-main)' }}>Escala</span>
                 </div>
                 {collapsedCategories.escala ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
@@ -1553,7 +1553,7 @@ export default function Geoportal() {
             <div className="sidebar-section">
               <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Layers size={16} color="var(--primary)" />
+                  <Database size={16} color="var(--primary)" />
                   <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
                 </div>
                 {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
@@ -1589,7 +1589,7 @@ export default function Geoportal() {
 
               <div className="section-title" onClick={() => toggleCategory('historico')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Layers size={16} color="var(--primary)" />
+                  <Clock size={16} color="var(--primary)" />
                   <span style={{ color: 'var(--text-main)' }}>Catastro Histórico (4D)</span>
                 </div>
                 {collapsedCategories.historico ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
@@ -1665,8 +1665,11 @@ export default function Geoportal() {
             {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
             <div className="sidebar-section">
               <div className="layer-category" onClick={() => toggleCategory('vectores')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Capas Vectoriales</span>
-                {collapsedCategories.vectores ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Hexagon size={16} color="var(--primary)" />
+                  <span style={{ color: 'var(--text-main)' }}>Capas Vectoriales</span>
+                </div>
+                {collapsedCategories.vectores ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
               </div>
 
 
@@ -1879,9 +1882,14 @@ export default function Geoportal() {
                 </>
               )}
 
-              <div className="layer-category" onClick={() => toggleCategory('basemap')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Mapas Base</span>
-                {collapsedCategories.basemap ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              <div className="sidebar-section">
+                <div className="layer-category" onClick={() => toggleCategory('basemap')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <Map size={16} color="var(--primary)" />
+                    <span style={{ color: 'var(--text-main)' }}>Mapas Base</span>
+                  </div>
+                  {collapsedCategories.basemap ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+                </div>
               </div>
 
               {!collapsedCategories.basemap && (
@@ -1915,9 +1923,14 @@ export default function Geoportal() {
                 </>
               )}
 
-              <div className="layer-category" onClick={() => toggleCategory('raster')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Raster</span>
-                {collapsedCategories.raster ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              <div className="sidebar-section">
+                <div className="layer-category" onClick={() => toggleCategory('raster')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <Image size={16} color="var(--primary)" />
+                    <span style={{ color: 'var(--text-main)' }}>Capas Raster Adicionales</span>
+                  </div>
+                  {collapsedCategories.raster ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+                </div>
               </div>
 
               {!collapsedCategories.raster && (
@@ -1942,9 +1955,14 @@ export default function Geoportal() {
                 </>
               )}
 
-              <div className="layer-category" onClick={() => toggleCategory('ortofotos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Ortofotos Individuales</span>
-                {collapsedCategories.ortofotos ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              <div className="sidebar-section">
+                <div className="layer-category" onClick={() => toggleCategory('ortofotos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <Layers size={16} color="var(--primary)" />
+                    <span style={{ color: 'var(--text-main)' }}>Ortofotos (WMS)</span>
+                  </div>
+                  {collapsedCategories.ortofotos ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+                </div>
               </div>
 
               {!collapsedCategories.ortofotos && catalogData?.features?.map((f, i) => {
@@ -1960,9 +1978,14 @@ export default function Geoportal() {
                 );
               })}
 
-              <div className="layer-category" onClick={() => toggleCategory('metadatos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Catálogo Metadatos</span>
-                {collapsedCategories.metadatos ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              <div className="sidebar-section">
+                <div className="layer-category" onClick={() => toggleCategory('metadatos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <Settings size={16} color="var(--primary)" />
+                    <span style={{ color: 'var(--text-main)' }}>Metadatos y Utilidades</span>
+                  </div>
+                  {collapsedCategories.metadatos ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+                </div>
               </div>
 
               {!collapsedCategories.metadatos && (
