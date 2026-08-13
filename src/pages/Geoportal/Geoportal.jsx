@@ -1551,39 +1551,43 @@ export default function Geoportal() {
 
             {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
             <div className="sidebar-section">
-              <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Database size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
-                </div>
-                {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-
-              {!collapsedCategories.gestion && (
+              {false && (
                 <>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
-                    <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
-                      <UploadCloud size={16} /> Ortofoto
-                    </button>
-                    <input
-                      type="file"
-                      accept=".zip"
-                      style={{ display: 'none' }}
-                      ref={shapefileInputRef}
-                      onChange={handleImportShapefile}
-                    />
-                    <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
-                      <UploadCloud size={16} /> Shapefile
-                    </button>
+                  <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <Database size={16} color="var(--primary)" />
+                      <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
+                    </div>
+                    {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
-                    <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                      <DownloadCloud size={16} /> Descargar DB
-                    </button>
-                    <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
-                      <FolderSearch size={16} /> Catalogar
-                    </button>
-                  </div>
+
+                  {!collapsedCategories.gestion && (
+                    <>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
+                        <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
+                          <UploadCloud size={16} /> Ortofoto
+                        </button>
+                        <input
+                          type="file"
+                          accept=".zip"
+                          style={{ display: 'none' }}
+                          ref={shapefileInputRef}
+                          onChange={handleImportShapefile}
+                        />
+                        <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
+                          <UploadCloud size={16} /> Shapefile
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+                        <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                          <DownloadCloud size={16} /> Descargar DB
+                        </button>
+                        <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
+                          <FolderSearch size={16} /> Catalogar
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
