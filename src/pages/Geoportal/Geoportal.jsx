@@ -445,7 +445,7 @@ export default function Geoportal() {
     basemap: false,
     escala: false,
     buscar: false,
-    gestion: false,
+    gestion: true,
     historico: false
   });
   const toggleCategory = (cat) => setCollapsedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
