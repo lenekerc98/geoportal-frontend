@@ -403,7 +403,8 @@ body {
 
 .main-content {
   margin-left: 250px;
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow-y: auto;
   transition: margin-left 0.3s ease;
   position: relative;
   background-color: var(--bg-main);
