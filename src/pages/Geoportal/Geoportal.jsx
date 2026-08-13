@@ -441,7 +441,6 @@ export default function Geoportal() {
     vectores: false,
     raster: false,
     ortofotos: true,
-    metadatos: true,
     basemap: false,
     escala: false,
     buscar: false,
@@ -1500,168 +1499,6 @@ export default function Geoportal() {
             <h3 style={{ margin: 0, color: 'var(--accent-color)' }}>Controles del Mapa</h3>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-            {/* PANEL: BÚSQUEDA Y HERRAMIENTAS */}
-            <div className="sidebar-section">
-              <div className="section-title" onClick={() => toggleCategory('escala')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Ruler size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Escala</span>
-                </div>
-                {collapsedCategories.escala ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-              
-              {!collapsedCategories.escala && (
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!map) return;
-                  const val = document.getElementById('sidebar-scale-input').value;
-                  if (!val || val <= 0) return;
-                  const lat = map.getCenter().lat;
-                  const mpp = val / 3779.529;
-                  const targetZoom = Math.log2((156543.03392 * Math.cos(lat * Math.PI / 180)) / mpp);
-                  map.setZoom(targetZoom);
-                }} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-                  <span style={{ color: '#94a3b8', lineHeight: '30px' }}>1:</span>
-                  <input id="sidebar-scale-input" className="sidebar-input" type="number" defaultValue="1000" min="1" />
-                  <button type="submit" style={{ padding: '5px 10px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ir</button>
-                </form>
-              )}
-              <div className="section-title" onClick={() => toggleCategory('buscar')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Search size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Buscar Predio</span>
-                </div>
-                {collapsedCategories.buscar ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-              
-              {!collapsedCategories.buscar && (
-                <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-                  <input
-                    className="sidebar-input"
-                    type="text"
-                    placeholder="Cédula o Cód. Catastral"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                  <button type="submit" style={{ padding: '5px 10px', background: 'var(--success)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Buscar</button>
-                </form>
-              )}
-
-            </div>
-
-            {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
-            <div className="sidebar-section">
-              <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Database size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
-                </div>
-                {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-
-              {!collapsedCategories.gestion && (
-                <>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
-                    <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
-                      <UploadCloud size={16} /> Ortofoto
-                    </button>
-                    <input
-                      type="file"
-                      accept=".zip"
-                      style={{ display: 'none' }}
-                      ref={shapefileInputRef}
-                      onChange={handleImportShapefile}
-                    />
-                    <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
-                      <UploadCloud size={16} /> Shapefile
-                    </button>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
-                    <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                      <DownloadCloud size={16} /> Descargar DB
-                    </button>
-                    <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
-                      <FolderSearch size={16} /> Catalogar
-                    </button>
-                  </div>
-                </>
-              )}
-
-              <div className="section-title" onClick={() => toggleCategory('historico')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Clock size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Catastro Histórico (4D)</span>
-                </div>
-                {collapsedCategories.historico ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-              
-              {!collapsedCategories.historico && (
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Ver estado a la fecha:</label>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    <input
-                      className="sidebar-input"
-                      type="date"
-                      value={fechaHistorica}
-                      onChange={e => setFechaHistorica(e.target.value)}
-                      style={{ flex: 1 }}
-                      title="Filtrar en el backend por fecha exacta"
-                    />
-                    <select
-                      className="sidebar-input"
-                      value={selectedYear}
-                      onChange={e => setSelectedYear(e.target.value)}
-                      style={{ flex: 1, padding: '2px', fontSize: '0.75rem' }}
-                      title="Filtrar resultados visualmente por año"
-                    >
-                      <option value="Todos">Todos los años</option>
-                      {Array.from(
-                        new Set(
-                          (prediosData?.features || [])
-                            .map(f => f.properties?.fecha_creacion ? String(f.properties.fecha_creacion).substring(0, 4) : null)
-                            .filter(y => y && !isNaN(y))
-                        )
-                      )
-                        .sort((a, b) => b - a)
-                        .map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
-                    <button
-                      onClick={() => {
-                        setPrediosData(null);
-                        fetchMapData();
-                      }}
-                      style={{ padding: '5px 10px', background: '#eab308', color: '#1e293b', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      Aplicar
-                    </button>
-                  </div>
-                  {fechaHistorica && (
-                    <div style={{ fontSize: '0.75rem', color: '#38bdf8', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }} onClick={() => {
-                      setFechaHistorica('');
-                      setTimeout(() => {
-                        // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
-                        let currentUrl = `${API_URL}/api/gis/predios`;
-                        const urlParams = new URLSearchParams();
-                        if (activeEmpresa) urlParams.append('empresa_id', activeEmpresa.id);
-                        if (activeProyecto) urlParams.append('proyecto_id', activeProyecto.id);
-                        if (urlParams.toString()) currentUrl += `?${urlParams.toString()}`;
-                        fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
-                          .then(r => r.json())
-                          .then(d => setPrediosData(d))
-                          .catch(console.error);
-                      }, 50);
-                    }}>
-                      Volver a la actualidad
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* PANEL: ÁRBOL DE CAPAS (QGIS-STYLE) */}
             <div className="sidebar-section">
               <div className="layer-category" onClick={() => toggleCategory('vectores')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1922,7 +1759,169 @@ export default function Geoportal() {
                   </div>
                 </>
               )}
+            </div>
 
+            {/* PANEL: BÚSQUEDA Y HERRAMIENTAS */}
+            <div className="sidebar-section">
+              <div className="section-title" onClick={() => toggleCategory('escala')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Ruler size={16} color="var(--primary)" />
+                  <span style={{ color: 'var(--text-main)' }}>Escala</span>
+                </div>
+                {collapsedCategories.escala ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+              </div>
+              
+              {!collapsedCategories.escala && (
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!map) return;
+                  const val = document.getElementById('sidebar-scale-input').value;
+                  if (!val || val <= 0) return;
+                  const lat = map.getCenter().lat;
+                  const mpp = val / 3779.529;
+                  const targetZoom = Math.log2((156543.03392 * Math.cos(lat * Math.PI / 180)) / mpp);
+                  map.setZoom(targetZoom);
+                }} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                  <span style={{ color: '#94a3b8', lineHeight: '30px' }}>1:</span>
+                  <input id="sidebar-scale-input" className="sidebar-input" type="number" defaultValue="1000" min="1" />
+                  <button type="submit" style={{ padding: '5px 10px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ir</button>
+                </form>
+              )}
+              <div className="section-title" onClick={() => toggleCategory('buscar')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Search size={16} color="var(--primary)" />
+                  <span style={{ color: 'var(--text-main)' }}>Buscar Predio</span>
+                </div>
+                {collapsedCategories.buscar ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+              </div>
+              
+              {!collapsedCategories.buscar && (
+                <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                  <input
+                    className="sidebar-input"
+                    type="text"
+                    placeholder="Cédula o Cód. Catastral"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                  <button type="submit" style={{ padding: '5px 10px', background: 'var(--success)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Buscar</button>
+                </form>
+              )}
+
+            </div>
+
+            {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
+            <div className="sidebar-section">
+              <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Database size={16} color="var(--primary)" />
+                  <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
+                </div>
+                {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+              </div>
+
+              {!collapsedCategories.gestion && (
+                <>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
+                    <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
+                      <UploadCloud size={16} /> Ortofoto
+                    </button>
+                    <input
+                      type="file"
+                      accept=".zip"
+                      style={{ display: 'none' }}
+                      ref={shapefileInputRef}
+                      onChange={handleImportShapefile}
+                    />
+                    <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
+                      <UploadCloud size={16} /> Shapefile
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+                    <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                      <DownloadCloud size={16} /> Descargar DB
+                    </button>
+                    <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
+                      <FolderSearch size={16} /> Catalogar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <div className="section-title" onClick={() => toggleCategory('historico')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Clock size={16} color="var(--primary)" />
+                  <span style={{ color: 'var(--text-main)' }}>Catastro Histórico (4D)</span>
+                </div>
+                {collapsedCategories.historico ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+              </div>
+              
+              {!collapsedCategories.historico && (
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Ver estado a la fecha:</label>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <input
+                      className="sidebar-input"
+                      type="date"
+                      value={fechaHistorica}
+                      onChange={e => setFechaHistorica(e.target.value)}
+                      style={{ flex: 1 }}
+                      title="Filtrar en el backend por fecha exacta"
+                    />
+                    <select
+                      className="sidebar-input"
+                      value={selectedYear}
+                      onChange={e => setSelectedYear(e.target.value)}
+                      style={{ flex: 1, padding: '2px', fontSize: '0.75rem' }}
+                      title="Filtrar resultados visualmente por año"
+                    >
+                      <option value="Todos">Todos los años</option>
+                      {Array.from(
+                        new Set(
+                          (prediosData?.features || [])
+                            .map(f => f.properties?.fecha_creacion ? String(f.properties.fecha_creacion).substring(0, 4) : null)
+                            .filter(y => y && !isNaN(y))
+                        )
+                      )
+                        .sort((a, b) => b - a)
+                        .map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                    <button
+                      onClick={() => {
+                        setPrediosData(null);
+                        fetchMapData();
+                      }}
+                      style={{ padding: '5px 10px', background: '#eab308', color: '#1e293b', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                  {fechaHistorica && (
+                    <div style={{ fontSize: '0.75rem', color: '#38bdf8', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }} onClick={() => {
+                      setFechaHistorica('');
+                      setTimeout(() => {
+                        // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
+                        let currentUrl = `${API_URL}/api/gis/predios`;
+                        const urlParams = new URLSearchParams();
+                        if (activeEmpresa) urlParams.append('empresa_id', activeEmpresa.id);
+                        if (activeProyecto) urlParams.append('proyecto_id', activeProyecto.id);
+                        if (urlParams.toString()) currentUrl += `?${urlParams.toString()}`;
+                        fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
+                          .then(r => r.json())
+                          .then(d => setPrediosData(d))
+                          .catch(console.error);
+                      }, 50);
+                    }}>
+                      Volver a la actualidad
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
               <div className="sidebar-section">
                 <div className="layer-category" onClick={() => toggleCategory('raster')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1931,29 +1930,29 @@ export default function Geoportal() {
                   </div>
                   {collapsedCategories.raster ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
                 </div>
+
+                {!collapsedCategories.raster && (
+                  <>
+                    <div className={`layer-item ${showMasterOrthophoto ? 'active' : ''}`} onClick={() => setShowMasterOrthophoto(!showMasterOrthophoto)}>
+                      <span>Mosaico Maestro (Todas)</span>
+                      {showMasterOrthophoto ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                    </div>
+
+                    <div className="layer-item" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '10px 15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Opacidad: {Math.round(ortofotoOpacity * 100)}%</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={ortofotoOpacity}
+                        onChange={(e) => setOrtofotoOpacity(parseFloat(e.target.value))}
+                        style={{ width: '100%', cursor: 'pointer' }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
-
-              {!collapsedCategories.raster && (
-                <>
-                  <div className={`layer-item ${showMasterOrthophoto ? 'active' : ''}`} onClick={() => setShowMasterOrthophoto(!showMasterOrthophoto)}>
-                    <span>Mosaico Maestro (Todas)</span>
-                    {showMasterOrthophoto ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-
-                  <div className="layer-item" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '10px 15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Opacidad: {Math.round(ortofotoOpacity * 100)}%</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={ortofotoOpacity}
-                      onChange={(e) => setOrtofotoOpacity(parseFloat(e.target.value))}
-                      style={{ width: '100%', cursor: 'pointer' }}
-                    />
-                  </div>
-                </>
-              )}
 
               <div className="sidebar-section">
                 <div className="layer-category" onClick={() => toggleCategory('ortofotos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1963,43 +1962,24 @@ export default function Geoportal() {
                   </div>
                   {collapsedCategories.ortofotos ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
                 </div>
+
+                {!collapsedCategories.ortofotos && catalogData?.features?.map((f, i) => {
+                  const filename = f.properties.nombre_archivo;
+                  const isVisible = individualOrthophotos[filename];
+                  return (
+                    <div key={i} className={`layer-item ${isVisible ? 'active' : ''}`} style={{ paddingLeft: '20px', fontSize: '0.85rem' }}>
+                      <span onClick={() => toggleIndividualOrthophoto(filename)} style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}>{filename}</span>
+                      <Trash2 size={16} color="#ef4444" style={{ marginRight: '8px' }} onClick={() => deleteOrthophoto(filename)} />
+                      {isVisible && <Target size={16} color="#fbbf24" style={{ marginRight: '8px' }} onClick={() => zoomToOrtofoto(filename)} />}
+                      <span onClick={() => toggleIndividualOrthophoto(filename)}>{isVisible ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}</span>
+                    </div>
+                  );
+                })}
               </div>
 
-              {!collapsedCategories.ortofotos && catalogData?.features?.map((f, i) => {
-                const filename = f.properties.nombre_archivo;
-                const isVisible = individualOrthophotos[filename];
-                return (
-                  <div key={i} className={`layer-item ${isVisible ? 'active' : ''}`} style={{ paddingLeft: '20px', fontSize: '0.85rem' }}>
-                    <span onClick={() => toggleIndividualOrthophoto(filename)} style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}>{filename}</span>
-                    <Trash2 size={16} color="#ef4444" style={{ marginRight: '8px' }} onClick={() => deleteOrthophoto(filename)} />
-                    {isVisible && <Target size={16} color="#fbbf24" style={{ marginRight: '8px' }} onClick={() => zoomToOrtofoto(filename)} />}
-                    <span onClick={() => toggleIndividualOrthophoto(filename)}>{isVisible ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}</span>
-                  </div>
-                );
-              })}
-
-              <div className="sidebar-section">
-                <div className="layer-category" onClick={() => toggleCategory('metadatos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <Settings size={16} color="var(--primary)" />
-                    <span style={{ color: 'var(--text-main)' }}>Metadatos y Utilidades</span>
-                  </div>
-                  {collapsedCategories.metadatos ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-                </div>
-              </div>
-
-              {!collapsedCategories.metadatos && (
-                <div className={`layer-item ${showFootprints ? 'active' : ''}`} onClick={() => setShowFootprints(!showFootprints)}>
-                  <span>Cuadros de Ortofotos</span>
-                  {showFootprints ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                </div>
-              )}
             </div>
-
-
-          </div>
-        </aside>
-      </div>
+          </aside>
+        </div>
 
       <MapContainer
         center={defaultCenter}
