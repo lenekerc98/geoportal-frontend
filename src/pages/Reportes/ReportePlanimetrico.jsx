@@ -455,11 +455,12 @@ export default function ReportePlanimetrico() {
         body: JSON.stringify({ angulo_texto: textAngleOffset })
       });
       if (res.ok) {
-        Swal.fire({ title: 'Ángulo guardado', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+        showSuccess('Ángulo guardado correctamente');
       } else {
         showError('No se pudo guardar el ángulo');
       }
     } catch (e) {
+      console.error("Error al guardar ángulo:", e);
       showError('Error de red al guardar');
     }
   };
