@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, useMap, Polyline, CircleMarker, Polygon, Popup, Marker, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -292,6 +292,7 @@ proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_de
 
 export default function Geoportal() {
   const navigate = useNavigate();
+  const location = useLocation();
   const authToken = localStorage.getItem('catastro_token');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null);
@@ -491,7 +492,7 @@ export default function Geoportal() {
   const [ortofotoOpacity, setOrtofotoOpacity] = useState(1);
   const [baseMap, setBaseMap] = useState('osm');
   const [showCartoLabels, setShowCartoLabels] = useState(false);
-  const [showPredios, setShowPredios] = useState(true);
+  const [showPredios, setShowPredios] = useState(!!location.state?.selectPredioId);
   const [showVertices, setShowVertices] = useState(false);
   const [showLineas, setShowLineas] = useState(false);
 
@@ -505,6 +506,14 @@ export default function Geoportal() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [selectedPredioId, setSelectedPredioId] = useState(null);
+
+  useEffect(() => {
+    if (location.state?.selectPredioId) {
+      setSelectedPredioId(location.state.selectPredioId);
+      // Opcional: Podríamos hacer zoom si tuviéramos acceso fácil a la capa aquí,
+      // pero seleccionar el ID ya lo resalta y abre sus detalles.
+    }
+  }, [location.state]);
   const activePredioLayerRef = useRef(null);
 
   useEffect(() => {
@@ -2590,6 +2599,12 @@ export default function Geoportal() {
             onClose={() => setActiveTableData(null)}
             hiddenFeatureIds={hiddenFeatureIds}
             setHiddenFeatureIds={setHiddenFeatureIds}
+            selectedId={activeTableData === 'predios' ? selectedPredioId : null}
+            onRowClick={(feature) => {
+              if (activeTableData === 'predios') {
+                setSelectedPredioId(feature.properties.id);
+              }
+            }}
             onRowContextMenu={(e, feature) => {
               setFeatureContextMenu({
                 feature: feature,

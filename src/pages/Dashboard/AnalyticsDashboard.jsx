@@ -339,7 +339,7 @@ export default function AnalyticsDashboard() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button
-                        onClick={() => navigate('/geoportal')}
+                        onClick={() => navigate('/geoportal', { state: { selectPredioId: f.properties?.id || f.id } })}
                         style={{ padding: '6px 12px', background: 'var(--bg-main)', border: '1px solid var(--card-border)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                       >
                         <Eye size={14} /> Inspeccionar

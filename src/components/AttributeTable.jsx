@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 import Draggable from 'react-draggable';
 
-export default function AttributeTable({ data, layerName, onClose, hiddenFeatureIds = [], setHiddenFeatureIds, onRowContextMenu }) {
+export default function AttributeTable({ data, layerName, onClose, hiddenFeatureIds = [], setHiddenFeatureIds, onRowContextMenu, selectedId, onRowClick }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const nodeRef = useRef(null);
 
@@ -115,10 +115,19 @@ export default function AttributeTable({ data, layerName, onClose, hiddenFeature
           <tbody>
             {data.features.map((feature, i) => {
               const isHidden = hiddenFeatureIds.includes(feature.properties.id);
+              const isSelected = selectedId === feature.properties.id;
+              
               return (
                 <tr 
                   key={i} 
-                  style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)', opacity: isHidden ? 0.5 : 1 }}
+                  onClick={() => onRowClick && onRowClick(feature)}
+                  style={{ 
+                    borderBottom: '1px solid rgba(255,255,255,0.05)', 
+                    backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.4)' : (i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)'), 
+                    opacity: isHidden ? 0.5 : 1,
+                    cursor: onRowClick ? 'pointer' : 'default',
+                    color: isSelected ? '#ffffff' : 'inherit'
+                  }}
                   onContextMenu={(e) => {
                     if (onRowContextMenu) {
                       e.preventDefault();
