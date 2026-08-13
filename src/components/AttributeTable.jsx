@@ -50,14 +50,14 @@ export default function AttributeTable({ data, layerName, onClose, hiddenFeature
         maxWidth: '1000px',
         minWidth: '500px',
         height: isExpanded ? '60vh' : '300px',
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        backgroundColor: 'var(--bg-panel)',
+        border: '1px solid var(--card-border)',
         borderRadius: '12px',
         zIndex: 2000,
         display: 'flex',
         flexDirection: 'column',
         backdropFilter: 'blur(10px)',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
         transition: 'height 0.3s ease'
       }}>
       {/* Header */}
@@ -68,24 +68,24 @@ export default function AttributeTable({ data, layerName, onClose, hiddenFeature
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '10px 20px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          borderBottom: '1px solid var(--card-border)',
+          backgroundColor: 'var(--table-header-bg)',
           cursor: 'grab',
           userSelect: 'none',
           borderTopLeftRadius: '12px',
           borderTopRightRadius: '12px'
         }}
       >
-        <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#e2e8f0', display: 'flex', gap: '10px', alignItems: 'center' }}>
-          Tabla de Atributos: <span style={{ color: '#3b82f6' }}>{layerName}</span>
-          <span style={{ fontSize: '0.8rem', color: '#94a3b8', background: 'rgba(0,0,0,0.3)', padding: '2px 8px', borderRadius: '10px' }}>
+        <h3 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-main)', display: 'flex', gap: '10px', alignItems: 'center' }}>
+          Tabla de Atributos: <span style={{ color: 'var(--accent-color)' }}>{layerName}</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', background: 'var(--table-row-hover)', padding: '2px 8px', borderRadius: '10px' }}>
             {data.features.length} elementos
           </span>
         </h3>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
             onClick={() => setIsExpanded(!isExpanded)}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
           >
             {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
@@ -100,13 +100,13 @@ export default function AttributeTable({ data, layerName, onClose, hiddenFeature
 
       {/* Table Body */}
       <div style={{ overflow: 'auto', flex: 1, padding: '0' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', color: '#cbd5e1', fontSize: '0.85rem' }}>
-          <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1e293b', zIndex: 1, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--text-main)', fontSize: '0.85rem' }}>
+          <thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--bg-main)', zIndex: 1, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             <tr>
-              {setHiddenFeatureIds && <th style={{ padding: '8px 12px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap', width: '40px' }}>👁️</th>}
-              <th style={{ padding: '8px 12px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>#</th>
+              {setHiddenFeatureIds && <th style={{ padding: '8px 12px', textAlign: 'center', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap', width: '40px', color: 'var(--text-muted)' }}>👁️</th>}
+              <th style={{ padding: '8px 12px', textAlign: 'left', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>#</th>
               {columns.map(col => (
-                <th key={col} style={{ padding: '8px 12px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>
+                <th key={col} style={{ padding: '8px 12px', textAlign: 'left', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
                   {col}
                 </th>
               ))}
@@ -122,11 +122,12 @@ export default function AttributeTable({ data, layerName, onClose, hiddenFeature
                   key={i} 
                   onClick={() => onRowClick && onRowClick(feature)}
                   style={{ 
-                    borderBottom: '1px solid rgba(255,255,255,0.05)', 
-                    backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.4)' : (i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)'), 
+                    borderBottom: '1px solid var(--card-border)', 
+                    backgroundColor: isSelected ? 'var(--primary-glow)' : (i % 2 === 0 ? 'transparent' : 'var(--table-row-hover)'), 
                     opacity: isHidden ? 0.5 : 1,
                     cursor: onRowClick ? 'pointer' : 'default',
-                    color: isSelected ? '#ffffff' : 'inherit'
+                    color: isSelected ? 'var(--accent-color)' : 'inherit',
+                    fontWeight: isSelected ? 'bold' : 'normal'
                   }}
                   onContextMenu={(e) => {
                     if (onRowContextMenu) {
@@ -151,12 +152,12 @@ export default function AttributeTable({ data, layerName, onClose, hiddenFeature
                       </span>
                     </td>
                   )}
-                  <td style={{ padding: '6px 12px', color: '#64748b' }}>{i + 1}</td>
+                  <td style={{ padding: '6px 12px', color: 'var(--text-muted)' }}>{i + 1}</td>
                 {columns.map(col => {
                   let val = feature.properties ? feature.properties[col] : '';
                   if (typeof val === 'number') val = Number.isInteger(val) ? val : val.toFixed(4);
                   return (
-                    <td key={col} style={{ padding: '6px 12px', borderRight: '1px solid rgba(255,255,255,0.02)', whiteSpace: 'nowrap' }}>
+                    <td key={col} style={{ padding: '6px 12px', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
                       {val !== null && val !== undefined ? val.toString() : ''}
                     </td>
                   );

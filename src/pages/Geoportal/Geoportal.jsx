@@ -517,6 +517,16 @@ export default function Geoportal() {
   const activePredioLayerRef = useRef(null);
 
   useEffect(() => {
+    if (selectedPredioId && map && activePredioLayerRef.current) {
+      const layers = activePredioLayerRef.current.getLayers();
+      const targetLayer = layers.find(l => l.feature?.properties?.id === selectedPredioId);
+      if (targetLayer && targetLayer.getBounds) {
+        map.fitBounds(targetLayer.getBounds(), { padding: [100, 100], maxZoom: 19 });
+      }
+    }
+  }, [selectedPredioId, map, prediosData]);
+
+  useEffect(() => {
     if (searchQuery.trim() === '') {
       setSearchResults(null);
     }
