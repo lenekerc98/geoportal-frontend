@@ -525,8 +525,26 @@ export default function Geoportal() {
     if (selectedPredioId && map && prediosGeoJsonRef.current) {
       const layers = prediosGeoJsonRef.current.getLayers();
       const targetLayer = layers.find(l => l.feature?.properties?.id === selectedPredioId);
-      if (targetLayer && targetLayer.getBounds) {
-        map.fitBounds(targetLayer.getBounds(), { padding: [100, 100], maxZoom: 19 });
+      
+      if (targetLayer) {
+        // Reset previously selected layer style
+        if (activePredioLayerRef.current && activePredioLayerRef.current !== targetLayer) {
+           // Si estaba en searchResults deberíamos mantener el estilo de búsqueda, pero por simplicidad volvemos al default
+           activePredioLayerRef.current.setStyle({ color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 });
+        }
+        
+        // Apply selected style
+        targetLayer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.4 });
+        activePredioLayerRef.current = targetLayer;
+
+        if (targetLayer.getBounds) {
+          map.fitBounds(targetLayer.getBounds(), { padding: [100, 100], maxZoom: 19 });
+        }
+        
+        // Open the popup automatically
+        if (targetLayer.openPopup) {
+          targetLayer.openPopup();
+        }
       }
     }
   }, [selectedPredioId, map, prediosData]);
@@ -2291,7 +2309,7 @@ export default function Geoportal() {
         {showPredios && prediosData && prediosData.features && (
           <GeoJSON
             ref={prediosGeoJsonRef}
-            key={`predios-${showPredios}-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}-${Date.now()}`}
+            key={`predios-${showPredios}-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}`}
             data={{ ...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)) && (selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))) }}
             style={(feature) => {
               const isSelected = selectedPredioId === feature.properties.id || (searchResults && searchResults.includes(feature.properties.id));
