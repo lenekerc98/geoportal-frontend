@@ -519,10 +519,11 @@ export default function Geoportal() {
     }
   }, [location.state]);
   const activePredioLayerRef = useRef(null);
+  const prediosGeoJsonRef = useRef(null);
 
   useEffect(() => {
-    if (selectedPredioId && map && activePredioLayerRef.current) {
-      const layers = activePredioLayerRef.current.getLayers();
+    if (selectedPredioId && map && prediosGeoJsonRef.current) {
+      const layers = prediosGeoJsonRef.current.getLayers();
       const targetLayer = layers.find(l => l.feature?.properties?.id === selectedPredioId);
       if (targetLayer && targetLayer.getBounds) {
         map.fitBounds(targetLayer.getBounds(), { padding: [100, 100], maxZoom: 19 });
@@ -2289,6 +2290,7 @@ export default function Geoportal() {
         {/* VECTOR: Predios */}
         {showPredios && prediosData && prediosData.features && (
           <GeoJSON
+            ref={prediosGeoJsonRef}
             key={`predios-${showPredios}-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}-${Date.now()}`}
             data={{ ...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)) && (selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))) }}
             style={(feature) => {
