@@ -218,6 +218,23 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     }
   };
 
+  const calcularRumbo = (x1, y1, x2, y2) => {
+    if (!x1 || !y1 || !x2 || !y2) return '-';
+    const dx = parseFloat(x2) - parseFloat(x1);
+    const dy = parseFloat(y2) - parseFloat(y1);
+    if (dx === 0 && dy === 0) return '-';
+    
+    let ang = Math.atan2(Math.abs(dx), Math.abs(dy)) * (180 / Math.PI);
+    const g = Math.floor(ang);
+    const m = Math.floor((ang - g) * 60);
+    const s = ((ang - g - m / 60) * 3600).toFixed(1);
+    
+    let ns = dy >= 0 ? 'N' : 'S';
+    let ew = dx >= 0 ? 'E' : 'W';
+    
+    return `${ns} ${g}°${m}'${s}" ${ew}`;
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -563,6 +580,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                           <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>N°</th>
                           <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada X (Este)</th>
                           <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada Y (Norte)</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Rumbo</th>
                           <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Colindantes</th>
                           <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}></th>
                         </tr>
@@ -591,6 +609,16 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                     newLines[index] = `${x} ${e.target.value}`;
                                     setFormData({ ...formData, geom_geojson: newLines.join('\n') });
                                   }} />
+                                </td>
+                                <td style={{ padding: '8px', color: 'var(--text-main)' }}>
+                                  {(() => {
+                                    const nextLine = lines[index + 1];
+                                    if (!nextLine) return '-';
+                                    const nextParts = nextLine.trim().split(/[\s,;\t]+/).filter(Boolean);
+                                    const nx = nextParts[0] || '';
+                                    const ny = nextParts[1] || '';
+                                    return calcularRumbo(x, y, nx, ny);
+                                  })()}
                                 </td>
                                 <td style={{ padding: '8px' }}>
                                   <input type="text" value={colindantes[index] || ''} placeholder="Pedro Castillo" className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {

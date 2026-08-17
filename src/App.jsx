@@ -13,6 +13,7 @@ import Users from './pages/Users/Users';
 import SidebarLayout from './components/Layout/SidebarLayout';
 import { AppProvider } from './context/AppContext';
 import ReportePlanimetrico from './pages/Reportes/ReportePlanimetrico';
+import ReporteLinderacion from './pages/Reportes/ReporteLinderacion';
 import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
@@ -85,6 +86,8 @@ export default function App() {
           
           <Route path="/reporte/planimetrico/:id" element={<ReportePlanimetrico />} />
           <Route path="/reporte/planimetrico/codigo/:codigo" element={<ReportePlanimetrico />} />
+          
+          <Route path="/reporte/linderacion/codigo/:codigo" element={<ReporteLinderacion />} />
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

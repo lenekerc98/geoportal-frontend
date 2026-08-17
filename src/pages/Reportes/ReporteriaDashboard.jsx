@@ -21,7 +21,9 @@ const ReporteriaDashboard = () => {
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const actualItemsPerPage = itemsPerPage === 'todos' ? data.length : itemsPerPage;
 
   useEffect(() => {
     fetchData();
@@ -79,15 +81,19 @@ const ReporteriaDashboard = () => {
   };
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = filteredData.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(filteredData.length / (actualItemsPerPage || 1)) || 1;
+  const startIndex = (currentPage - 1) * actualItemsPerPage;
+  const currentItems = filteredData.slice(startIndex, startIndex + actualItemsPerPage);
 
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
   };
+
+  const emptyRows = itemsPerPage !== 'todos' && totalPages > 1 && currentPage === totalPages
+    ? itemsPerPage - currentItems.length 
+    : 0;
 
   return (
     <div className="reporteria-dashboard">
@@ -163,7 +169,8 @@ const ReporteriaDashboard = () => {
               </thead>
               <tbody>
                 {currentItems.length > 0 ? (
-                  currentItems.map((item, idx) => (
+                  <>
+                    {currentItems.map((item, idx) => (
                     <tr key={item.codigo || idx}>
                       <td data-label="Código Catastral" className="fw-bold">{item.codigo}</td>
                       <td data-label="Posesionario">{item.nombre_posesionario || 'SIN NOMBRE'}</td>
@@ -180,8 +187,14 @@ const ReporteriaDashboard = () => {
                         </button>
                       </td>
                     </tr>
-                  ))
-                ) : (
+                  ))}
+                  {emptyRows > 0 && Array.from({ length: emptyRows }).map((_, idx) => (
+                    <tr key={`empty-${idx}`} style={{ height: '53px' }}>
+                      <td colSpan={isSuperAdmin ? "6" : "5"} style={{ border: 'none' }}></td>
+                    </tr>
+                  ))}
+                </>
+              ) : (
                   <tr>
                     <td colSpan={isSuperAdmin ? "6" : "5"} className="empty-state">No se encontraron predios.</td>
                   </tr>
@@ -193,8 +206,38 @@ const ReporteriaDashboard = () => {
 
         {!loading && filteredData.length > 0 && (
           <div className="pagination-controls">
-            <div className="pagination-info">
-              Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, filteredData.length)} de {filteredData.length} registros
+            <div className="pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+              <span>
+                Mostrando {startIndex + 1} a {Math.min(startIndex + actualItemsPerPage, filteredData.length)} de {filteredData.length} registros
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Filas por página:</label>
+                <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setItemsPerPage(val === 'todos' ? 'todos' : Number(val));
+                    setCurrentPage(1);
+                  }}
+                  style={{ 
+                    padding: '4px 8px', 
+                    borderRadius: '4px', 
+                    border: '1px solid var(--border-color)', 
+                    background: 'var(--bg-input)', 
+                    color: 'var(--text-main)', 
+                    outline: 'none', 
+                    cursor: 'pointer',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                  <option value="todos">Todos</option>
+                </select>
+              </div>
             </div>
             <div className="pagination-buttons">
               <button 

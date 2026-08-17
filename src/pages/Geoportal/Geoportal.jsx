@@ -264,6 +264,14 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
               <EyeOff size={16} color="#94a3b8" /> Ocultar Predio
             </div>
             <div
+              onClick={(e) => { e.stopPropagation(); onAction('report_linderacion', context.feature); onClose(); }}
+              style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <AlertCircle size={16} color="#8b5cf6" /> Ir a Reporte Planimétrico
+            </div>
+            <div
               onClick={(e) => { e.stopPropagation(); onAction('export', context.feature); onClose(); }}
               style={{ padding: '10px 15px', color: 'var(--success)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
@@ -504,6 +512,7 @@ export default function Geoportal() {
   const [isAddingPredio, setIsAddingPredio] = useState(false);
   const [editingPredio, setEditingPredio] = useState(null);
   const [featureContextMenu, setFeatureContextMenu] = useState(null);
+  const [reporteLinderacionCode, setReporteLinderacionCode] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
 
   // Búsqueda
@@ -1301,6 +1310,8 @@ export default function Geoportal() {
               });
             } else if (action === 'hide') {
               setHiddenFeatureIds(prev => [...prev, feature.properties.id]);
+            } else if (action === 'report_linderacion') {
+              setReporteLinderacionCode(feature.properties.cod_catastral || feature.properties.id);
             } else if (action === 'export') {
               proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
@@ -2049,110 +2060,7 @@ export default function Geoportal() {
           />
         )}
 
-        <FeatureContextMenuComponent
-          context={featureContextMenu}
-          onClose={() => setFeatureContextMenu(null)}
-          onAction={(action, feature) => {
-            if (action === 'zoom') {
-              zoomToFeature(feature);
-            } else if (action === 'popup') {
-              if (featureContextMenu?.layer && featureContextMenu.layer.openPopup) {
-                featureContextMenu.layer.openPopup();
-              }
-            } else if (action === 'table') {
-              setActiveTableData('predios');
-            } else if (action === 'edit') {
-              setEditingPredio({
-                id: feature.properties.id,
-                posesionario_id: feature.properties.posesionario_id,
-                cod_catastral: feature.properties.cod_catastral,
-                geom_geojson: JSON.stringify(feature.geometry, null, 2)
-              });
-            } else if (action === 'hide') {
-              setHiddenFeatureIds(prev => [...prev, feature.properties.id]);
-            } else if (action === 'export') {
-              proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
-              const predioId = feature.properties.id;
-              let posesionarioName = feature.properties.nombre_posesionario;
-              if (!posesionarioName || posesionarioName.trim() === '') {
-                posesionarioName = `predio_${feature.properties.cod_catastral || predioId}`;
-              }
-              const cleanName = posesionarioName.replace(/[^a-zA-Z0-9]/g, '_');
-
-              const relatedLines = (lineasData?.features || []).filter(f => f.properties.predio_id === predioId);
-              const relatedPoints = (verticesData?.features || []).filter(f => f.properties.predio_id === predioId);
-
-              const transformCoords = (coords) => {
-                if (Array.isArray(coords) && typeof coords[0] === 'number') {
-                  return proj4('EPSG:4326', 'EPSG:32717', coords);
-                }
-                return coords.map(c => transformCoords(c));
-              };
-
-              const featuresToExport = [feature, ...relatedLines, ...relatedPoints].map(f => {
-                const sanitized = { ...f, properties: { ...f.properties } };
-                if (sanitized.properties) {
-                  Object.keys(sanitized.properties).forEach(k => {
-                    let val = sanitized.properties[k];
-                    if (val === null || val === undefined) val = '';
-                    else if (typeof val === 'object') val = JSON.stringify(val);
-                    sanitized.properties[k] = val;
-                  });
-                }
-                if (sanitized.geometry && sanitized.geometry.coordinates) {
-                  sanitized.geometry = {
-                    ...sanitized.geometry,
-                    coordinates: transformCoords(sanitized.geometry.coordinates)
-                  };
-                }
-                return sanitized;
-              });
-
-              const singleGeoJSON = {
-                type: 'FeatureCollection',
-                features: featuresToExport
-              };
-
-              const prj32717 = 'PROJCS["WGS_1984_UTM_Zone_17S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",-81.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]';
-
-              const options = {
-                outputType: 'blob',
-                compression: 'STORE',
-                prj: prj32717,
-                types: {
-                  point: `${cleanName}_punto`,
-                  multipoint: `${cleanName}_punto`,
-                  line: `${cleanName}_linea`,
-                  multiline: `${cleanName}_linea`,
-                  linestring: `${cleanName}_linea`,
-                  multilinestring: `${cleanName}_linea`,
-                  polygon: `${cleanName}_predio`,
-                  multipolygon: `${cleanName}_predio`
-                }
-              };
-
-              Promise.resolve(shpwrite.zip(singleGeoJSON, options)).then(content => {
-                if (content && typeof content.generateAsync === 'function') return content.generateAsync({ type: 'blob', compression: 'STORE' });
-                if (content && typeof content.generate === 'function') return content.generate({ type: 'blob', compression: 'STORE' });
-                return content;
-              }).then(blob => {
-                const finalBlob = blob instanceof Blob ? blob : new Blob([blob], { type: 'application/zip' });
-                const url = URL.createObjectURL(finalBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${cleanName}.zip`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }).catch(err => {
-                console.error("SHP Export Error:", err);
-                alert("Error al exportar: " + err.message);
-              });
-            } else if (action === 'delete') {
-              handleDeletePredio(feature.properties.id, feature.properties.cod_catastral);
-            }
-          }}
-        />
 
         {isDrawingPredio && (
           <DrawPolygonTool
@@ -2789,6 +2697,56 @@ export default function Geoportal() {
                 style={{ padding: '8px 16px', borderRadius: '6px' }}
               >
                 Generar Reporte
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reporteLinderacionCode && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            background: 'var(--bg-panel)',
+            padding: '24px',
+            borderRadius: '8px',
+            minWidth: '350px',
+            maxWidth: '500px',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+            border: '1px solid var(--card-border)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle color="#8b5cf6" size={24} />
+              Reporte Planimétrico
+            </h3>
+            <p style={{ color: 'var(--text-main)', fontSize: '1rem', marginBottom: '24px' }}>
+              Deseas ir al reporte planimétrico para el código catastral: <br/>
+              <strong style={{ fontSize: '1.1rem', color: '#8b5cf6', display: 'block', marginTop: '8px' }}>{reporteLinderacionCode}</strong>
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                className="btn-secondary"
+                onClick={() => setReporteLinderacionCode(null)}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', color: 'var(--text-main)', cursor: 'pointer' }}
+              >
+                Cerrar
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setReporteLinderacionCode(null);
+                  navigate(`/reporte/planimetrico/codigo/${reporteLinderacionCode}`);
+                }}
+                style={{ padding: '8px 16px', borderRadius: '6px', background: '#8b5cf6', color: '#fff', border: 'none', cursor: 'pointer' }}
+              >
+                Ir a Reporte
               </button>
             </div>
           </div>
