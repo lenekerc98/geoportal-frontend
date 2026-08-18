@@ -617,7 +617,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                     }} />
                                   </td>
                                   <td style={{ padding: '8px' }}>
-                                    <input type="text" value={rumbosCustom[index] !== undefined ? rumbosCustom[index] : (() => {
+                                    <input type="text" value={(rumbosCustom[index] !== undefined && rumbosCustom[index] !== '') ? rumbosCustom[index] : (() => {
                                       let nextLine = lines[index + 1];
                                       if (!nextLine) {
                                         // Si es la última línea y hay al menos 3 puntos, calculamos el rumbo cerrando con el primer punto
