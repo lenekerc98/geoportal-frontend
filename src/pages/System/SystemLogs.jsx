@@ -121,7 +121,7 @@ export default function SystemLogs() {
                   </td>
                   <td className="log-date">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Clock size={14} /> {new Date(log.fecha).toLocaleString()}
+                      <Clock size={14} /> {new Date(log.fecha.endsWith('Z') ? log.fecha : log.fecha + 'Z').toLocaleString()}
                     </div>
                   </td>
                 </tr>

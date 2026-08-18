@@ -437,10 +437,12 @@ export default function ReportePlanimetrico() {
   const [textAngleOffset, setTextAngleOffset] = useState(0);
 
   useEffect(() => {
-    if (predio?.angulo_texto !== undefined) {
+    if (predio?.angulo_texto && predio.angulo_texto !== 0) {
       setTextAngleOffset(predio.angulo_texto);
+    } else if (centerInfo?.mainAngle !== undefined) {
+      setTextAngleOffset(Math.round(centerInfo.mainAngle));
     }
-  }, [predio]);
+  }, [predio, centerInfo?.mainAngle]);
 
   const handleSaveAngle = async () => {
     if (!predio?.id) return;
@@ -452,7 +454,7 @@ export default function ReportePlanimetrico() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ angulo_texto: textAngleOffset })
+        body: JSON.stringify({ angulo_texto: textAngleOffset === 0 ? 360 : textAngleOffset })
       });
       if (res.ok) {
         showSuccess('Ángulo guardado correctamente');
@@ -526,9 +528,20 @@ export default function ReportePlanimetrico() {
           </div>
           <span className="rc-label" style={{ marginLeft: '10px' }}>Ángulo Texto:</span>
           <div className="rc-scale-controls">
-            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => a - 15)}>-</button>
-            <span className="rc-counter" style={{ width: '40px', textAlign: 'center' }}>{textAngleOffset}°</span>
-            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => a + 15)}>+</button>
+            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => (a - 15 + 360) % 360 || 360)}>-</button>
+            <input 
+              type="number" 
+              className="rc-counter" 
+              style={{ width: '45px', textAlign: 'center', border: 'none', background: 'transparent', MozAppearance: 'textfield' }} 
+              value={textAngleOffset} 
+              onChange={(e) => {
+                let val = parseInt(e.target.value);
+                if (isNaN(val)) val = 0;
+                setTextAngleOffset((val % 360 + 360) % 360 || 360);
+              }} 
+            />
+            <span style={{ marginLeft: '-5px', fontSize: '11px', color: '#64748b' }}>°</span>
+            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => (a + 15) % 360 || 360)}>+</button>
           </div>
           <button className="rc-btn-nav" onClick={handleSaveAngle} style={{ marginLeft: '5px', padding: '0 8px', fontSize: '11px' }}>
             Guardar
@@ -657,7 +670,7 @@ export default function ReportePlanimetrico() {
 
                             <Marker position={center} icon={L.divIcon({
                               className: 'center-predio-info',
-                              html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${centerInfo.mainAngle + textAngleOffset}deg); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
+                              html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${textAngleOffset}deg); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
                         <div>POSESIONARIO: ${predio?.nombre_posesionario || 'SIN NOMBRE'}</div>
                         <div>C.C.: ${predio?.cedula || 'S/D'} | CÓDIGO: ${predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
                         <div>ÁREA: ${predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>

@@ -93,7 +93,12 @@ export default function AnalyticsDashboard() {
         });
 
         // Set recent 5 predios for recent activity
-        setRecentPredios(prediosList.slice(0, 5));
+        const sortedPredios = [...prediosList].sort((a, b) => {
+          const idA = a.properties?.id || a.id || 0;
+          const idB = b.properties?.id || b.id || 0;
+          return idB - idA;
+        });
+        setRecentPredios(sortedPredios.slice(0, 5));
 
       } catch (e) {
         console.error(e);
@@ -330,7 +335,7 @@ export default function AnalyticsDashboard() {
                       {f.properties?.cod_catastral || f.cod_catastral || `PRED-${idx + 1}`}
                     </td>
                     <td>
-                      {f.properties?.posesionario_nombre || f.posesionario_nombre || 'Sin registrar'}
+                      {f.properties?.nombre_posesionario || f.nombre_posesionario || 'Sin registrar'}
                     </td>
                     <td>
                       <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-color)' }}>

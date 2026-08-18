@@ -44,6 +44,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     geom_geojson: initialData?.geom_text || formatInitialCoords(initialData?.geom_geojson),
   });
   const [colindantes, setColindantes] = useState([]);
+  const [rumbosCustom, setRumbosCustom] = useState([]);
   
   useEffect(() => {
     if (initialData && initialData.id) {
@@ -56,6 +57,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         if (data && data.linderos && data.linderos.length > 0) {
           const sorted = data.linderos.sort((a, b) => a.id - b.id);
           setColindantes(sorted.map(l => l.colindante || ''));
+          setRumbosCustom(sorted.map(l => l.rumbo || ''));
         }
       })
       .catch(e => console.error("Error cargando colindantes:", e));
@@ -357,16 +359,20 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       }
     }
 
-    onSubmit({
+    const finalData = {
       ...formData,
       cod_catastral: finalCod,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
       empresa_id: selectedEmpresaId ? parseInt(selectedEmpresaId, 10) : null,
       proyecto_id: activeProyecto ? activeProyecto.id : (selectedProyectoId ? parseInt(selectedProyectoId, 10) : null),
-      geom_geojson: parsedGeojson,
-      es_utm: esUtm,
-      colindantes: colindantes
-    });
+      geom_geojson: parsedGeojson || { type: 'Polygon', coordinates: [] }, // Asegurarnos de mandar un dict si json
+      colindantes: colindantes,
+      rumbos: rumbosCustom,
+      es_utm: esUtm
+    };
+    if (!parsedGeojson) finalData.geom_text = rawText;
+
+    onSubmit(finalData);
   };
 
 
@@ -610,15 +616,19 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                     setFormData({ ...formData, geom_geojson: newLines.join('\n') });
                                   }} />
                                 </td>
-                                <td style={{ padding: '8px', color: 'var(--text-main)' }}>
-                                  {(() => {
+                                <td style={{ padding: '8px' }}>
+                                  <input type="text" value={rumbosCustom[index] !== undefined ? rumbosCustom[index] : (() => {
                                     const nextLine = lines[index + 1];
                                     if (!nextLine) return '-';
                                     const nextParts = nextLine.trim().split(/[\s,;\t]+/).filter(Boolean);
                                     const nx = nextParts[0] || '';
                                     const ny = nextParts[1] || '';
                                     return calcularRumbo(x, y, nx, ny);
-                                  })()}
+                                  })()} className="input-dynamic" style={{ padding: '4px 8px', width: '100%', minWidth: '90px' }} onChange={(e) => {
+                                    const newRumbos = [...rumbosCustom];
+                                    newRumbos[index] = e.target.value;
+                                    setRumbosCustom(newRumbos);
+                                  }} />
                                 </td>
                                 <td style={{ padding: '8px' }}>
                                   <input type="text" value={colindantes[index] || ''} placeholder="Pedro Castillo" className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {

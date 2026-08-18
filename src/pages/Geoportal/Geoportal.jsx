@@ -31,7 +31,7 @@ const getGeometryIcon = (tipo) => {
 // --- INTERACTIVE ZOOM HANDLER ---
 const InteractiveZoomHandler = ({ mode, setMode }) => {
   const map = useMap();
-  
+
   useEffect(() => {
     if (!mode) {
       if (map && map.boxZoom && !map.boxZoom.enabled()) {
@@ -59,9 +59,9 @@ const InteractiveZoomHandler = ({ mode, setMode }) => {
 
     const onMouseUp = (e) => {
       if (!startLatLng) return;
-      
+
       const clickLatLng = startLatLng;
-      
+
       if (box) {
         const bounds = box.getBounds();
         map.removeLayer(box);
@@ -84,7 +84,7 @@ const InteractiveZoomHandler = ({ mode, setMode }) => {
         startLatLng = null;
         map.dragging.enable();
       }
-      
+
       // If it was just a click (no box drawn)
       if (mode === 'in') {
         map.setZoomAround(clickLatLng, map.getZoom() + 1);
@@ -534,14 +534,14 @@ export default function Geoportal() {
     if (selectedPredioId && map && prediosGeoJsonRef.current) {
       const layers = prediosGeoJsonRef.current.getLayers();
       const targetLayer = layers.find(l => l.feature?.properties?.id === selectedPredioId);
-      
+
       if (targetLayer) {
         // Reset previously selected layer style
         if (activePredioLayerRef.current && activePredioLayerRef.current !== targetLayer) {
-           // Si estaba en searchResults deberíamos mantener el estilo de búsqueda, pero por simplicidad volvemos al default
-           activePredioLayerRef.current.setStyle({ color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 });
+          // Si estaba en searchResults deberíamos mantener el estilo de búsqueda, pero por simplicidad volvemos al default
+          activePredioLayerRef.current.setStyle({ color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 });
         }
-        
+
         // Apply selected style
         targetLayer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.4 });
         activePredioLayerRef.current = targetLayer;
@@ -549,7 +549,7 @@ export default function Geoportal() {
         if (targetLayer.getBounds) {
           map.fitBounds(targetLayer.getBounds(), { padding: [100, 100], maxZoom: 19 });
         }
-        
+
         // Open the popup automatically
         if (targetLayer.openPopup) {
           targetLayer.openPopup();
@@ -696,6 +696,7 @@ export default function Geoportal() {
       });
       if (prediosRes.ok) {
         const prediosGeoJSON = await prediosRes.json();
+        prediosGeoJSON._key = Date.now();
         setPrediosData(prediosGeoJSON);
       } else {
         console.error("Error fetching predios:", await prediosRes.text());
@@ -708,6 +709,13 @@ export default function Geoportal() {
       setLoadingPredios(false);
     }
   };
+
+  useEffect(() => {
+    if (showPredios && !prediosData && authToken) {
+      fetchMapData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPredios, prediosData, authToken]);
 
   const handleSavePredio = async (predioData) => {
     const isUpdate = !!editingPredio;
@@ -724,9 +732,44 @@ export default function Geoportal() {
         showSuccess('Predio guardado correctamente');
         setIsAddingPredio(false);
         setEditingPredio(null);
-        // Recargar predios
-        setPrediosData(null);
+        // Recargar predios y capas en segundo plano para que sea instantáneo visualmente
         if (showPredios) fetchMapData();
+        
+        if (showVertices) {
+          let url = `${API_URL}/api/gis/vertices`;
+          const params = new URLSearchParams();
+          if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
+          if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
+          if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
+          if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+          if (params.toString()) url += `?${params.toString()}`;
+          fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data) {
+                data._key = Date.now();
+                setVerticesData(data);
+              }
+            });
+        }
+
+        if (showLineas) {
+          let url = `${API_URL}/api/gis/lineas`;
+          const params = new URLSearchParams();
+          if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
+          if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
+          if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
+          if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+          if (params.toString()) url += `?${params.toString()}`;
+          fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data) {
+                data._key = Date.now();
+                setLineasData(data);
+              }
+            });
+        }
       } else {
         const err = await res.json();
         setToastMsg({ type: 'error', title: 'Error', message: err.detail });
@@ -973,6 +1016,7 @@ export default function Geoportal() {
 
         const res = await fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } });
         dataToSearch = await res.json();
+        dataToSearch._key = Date.now();
         setPrediosData(dataToSearch);
         setShowPredios(true);
       } catch (err) {
@@ -1539,7 +1583,7 @@ export default function Geoportal() {
                 </div>
                 {collapsedCategories.escala ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
               </div>
-              
+
               {!collapsedCategories.escala && (
                 <form onSubmit={(e) => {
                   e.preventDefault();
@@ -1563,7 +1607,7 @@ export default function Geoportal() {
                 </div>
                 {collapsedCategories.buscar ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
               </div>
-              
+
               {!collapsedCategories.buscar && (
                 <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
                   <input
@@ -1581,41 +1625,41 @@ export default function Geoportal() {
 
             {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
             <div className="sidebar-section">
-                  <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <Database size={16} color="var(--primary)" />
-                      <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
-                    </div>
-                    {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-                  </div>
+              <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Database size={16} color="var(--primary)" />
+                  <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
+                </div>
+                {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
+              </div>
 
-                  {!collapsedCategories.gestion && (
-                    <>
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
-                        <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
-                          <UploadCloud size={16} /> Ortofoto
-                        </button>
-                        <input
-                          type="file"
-                          accept=".zip"
-                          style={{ display: 'none' }}
-                          ref={shapefileInputRef}
-                          onChange={handleImportShapefile}
-                        />
-                        <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
-                          <UploadCloud size={16} /> Shapefile
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
-                        <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                          <DownloadCloud size={16} /> Descargar DB
-                        </button>
-                        <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
-                          <FolderSearch size={16} /> Catalogar
-                        </button>
-                      </div>
-                    </>
-                  )}
+              {!collapsedCategories.gestion && (
+                <>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
+                    <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
+                      <UploadCloud size={16} /> Ortofoto
+                    </button>
+                    <input
+                      type="file"
+                      accept=".zip"
+                      style={{ display: 'none' }}
+                      ref={shapefileInputRef}
+                      onChange={handleImportShapefile}
+                    />
+                    <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
+                      <UploadCloud size={16} /> Shapefile
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+                    <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                      <DownloadCloud size={16} /> Descargar DB
+                    </button>
+                    <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
+                      <FolderSearch size={16} /> Catalogar
+                    </button>
+                  </div>
+                </>
+              )}
 
               <div className="section-title" onClick={() => toggleCategory('historico')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1624,7 +1668,7 @@ export default function Geoportal() {
                 </div>
                 {collapsedCategories.historico ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
               </div>
-              
+
               {!collapsedCategories.historico && (
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Ver estado a la fecha:</label>
@@ -2217,7 +2261,7 @@ export default function Geoportal() {
         {showPredios && prediosData && prediosData.features && (
           <GeoJSON
             ref={prediosGeoJsonRef}
-            key={`predios-${showPredios}-${prediosData.features.length}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}`}
+            key={`predios-${prediosData._key || 'init'}-${showPredios}-${hiddenFeatureIds.join('-')}-${searchResults ? searchResults.join('-') : 'all'}-${selectedYear}`}
             data={{ ...prediosData, features: (prediosData.features || []).filter(f => f && f.geometry && f.properties && !hiddenFeatureIds.includes(f.properties.id) && (searchResults === null || searchResults.includes(f.properties.id)) && (selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))) }}
             style={(feature) => {
               const isSelected = selectedPredioId === feature.properties.id || (searchResults && searchResults.includes(feature.properties.id));
@@ -2295,6 +2339,7 @@ export default function Geoportal() {
         {/* VECTOR: Linderos */}
         {showLineas && lineasData && lineasData.features && (
           <GeoJSON
+            key={`lineas-${lineasData._key || 'init'}`}
             data={{ ...lineasData, features: (lineasData.features || []).filter(f => f && f.geometry) }}
             style={() => ({
               color: '#f97316', // Naranja
@@ -2307,6 +2352,7 @@ export default function Geoportal() {
         {/* VECTOR: Vértices */}
         {showVertices && verticesData && verticesData.features && (
           <GeoJSON
+            key={`vertices-${verticesData._key || 'init'}`}
             data={{ ...verticesData, features: (verticesData.features || []).filter(f => f && f.geometry) }}
             pointToLayer={(feature, latlng) => {
               return L.circleMarker(latlng, {
@@ -2727,7 +2773,7 @@ export default function Geoportal() {
               Reporte Planimétrico
             </h3>
             <p style={{ color: 'var(--text-main)', fontSize: '1rem', marginBottom: '24px' }}>
-              Deseas ir al reporte planimétrico para el código catastral: <br/>
+              Deseas ir al reporte planimétrico para el código catastral: <br />
               <strong style={{ fontSize: '1.1rem', color: '#8b5cf6', display: 'block', marginTop: '8px' }}>{reporteLinderacionCode}</strong>
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
