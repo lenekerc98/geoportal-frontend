@@ -618,11 +618,16 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                   </td>
                                   <td style={{ padding: '8px' }}>
                                     <input type="text" value={(rumbosCustom[index] !== undefined && rumbosCustom[index] !== '') ? rumbosCustom[index] : (() => {
-                                      let nextLine = lines[index + 1];
-                                      if (!nextLine) {
-                                        // Si es la última línea y hay al menos 3 puntos, calculamos el rumbo cerrando con el primer punto
-                                        if (lines.length > 2 && index === lines.length - 1) {
-                                          nextLine = lines[0];
+                                      if (x === '' && y === '') return '-';
+                                      let nextLineIndex = index + 1;
+                                      while (nextLineIndex < lines.length && lines[nextLineIndex].trim() === '') {
+                                          nextLineIndex++;
+                                      }
+                                      let nextLine = lines[nextLineIndex];
+                                      if (!nextLine || nextLine.trim() === '') {
+                                        const validCount = lines.filter(l => l.trim() !== '').length;
+                                        if (validCount > 2) {
+                                          nextLine = lines.find(l => l.trim() !== '');
                                         } else {
                                           return '-';
                                         }
