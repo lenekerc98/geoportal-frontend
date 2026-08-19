@@ -16,16 +16,23 @@ export default defineConfig({
         short_name: 'Catastro',
         description: 'Geoportal de Catastro Offline',
         theme_color: '#0f172a',
+        display: 'standalone',
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'logo_gad.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'logo_gad.png',
             sizes: '512x512',
             type: 'image/png'
+          },
+          {
+            src: 'logo_gad.png',
+            sizes: 'any',
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       },
