@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import Draggable from 'react-draggable';
 //, useEffect, useRef, useContext } from 'react';
-import { X, Save, Loader2, Check, MousePointer2, Upload, FileDown, Building2 } from 'lucide-react';
+import { X, Save, Loader2, Check, MousePointer2, Upload, FileDown, Building2, Printer } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 import * as XLSX from 'xlsx';
@@ -586,9 +586,6 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                             <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>N°</th>
                             <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada X (Este)</th>
                             <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada Y (Norte)</th>
-                            {initialData && initialData.id && (
-                              <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Rumbo</th>
-                            )}
                             <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Colindantes</th>
                             <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}></th>
                           </tr>
@@ -618,35 +615,6 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                       setFormData({ ...formData, geom_geojson: newLines.join('\n') });
                                     }} />
                                   </td>
-                                  {initialData && initialData.id && (
-                                    <td style={{ padding: '8px' }}>
-                                      {x === '' && y === '' ? null : (
-                                        <input type="text" value={(rumbosCustom[index] !== undefined && rumbosCustom[index] !== '') ? rumbosCustom[index] : (() => {
-                                          let nextLineIndex = index + 1;
-                                          while (nextLineIndex < lines.length && lines[nextLineIndex].trim() === '') {
-                                              nextLineIndex++;
-                                          }
-                                          let nextLine = lines[nextLineIndex];
-                                          if (!nextLine || nextLine.trim() === '') {
-                                            const validCount = lines.filter(l => l.trim() !== '').length;
-                                            if (validCount > 2) {
-                                              nextLine = lines.find(l => l.trim() !== '');
-                                            } else {
-                                              return '-';
-                                            }
-                                          }
-                                          const nextParts = nextLine.trim().split(/[\s,;\t]+/).filter(Boolean);
-                                          const nx = nextParts[0] || '';
-                                          const ny = nextParts[1] || '';
-                                          return calcularRumbo(x, y, nx, ny);
-                                        })()} className="input-dynamic" style={{ padding: '4px 8px', width: '100%', minWidth: '90px' }} onChange={(e) => {
-                                          const newRumbos = [...rumbosCustom];
-                                          newRumbos[index] = e.target.value;
-                                          setRumbosCustom(newRumbos);
-                                        }} />
-                                      )}
-                                    </td>
-                                  )}
                                   <td style={{ padding: '8px' }}>
                                     <input type="text" value={colindantes[index] || ''} placeholder="Pedro Castillo" className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
                                       const newCols = [...colindantes];
@@ -687,6 +655,17 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             </div>
 
             <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+              {initialData && initialData.id && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    const code = initialData.cod_catastral || initialData.id;
+                    window.open(`/reporte/planimetrico/codigo/${code}`, '_blank');
+                  }} 
+                  style={{ padding: '12px 20px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--accent-color)', color: 'var(--accent-color)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 'bold' }}>
+                  <Printer size={18} /> Imprimir Planimetría
+                </button>
+              )}
               <button type="button" onClick={onCancel} style={{ padding: '12px 20px', backgroundColor: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '8px' }}>
                 Cancelar
               </button>

@@ -8,6 +8,7 @@ import proj4 from 'proj4';
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, AlertCircle } from 'lucide-react';
 import { API_URL } from '../../services/api';
+import { getOfflinePredioById } from '../../services/offlineDB';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import './ReportePlanimetrico.css';
@@ -297,6 +298,19 @@ export default function ReportePlanimetrico() {
 
       let url = '';
       if (codigo) {
+        if (codigo.startsWith('offline_')) {
+          const localData = await getOfflinePredioById(codigo);
+          if (localData) {
+            // Reconstruct a format similar to what the API returns
+            setData({
+              predio: localData,
+              vertices: [], // Or parse them from geom_geojson if needed, but the map uses geom_geojson
+              lineas: []
+            });
+            setLoading(false);
+            return;
+          }
+        }
         url = `${API_URL}/api/gis/predios/detalle/${codigo}`;
       } else {
         url = `${API_URL}/api/gis/predios/detalle-id/${id}`;
@@ -445,7 +459,12 @@ export default function ReportePlanimetrico() {
   }, [predio, centerInfo?.mainAngle]);
 
   const handleSaveAngle = async () => {
-    if (!predio?.id) return;
+    if (!predio?.id && !predio?.offline_id) return;
+    if (predio?.offline_id) {
+       // Cannot save angle to API if it's offline
+       showSuccess('Ángulo actualizado solo en vista (predio offline)');
+       return;
+    }
     try {
       const token = localStorage.getItem('catastro_token');
       const res = await fetch(`${API_URL}/api/gis/predios/${predio.id}/angulo`, {

@@ -8,6 +8,7 @@ import proj4 from 'proj4';
 import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
 import { API_URL } from '../../services/api';
+import { getOfflinePredios, saveOfflinePredio, removeOfflinePredio } from '../../services/offlineDB';
 import { confirmDelete, showSuccess, showError } from '../../utils/swal';
 import { saveTemporalLayer, getTemporalLayers, deleteTemporalLayer } from '../../utils/indexedDB';
 import './Geoportal.css';
@@ -269,7 +270,7 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
-              <AlertCircle size={16} color="#8b5cf6" /> Ir a Reporte Planimétrico
+              <AlertCircle size={16} color="#8b5cf6" /> Imprimir Planimetría
             </div>
             <div
               onClick={(e) => { e.stopPropagation(); onAction('export', context.feature); onClose(); }}
@@ -696,6 +697,20 @@ export default function Geoportal() {
       });
       if (prediosRes.ok) {
         const prediosGeoJSON = await prediosRes.json();
+        
+        // Cargar predios locales (offline) y mezclarlos
+        const offlinePredios = await getOfflinePredios();
+        const offlineFeatures = offlinePredios.map(p => ({
+          type: "Feature",
+          properties: {
+            ...p,
+            id: p.offline_id,
+            isOffline: true
+          },
+          geometry: JSON.parse(p.geom_geojson)
+        }));
+        
+        prediosGeoJSON.features = [...prediosGeoJSON.features, ...offlineFeatures];
         prediosGeoJSON._key = Date.now();
         setPrediosData(prediosGeoJSON);
       } else {
@@ -704,7 +719,22 @@ export default function Geoportal() {
       }
     } catch (err) {
       console.error("Network error fetching predios:", err);
-      setPrediosData({ type: "FeatureCollection", features: [] });
+      // Si hay error de red, cargar al menos los offline
+      try {
+        const offlinePredios = await getOfflinePredios();
+        const offlineFeatures = offlinePredios.map(p => ({
+          type: "Feature",
+          properties: {
+            ...p,
+            id: p.offline_id,
+            isOffline: true
+          },
+          geometry: JSON.parse(p.geom_geojson)
+        }));
+        setPrediosData({ type: "FeatureCollection", features: offlineFeatures, _key: Date.now() });
+      } catch (e) {
+        setPrediosData({ type: "FeatureCollection", features: [] });
+      }
     } finally {
       setLoadingPredios(false);
     }
@@ -719,69 +749,111 @@ export default function Geoportal() {
 
   const handleSavePredio = async (predioData) => {
     const isUpdate = !!editingPredio;
-    const url = isUpdate ? `${API_URL}/api/gis/predios/${editingPredio.id}` : `${API_URL}/api/gis/predios`;
-    const method = isUpdate ? 'PUT' : 'POST';
+    const isOfflineEdit = isUpdate && editingPredio.isOffline;
+    const url = (isUpdate && !isOfflineEdit) ? `${API_URL}/api/gis/predios/${editingPredio.id}` : `${API_URL}/api/gis/predios`;
+    const method = (isUpdate && !isOfflineEdit) ? 'PUT' : 'POST';
 
     try {
+      // Si es un predio offline y ahora tenemos red, podemos enviarlo
+      if (isOfflineEdit) {
+         // Quitar propiedades offline antes de enviar
+         delete predioData.isOffline;
+         delete predioData.offline_id;
+      }
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify(predioData)
       });
       if (res.ok) {
+        if (isOfflineEdit) {
+          // Si se subió con éxito, borrarlo de la BD offline
+          await removeOfflinePredio(editingPredio.offline_id);
+        }
         showSuccess('Predio guardado correctamente');
         setIsAddingPredio(false);
         setEditingPredio(null);
-        // Recargar predios y capas en segundo plano para que sea instantáneo visualmente
         if (showPredios) fetchMapData();
-        
-        if (showVertices) {
-          let url = `${API_URL}/api/gis/vertices`;
-          const params = new URLSearchParams();
-          if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
-          if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
-          if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
-          if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
-          if (params.toString()) url += `?${params.toString()}`;
-          fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } })
-            .then(res => res.ok ? res.json() : null)
-            .then(data => {
-              if (data) {
-                data._key = Date.now();
-                setVerticesData(data);
-              }
-            });
-        }
-
-        if (showLineas) {
-          let url = `${API_URL}/api/gis/lineas`;
-          const params = new URLSearchParams();
-          if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
-          if (fechaFin) params.append('fecha_fin', fechaFin + ' 23:59:59');
-          if (fechaHistorica) params.append('fecha_historica', fechaHistorica + ' 23:59:59');
-          if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
-          if (params.toString()) url += `?${params.toString()}`;
-          fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } })
-            .then(res => res.ok ? res.json() : null)
-            .then(data => {
-              if (data) {
-                data._key = Date.now();
-                setLineasData(data);
-              }
-            });
+      } else {
+        const errorData = await res.json();
+        showError('Error al guardar predio: ' + JSON.stringify(errorData));
+      }
+    } catch (err) {
+      console.error(err);
+      if (err.message.includes('Failed to fetch') || err.name === 'TypeError' || !navigator.onLine) {
+        // Red unavailable - Save locally
+        try {
+          if (isOfflineEdit) predioData.offline_id = editingPredio.offline_id;
+          await saveOfflinePredio(predioData);
+          setToastMsg({ type: 'info', title: 'Modo Offline', message: 'Sin conexión. El predio se guardó localmente y se sincronizará luego.' });
+          setIsAddingPredio(false);
+          setEditingPredio(null);
+          if (showPredios) fetchMapData();
+        } catch (dbErr) {
+          showError('No se pudo guardar localmente: ' + dbErr.message);
         }
       } else {
-        const err = await res.json();
-        setToastMsg({ type: 'error', title: 'Error', message: err.detail });
+        showError('Error al guardar predio: ' + err.message);
       }
-    } catch (e) {
-      setToastMsg({ type: 'error', title: 'Error', message: e.message });
     }
   };
 
-  const handleDeletePredio = async (id, codigo) => {
-    const isConfirmed = await confirmDelete(`¿Estás seguro de eliminar el predio ${codigo || id}?`);
+  const syncOfflineData = async () => {
+    if (!navigator.onLine || !authToken) return;
+    try {
+      const offlinePredios = await getOfflinePredios();
+      if (offlinePredios.length === 0) return;
+      
+      let synced = 0;
+      for (const p of offlinePredios) {
+        const payload = { ...p };
+        delete payload.offline_id;
+        delete payload.isOffline;
+        delete payload.timestamp;
+
+        try {
+          const res = await fetch(`${API_URL}/api/gis/predios`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            await removeOfflinePredio(p.offline_id);
+            synced++;
+          }
+        } catch (e) {
+          console.error("Error sincronizando predio", p.offline_id, e);
+        }
+      }
+      
+      if (synced > 0) {
+        setToastMsg({ type: 'success', title: 'Sincronización Exitosa', message: `Se sincronizaron ${synced} predios guardados offline.` });
+        if (showPredios) fetchMapData();
+      }
+    } catch (err) {
+      console.error("Error during sync", err);
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener('online', syncOfflineData);
+    // Intentar sincronizar al montar
+    syncOfflineData();
+    return () => window.removeEventListener('online', syncOfflineData);
+  }, [authToken]);
+
+  const handleDeletePredio = async (id, isOffline = false) => {
+    const isConfirmed = await confirmDelete(`¿Estás seguro de eliminar el predio?`);
     if (!isConfirmed) return;
+    
+    if (isOffline) {
+        await removeOfflinePredio(id);
+        setToastMsg({ type: 'success', title: 'Éxito', message: 'Predio offline eliminado' });
+        if (showPredios) fetchMapData();
+        return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/gis/predios/${id}`, {
         method: 'DELETE',
@@ -1435,7 +1507,7 @@ export default function Geoportal() {
                 alert("Error al exportar: " + err.message);
               });
             } else if (action === 'delete') {
-              handleDeletePredio(feature.properties.id, feature.properties.cod_catastral);
+              handleDeletePredio(feature.properties.id, feature.properties.isOffline);
             }
           }}
         />
