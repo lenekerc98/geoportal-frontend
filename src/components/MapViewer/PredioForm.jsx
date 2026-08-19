@@ -290,6 +290,8 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     let finalPosesionarioId = formData.posesionario_id;
     if (!finalPosesionarioId && cedula && nombrePosesionario) {
       try {
+        if (!navigator.onLine) throw new Error("offline");
+        
         const token = localStorage.getItem('catastro_token');
         const res = await fetch(`${API_URL}/api/gis/posesionarios`, {
           method: 'POST',
@@ -304,8 +306,13 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           return;
         }
       } catch (err) {
-        alert('Error al registrar posesionario.');
-        return;
+        if (err.message === "offline" || !navigator.onLine) {
+          // Si estamos offline, no bloqueamos. Se guardará como temporal.
+          finalPosesionarioId = null;
+        } else {
+          alert('Error al registrar posesionario.');
+          return;
+        }
       }
     }
 
@@ -363,6 +370,8 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       ...formData,
       cod_catastral: finalCod,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
+      cedula_temporal: (!finalPosesionarioId && cedula) ? cedula : undefined,
+      nombre_temporal: (!finalPosesionarioId && nombrePosesionario) ? nombrePosesionario : undefined,
       empresa_id: selectedEmpresaId ? parseInt(selectedEmpresaId, 10) : null,
       proyecto_id: activeProyecto ? activeProyecto.id : (selectedProyectoId ? parseInt(selectedProyectoId, 10) : null),
       geom_geojson: parsedGeojson || { type: 'Polygon', coordinates: [] }, // Asegurarnos de mandar un dict si json

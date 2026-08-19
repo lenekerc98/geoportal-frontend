@@ -806,11 +806,46 @@ export default function Geoportal() {
       if (offlinePredios.length === 0) return;
       
       let synced = 0;
+      let newPosesionarios = 0;
+      let linkedPosesionarios = 0;
+
       for (const p of offlinePredios) {
         const payload = { ...p };
         delete payload.offline_id;
         delete payload.isOffline;
         delete payload.timestamp;
+
+        if (payload.cedula_temporal && payload.nombre_temporal && !payload.posesionario_id) {
+           try {
+             // 1. Intentar buscar si el posesionario ya existe en la BD
+             const checkRes = await fetch(`${API_URL}/api/gis/posesionarios/buscar/${payload.cedula_temporal}`, {
+               headers: { 'Authorization': `Bearer ${authToken}` }
+             });
+
+             if (checkRes.ok) {
+               const existingData = await checkRes.json();
+               payload.posesionario_id = existingData.id;
+               linkedPosesionarios++;
+             } else {
+               // 2. Si no existe, crearlo
+               const posRes = await fetch(`${API_URL}/api/gis/posesionarios`, { 
+                 method: 'POST', 
+                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                 body: JSON.stringify({ cedula: payload.cedula_temporal, nombre: payload.nombre_temporal }) 
+               });
+               if (posRes.ok) {
+                  const posData = await posRes.json();
+                  payload.posesionario_id = posData.id;
+                  newPosesionarios++;
+               }
+             }
+           } catch(e) {
+             console.error("Error sincronizando posesionario", e);
+           }
+        }
+        
+        delete payload.cedula_temporal;
+        delete payload.nombre_temporal;
 
         try {
           const res = await fetch(`${API_URL}/api/gis/predios`, {
@@ -828,7 +863,11 @@ export default function Geoportal() {
       }
       
       if (synced > 0) {
-        setToastMsg({ type: 'success', title: 'Sincronización Exitosa', message: `Se sincronizaron ${synced} predios guardados offline.` });
+        let msg = `Se sincronizaron ${synced} predios guardados offline.`;
+        if (newPosesionarios > 0) msg += `\nSe crearon ${newPosesionarios} posesionarios nuevos en la base.`;
+        if (linkedPosesionarios > 0) msg += `\nSe enlazaron ${linkedPosesionarios} posesionarios ya existentes.`;
+        
+        setToastMsg({ type: 'success', title: 'Sincronización Exitosa', message: msg });
         if (showPredios) fetchMapData();
       }
     } catch (err) {
