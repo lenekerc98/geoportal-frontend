@@ -586,7 +586,9 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                             <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>N°</th>
                             <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada X (Este)</th>
                             <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Coordenada Y (Norte)</th>
-                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Rumbo</th>
+                            {initialData && initialData.id && (
+                              <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Rumbo</th>
+                            )}
                             <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>Colindantes</th>
                             <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid var(--card-border)', color: 'var(--text-muted)' }}></th>
                           </tr>
@@ -616,32 +618,35 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                       setFormData({ ...formData, geom_geojson: newLines.join('\n') });
                                     }} />
                                   </td>
-                                  <td style={{ padding: '8px' }}>
-                                    <input type="text" value={(rumbosCustom[index] !== undefined && rumbosCustom[index] !== '') ? rumbosCustom[index] : (() => {
-                                      if (x === '' && y === '') return '-';
-                                      let nextLineIndex = index + 1;
-                                      while (nextLineIndex < lines.length && lines[nextLineIndex].trim() === '') {
-                                          nextLineIndex++;
-                                      }
-                                      let nextLine = lines[nextLineIndex];
-                                      if (!nextLine || nextLine.trim() === '') {
-                                        const validCount = lines.filter(l => l.trim() !== '').length;
-                                        if (validCount > 2) {
-                                          nextLine = lines.find(l => l.trim() !== '');
-                                        } else {
-                                          return '-';
-                                        }
-                                      }
-                                      const nextParts = nextLine.trim().split(/[\s,;\t]+/).filter(Boolean);
-                                      const nx = nextParts[0] || '';
-                                      const ny = nextParts[1] || '';
-                                      return calcularRumbo(x, y, nx, ny);
-                                    })()} className="input-dynamic" style={{ padding: '4px 8px', width: '100%', minWidth: '90px' }} onChange={(e) => {
-                                      const newRumbos = [...rumbosCustom];
-                                      newRumbos[index] = e.target.value;
-                                      setRumbosCustom(newRumbos);
-                                    }} />
-                                  </td>
+                                  {initialData && initialData.id && (
+                                    <td style={{ padding: '8px' }}>
+                                      {x === '' && y === '' ? null : (
+                                        <input type="text" value={(rumbosCustom[index] !== undefined && rumbosCustom[index] !== '') ? rumbosCustom[index] : (() => {
+                                          let nextLineIndex = index + 1;
+                                          while (nextLineIndex < lines.length && lines[nextLineIndex].trim() === '') {
+                                              nextLineIndex++;
+                                          }
+                                          let nextLine = lines[nextLineIndex];
+                                          if (!nextLine || nextLine.trim() === '') {
+                                            const validCount = lines.filter(l => l.trim() !== '').length;
+                                            if (validCount > 2) {
+                                              nextLine = lines.find(l => l.trim() !== '');
+                                            } else {
+                                              return '-';
+                                            }
+                                          }
+                                          const nextParts = nextLine.trim().split(/[\s,;\t]+/).filter(Boolean);
+                                          const nx = nextParts[0] || '';
+                                          const ny = nextParts[1] || '';
+                                          return calcularRumbo(x, y, nx, ny);
+                                        })()} className="input-dynamic" style={{ padding: '4px 8px', width: '100%', minWidth: '90px' }} onChange={(e) => {
+                                          const newRumbos = [...rumbosCustom];
+                                          newRumbos[index] = e.target.value;
+                                          setRumbosCustom(newRumbos);
+                                        }} />
+                                      )}
+                                    </td>
+                                  )}
                                   <td style={{ padding: '8px' }}>
                                     <input type="text" value={colindantes[index] || ''} placeholder="Pedro Castillo" className="input-dynamic" style={{ padding: '4px 8px', width: '100%' }} onChange={(e) => {
                                       const newCols = [...colindantes];
