@@ -707,10 +707,14 @@ export default function Geoportal() {
             id: p.offline_id,
             isOffline: true
           },
-          geometry: JSON.parse(p.geom_geojson)
+          geometry: (() => {
+            try { return typeof p.geom_geojson === 'string' ? JSON.parse(p.geom_geojson) : p.geom_geojson; }
+            catch (e) { return null; }
+          })()
         }));
         
-        prediosGeoJSON.features = [...prediosGeoJSON.features, ...offlineFeatures];
+        const apiFeatures = Array.isArray(prediosGeoJSON.features) ? prediosGeoJSON.features : [];
+        prediosGeoJSON.features = [...apiFeatures, ...offlineFeatures];
         prediosGeoJSON._key = Date.now();
         setPrediosData(prediosGeoJSON);
       } else {
@@ -729,7 +733,10 @@ export default function Geoportal() {
             id: p.offline_id,
             isOffline: true
           },
-          geometry: JSON.parse(p.geom_geojson)
+          geometry: (() => {
+            try { return typeof p.geom_geojson === 'string' ? JSON.parse(p.geom_geojson) : p.geom_geojson; }
+            catch (e) { return null; }
+          })()
         }));
         setPrediosData({ type: "FeatureCollection", features: offlineFeatures, _key: Date.now() });
       } catch (e) {

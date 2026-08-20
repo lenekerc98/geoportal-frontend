@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Settings, Map, Layers, Plus, Building2, Save } from 'lucide-react';
+import { Settings, Map, Layers, Plus, Building2, Save, Mail } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import ProyectosManager from '../../components/System/ProyectosManager';
+import SMTPConfig from '../../components/System/SMTPConfig';
 import './SystemParams.css';
 
 export default function SystemParams() {
@@ -92,11 +93,16 @@ export default function SystemParams() {
         >
           Gestión de Proyectos
         </button>
+        <button 
+          onClick={() => setActiveTab('smtp')}
+          style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'smtp' ? '2px solid var(--primary)' : '2px solid transparent', color: activeTab === 'smtp' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Mail size={16} /> Alertas de Sistema
+        </button>
       </div>
 
       {activeTab === 'proyectos' && <ProyectosManager />}
-
-
+      {activeTab === 'smtp' && <SMTPConfig />}
 
       {activeTab === 'empresa' && (
         <div style={{ background: 'var(--bg-panel)', padding: '25px', borderRadius: '8px', border: '1px solid var(--card-border)' }}>

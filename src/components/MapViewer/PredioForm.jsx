@@ -344,6 +344,33 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             return [x, y];
           }).filter(c => c !== null && !isNaN(c[0]) && !isNaN(c[1]));
 
+          // Validar límites lógicos de coordenadas para prevenir errores graves
+          let hasError = false;
+          let errorMsg = '';
+          for (const c of coords) {
+            const [x, y] = c;
+            if (isUtmCoords) {
+              // Valores UTM deben estar típicamente en 100,000 a 900,000 en X y 0 a 10,000,000 en Y
+              if (x > 2000000 || x < -2000000 || y > 20000000 || y < -20000000) {
+                hasError = true;
+                errorMsg = `La coordenada UTM X=${x}, Y=${y} excede los límites lógicos. Revisa si hay un dígito de más (ej. 98 millones en lugar de 9.8 millones).`;
+                break;
+              }
+            } else {
+              // Coordenadas geográficas lat/lon
+              if (x < -180 || x > 180 || y < -90 || y > 90) {
+                hasError = true;
+                errorMsg = `La coordenada geográfica Lon=${x}, Lat=${y} es inválida. Longitud debe estar entre -180 y 180, Latitud entre -90 y 90.`;
+                break;
+              }
+            }
+          }
+
+          if (hasError) {
+            alert(errorMsg);
+            return;
+          }
+
           if (coords.length < 3) {
             alert('Se necesitan al menos 3 coordenadas para formar un polígono.');
             return;
