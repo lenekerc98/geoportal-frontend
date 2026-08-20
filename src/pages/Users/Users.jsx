@@ -7,11 +7,13 @@ export default function Users() {
   const [activeTab, setActiveTab] = useState('users'); // 'users' | 'roles'
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [proyectosList, setProyectosList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [authToken] = useState(localStorage.getItem('catastro_token'));
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({ username: '', password: '', id_rol: 1, id_empresa: '', nombres: '', apellidos: '', cedula: '', correo: '' });
+  const [formData, setFormData] = useState({ username: '', password: '', id_rol: 1, id_empresa: '',
+      proyectos_ids: [], nombres: '', apellidos: '', cedula: '', correo: '' });
   const [editingId, setEditingId] = useState(null);
   const [empresas, setEmpresas] = useState([]);
   const [userRole, setUserRole] = useState('');
@@ -58,6 +60,12 @@ export default function Users() {
       if (rolesRes.ok) {
         const rolesData = await rolesRes.json();
         setRoles(rolesData);
+      const proyRes = await fetch(`${API_URL}/api/proyectos`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (proyRes.ok) {
+        const pData = await proyRes.json();
+        setProyectosList(pData);
+      }
+
         // Initialize permissions map
         const permMap = {};
         rolesData.forEach(r => {
@@ -110,7 +118,8 @@ export default function Users() {
       if (res.ok) {
         setIsEditing(false);
         setIsCreating(false);
-        setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '', nombres: '', apellidos: '', cedula: '', correo: '' });
+        setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '',
+      proyectos_ids: [], nombres: '', apellidos: '', cedula: '', correo: '' });
         setEditingId(null);
         showSuccess('Guardado', 'El usuario fue guardado correctamente');
         fetchData();
@@ -267,7 +276,8 @@ export default function Users() {
 
           {activeTab === 'users' && !isEditing && !isCreating && (
             <button 
-              onClick={() => { setIsCreating(true); setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '', nombres: '', apellidos: '', cedula: '', correo: '' }); }}
+              onClick={() => { setIsCreating(true); setFormData({ username: '', password: '', id_rol: roles[0]?.id_rol || 1, id_empresa: '',
+      proyectos_ids: [], nombres: '', apellidos: '', cedula: '', correo: '' }); }}
               className="btn-dynamic"
               style={{
                 display: 'flex',

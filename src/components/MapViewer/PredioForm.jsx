@@ -199,7 +199,8 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     setLoadingCodigo(true);
     try {
       const token = localStorage.getItem('catastro_token');
-      const res = await fetch(`${API_URL}/api/gis/codigos/buscar/${formData.cod_catastral}`, {
+      const codParaBuscar = encodeURIComponent(formData.cod_catastral.replace(/\s/g, ''));
+      const res = await fetch(`${API_URL}/api/gis/codigos/buscar/${codParaBuscar}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
