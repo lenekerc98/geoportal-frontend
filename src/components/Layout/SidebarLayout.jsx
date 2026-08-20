@@ -255,7 +255,7 @@ export default function SidebarLayout() {
                       }}
                     >
                       <option value="">Todos los Proyectos</option>
-                      {proyectosList.map(proj => (
+                      {proyectosList.filter(proj => !activeEmpresa || proj.empresas_ids?.includes(activeEmpresa.id)).map(proj => (
                         <option key={proj.id} value={proj.id}>{proj.nombre}</option>
                       ))}
                     </select>
@@ -280,7 +280,7 @@ export default function SidebarLayout() {
                       }}
                     >
                       <option value="">Todos los Proyectos</option>
-                      {proyectosList.map(proj => (
+                      {proyectosList.filter(proj => !activeEmpresa || proj.empresas_ids?.includes(activeEmpresa.id)).map(proj => (
                         <option key={proj.id} value={proj.id}>{proj.nombre}</option>
                       ))}
                     </select>
