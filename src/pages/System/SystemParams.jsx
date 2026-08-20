@@ -9,6 +9,7 @@ import './SystemParams.css';
 
 export default function SystemParams() {
   const [activeTab, setActiveTab] = useState('empresa');
+  const [logoFile, setLogoFile] = useState(null);
   
   const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
   const [empresaConfig, setEmpresaConfig] = useState({ 
@@ -165,6 +166,7 @@ export default function SystemParams() {
                         onChange={(e) => {
                           const file = e.target.files[0];
                           if (file) {
+                            setLogoFile(file);
                             const reader = new FileReader();
                             reader.onload = (event) => {
                               setEmpresaConfig({...empresaConfig, logo_url: event.target.result});
