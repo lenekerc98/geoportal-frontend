@@ -21,12 +21,20 @@ export default function App() {
 
   useEffect(() => {
     const handleGlobalError = (event) => {
-      const errorMsg = event.error ? event.error.stack : event.message;
+      let errorMsg = 'Unknown Error';
+      if (event.error) {
+        errorMsg = event.error.stack || event.error.message || String(event.error);
+      } else if (event.message) {
+        errorMsg = String(event.message);
+      }
       localStorage.setItem('catastro_fatal_error', errorMsg);
       setFatalError(errorMsg);
     };
     const handleUnhandledRejection = (event) => {
-      const errorMsg = event.reason ? event.reason.stack || event.reason : 'Unhandled Promise Rejection';
+      let errorMsg = 'Unhandled Promise Rejection';
+      if (event.reason) {
+        errorMsg = event.reason.stack || event.reason.message || String(event.reason);
+      }
       localStorage.setItem('catastro_fatal_error', errorMsg);
       setFatalError(errorMsg);
     };

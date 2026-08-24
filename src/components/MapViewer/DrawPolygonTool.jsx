@@ -47,7 +47,15 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
       if (isDrawing) {
         // Usa el punto con snap si existe, sino el punto del clic
         const pointToAdd = snappedLatLng ? snappedLatLng : e.latlng;
-        setDrawPoints(prev => [...prev, pointToAdd]);
+        setDrawPoints(prev => {
+          if (prev.length > 0) {
+            const lastPoint = prev[prev.length - 1];
+            if (lastPoint.lat === pointToAdd.lat && lastPoint.lng === pointToAdd.lng) {
+              return prev; // Evita añadir el mismo punto (ej. en doble clic)
+            }
+          }
+          return [...prev, pointToAdd];
+        });
       }
     },
     contextmenu(e) {

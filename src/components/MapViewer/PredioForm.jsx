@@ -41,10 +41,22 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   const [formData, setFormData] = useState({
     posesionario_id: initialData?.posesionario_id || '',
     cod_catastral: initialData?.cod_catastral || '',
-    geom_geojson: initialData?.geom_text || formatInitialCoords(initialData?.geom_geojson),
+    geom_geojson: initialData?.geom_text || (typeof initialData?.geom_geojson === 'string' ? initialData.geom_geojson : formatInitialCoords(initialData?.geom_geojson)) || '',
   });
   const [colindantes, setColindantes] = useState([]);
   const [rumbosCustom, setRumbosCustom] = useState([]);
+
+  useEffect(() => {
+    if (initialData) {
+      const coords = initialData.geom_text || (typeof initialData.geom_geojson === 'string' ? initialData.geom_geojson : formatInitialCoords(initialData.geom_geojson)) || '';
+      setFormData(prev => ({
+        ...prev,
+        posesionario_id: initialData.posesionario_id !== undefined ? initialData.posesionario_id : prev.posesionario_id,
+        cod_catastral: initialData.cod_catastral !== undefined ? initialData.cod_catastral : prev.cod_catastral,
+        geom_geojson: coords || prev.geom_geojson || ''
+      }));
+    }
+  }, [initialData]);
 
   useEffect(() => {
     if (initialData && initialData.id) {

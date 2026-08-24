@@ -1,9 +1,11 @@
+import ShapefileAtlasModal from '../../components/MapViewer/ShapefileAtlasModal';
 import React, { useState, useEffect, useRef, useContext } from 'react';
+import Swal from 'sweetalert2';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, useMap, Polyline, CircleMarker, Polygon, Popup, Marker, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin, Clock, Database, Image, Map, Settings, Info } from 'lucide-react';
+import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin, Clock, Database, Image, Map, Settings, Info, Boxes, Check, Sparkles } from 'lucide-react';
 import proj4 from 'proj4';
 import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
@@ -100,10 +102,10 @@ const InteractiveZoomHandler = ({ mode, setMode }) => {
     map.on('mouseup', onMouseUp);
 
     return () => {
-      map.getContainer().style.cursor = '';
       map.off('mousedown', onMouseDown);
       map.off('mousemove', onMouseMove);
       map.off('mouseup', onMouseUp);
+      map.getContainer().style.cursor = '';
       map.dragging.enable();
     };
   }, [mode, map]);
@@ -111,8 +113,110 @@ const InteractiveZoomHandler = ({ mode, setMode }) => {
   return null;
 };
 
+// --- INTERACTIVE SELECTION HANDLER ---
+const InteractiveSelectionHandler = ({ mode, freeDrawings, setSelectedFeatureIds }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (mode !== 'Select') {
+      if (map && map.boxZoom && !map.boxZoom.enabled()) map.boxZoom.enable();
+      return;
+    }
+
+    if (map.boxZoom) map.boxZoom.disable();
+    map.dragging.disable();
+
+    let box = null;
+    let startLatLng = null;
+
+    const onMouseDown = (e) => {
+      if (e.originalEvent.button !== 0) return;
+      
+      // Prevenir la selección de texto en la interfaz (UI) al arrastrar
+      document.body.style.userSelect = 'none';
+      if (window.getSelection) {
+        window.getSelection().removeAllRanges();
+      }
+
+      startLatLng = e.latlng;
+      box = L.rectangle([startLatLng, startLatLng], { 
+        color: '#22c55e', 
+        weight: 1, 
+        fillOpacity: 0.15, 
+        dashArray: '4,4', 
+        interactive: false 
+      }).addTo(map);
+    };
+
+    const onMouseMove = (e) => {
+      if (!startLatLng || !box) return;
+      box.setBounds([startLatLng, e.latlng]);
+    };
+
+    const onMouseUp = (e) => {
+      // Restaurar la selección de texto
+      document.body.style.userSelect = '';
+      if (window.getSelection) {
+        window.getSelection().removeAllRanges();
+      }
+
+      if (!startLatLng) return;
+
+      if (box) {
+        const bounds = box.getBounds();
+        map.removeLayer(box);
+        box = null;
+        startLatLng = null;
+
+        if (!bounds.getNorthEast().equals(bounds.getSouthWest())) {
+           const newSelected = [];
+           freeDrawings.forEach(d => {
+             const isInside = d.positions.some(pos => bounds.contains(pos));
+             if (isInside) newSelected.push(d.id);
+           });
+           
+           setSelectedFeatureIds(prev => {
+             if (e.originalEvent.shiftKey) {
+                return Array.from(new Set([...prev, ...newSelected]));
+             }
+             return newSelected;
+           });
+        } else {
+           if (!e.originalEvent.shiftKey && e.originalEvent.target === map.getContainer()) {
+             setSelectedFeatureIds([]);
+           }
+        }
+      }
+    };
+
+    map.getContainer().style.cursor = 'crosshair';
+    map.on('mousedown', onMouseDown);
+    map.on('mousemove', onMouseMove);
+    map.on('mouseup', onMouseUp);
+
+    return () => {
+      map.off('mousedown', onMouseDown);
+      map.off('mousemove', onMouseMove);
+      map.off('mouseup', onMouseUp);
+      map.getContainer().style.cursor = '';
+      map.dragging.enable();
+      if (map.boxZoom && !map.boxZoom.enabled()) map.boxZoom.enable();
+    };
+  }, [mode, map, freeDrawings, setSelectedFeatureIds]);
+
+  return null;
+};
+
 function MapContextMenu({ onAction }) {
   const [contextMenu, setContextMenu] = React.useState(null);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    if (contextMenu) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [contextMenu]);
 
   useMapEvents({
     contextmenu(e) {
@@ -166,7 +270,13 @@ function MapContextMenu({ onAction }) {
       </div>
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '5px 0' }}></div>
       <div
-        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`${contextMenu.latlng.lat.toFixed(6)}, ${contextMenu.latlng.lng.toFixed(6)}`); setContextMenu(null); showSuccess('Coordenadas copiadas'); }}
+        onClick={(e) => { 
+          e.stopPropagation(); 
+          navigator.clipboard.writeText(`${contextMenu.latlng.lat.toFixed(6)}, ${contextMenu.latlng.lng.toFixed(6)}`)
+            .then(() => showSuccess('Coordenadas copiadas'))
+            .catch(() => showError('No se pudieron copiar las coordenadas'));
+          setContextMenu(null); 
+        }}
         style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
         onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -187,6 +297,14 @@ function MapInteractionHandler({ onInteraction }) {
 }
 
 function FeatureContextMenuComponent({ context, onClose, onAction }) {
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (context) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [context, onClose]);
+
   if (!context) return null;
   const isPredio = context.type !== 'generico';
   const title = isPredio ? `Predio: ${context.feature.properties.cod_catastral || 'N/A'}` : `Elemento: ${context.layerName || 'Capa'}`;
@@ -227,14 +345,26 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
         </div>
 
         {!isPredio && (
-          <div
-            onClick={(e) => { e.stopPropagation(); onAction('popup', context.feature); onClose(); }}
-            style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <TableProperties size={16} color="#eab308" /> Ver Atributos
-          </div>
+          <>
+            <div
+              onClick={(e) => { e.stopPropagation(); onAction('popup', context.feature); onClose(); }}
+              style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <TableProperties size={16} color="#eab308" /> Ver Atributos
+            </div>
+            {context.layerType && (
+              <div
+                onClick={(e) => { e.stopPropagation(); onAction('atlas', context); onClose(); }}
+                style={{ padding: '10px 15px', color: 'var(--accent-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem', fontWeight: '500' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <Sparkles size={16} color="var(--accent-color)" /> Exportar capa a Base de Datos
+              </div>
+            )}
+          </>
         )}
 
         {isPredio && (
@@ -296,8 +426,158 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
   );
 }
 
+function FreeDrawHandler({ drawingMode, setDrawingMode, currentDrawing, setCurrentDrawing, addCompletedDrawing, removeLastDrawing, setMousePos, freeDrawings, setIsSnapped }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (drawingMode) {
+      map.doubleClickZoom.disable();
+    } else {
+      map.doubleClickZoom.enable();
+    }
+  }, [drawingMode, map]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        if ((drawingMode === 'Polyline' || drawingMode === 'Polygon') && currentDrawing.length > 1) {
+           addCompletedDrawing({ type: drawingMode, positions: currentDrawing });
+           setCurrentDrawing([]);
+        }
+      } else if (e.key === 'Escape') {
+        setCurrentDrawing([]);
+        setDrawingMode(null);
+      } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        if (currentDrawing.length > 0) {
+          setCurrentDrawing(prev => prev.slice(0, -1));
+        } else {
+          removeLastDrawing();
+        }
+      }
+    };
+    if (drawingMode) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [drawingMode, currentDrawing, addCompletedDrawing, setCurrentDrawing, setDrawingMode, removeLastDrawing]);
+
+  const getSnappedPoint = (latlng) => {
+    let snapped = null;
+    let minDistance = 20;
+    const checkSnap = (pt) => {
+      const ptPoint = map.latLngToContainerPoint(pt);
+      const mousePoint = map.latLngToContainerPoint(latlng);
+      const distance = ptPoint.distanceTo(mousePoint);
+      if (distance < minDistance) {
+        minDistance = distance;
+        snapped = pt;
+      }
+    };
+    currentDrawing.forEach(checkSnap);
+    freeDrawings.forEach(d => d.positions.forEach(checkSnap));
+    return snapped;
+  };
+
+  useMapEvents({
+    mousemove(e) {
+      if (!drawingMode) return;
+      const snapped = getSnappedPoint(e.latlng);
+      if (snapped) {
+        setIsSnapped(true);
+        setMousePos(snapped);
+      } else {
+        setIsSnapped(false);
+        setMousePos(e.latlng);
+      }
+    },
+    click(e) {
+      if (!drawingMode) return;
+      const finalPt = getSnappedPoint(e.latlng) || e.latlng;
+
+      if (drawingMode === 'Point') {
+         addCompletedDrawing({ type: 'Point', positions: [finalPt] });
+      } else if (drawingMode === 'Line') {
+         if (currentDrawing.length === 0) {
+           setCurrentDrawing([finalPt]);
+         } else {
+           addCompletedDrawing({ type: 'Line', positions: [currentDrawing[0], finalPt] });
+           setCurrentDrawing([]);
+         }
+      } else if (drawingMode === 'Polyline' || drawingMode === 'Polygon') {
+         setCurrentDrawing(prev => {
+            // Evitar agregar el mismo punto exacto dos veces seguidas
+            if (prev.length > 0 && prev[prev.length - 1].lat === finalPt.lat && prev[prev.length - 1].lng === finalPt.lng) {
+              return prev;
+            }
+            return [...prev, finalPt];
+         });
+      }
+    },
+    dblclick(e) {
+       if (!drawingMode) return;
+       if ((drawingMode === 'Polyline' || drawingMode === 'Polygon') && currentDrawing.length > 1) {
+           addCompletedDrawing({ type: drawingMode, positions: currentDrawing });
+           setCurrentDrawing([]);
+       }
+    }
+  });
+  return null;
+}
+
 // Define UTM Zone 17S
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
+
+const FeatureEditor = ({ feature, onUpdate }) => {
+  const lineRef = useRef(null);
+  const polygonRef = useRef(null);
+  
+  const [positions, setPositions] = useState(feature.positions);
+
+  useEffect(() => {
+    setPositions(feature.positions);
+  }, [feature]);
+
+  const handleDrag = (idx, e) => {
+    const newLatLng = e.target.getLatLng();
+    const newPositions = [...positions];
+    newPositions[idx] = newLatLng;
+    
+    // Live update the leaflet element without re-rendering React
+    if (lineRef.current) {
+       lineRef.current.setLatLngs(newPositions);
+    }
+    if (polygonRef.current) {
+       polygonRef.current.setLatLngs(newPositions);
+    }
+  };
+
+  const handleDragEnd = (idx, e) => {
+    const newLatLng = e.target.getLatLng();
+    const newPositions = [...positions];
+    newPositions[idx] = newLatLng;
+    setPositions(newPositions);
+    onUpdate(newPositions);
+  };
+
+  return (
+    <>
+      {feature.type === 'Point' && <CircleMarker center={positions[0]} radius={5} color="#ef4444" fillColor="#fca5a5" fillOpacity={1} weight={2} />}
+      {(feature.type === 'Line' || feature.type === 'Polyline') && <Polyline ref={lineRef} positions={positions} color="#ef4444" weight={3} dashArray="4, 6" />}
+      {feature.type === 'Polygon' && <Polygon ref={polygonRef} positions={positions} color="#ef4444" fillColor="#ef4444" weight={3} fillOpacity={0.2} dashArray="4, 6" />}
+      
+      {positions.map((pos, idx) => (
+        <Marker 
+          key={`edit-${idx}`}
+          position={pos}
+          draggable={true}
+          icon={L.divIcon({ html: '<div style="width:14px;height:14px;background:#fff;border:3px solid #ef4444;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>', iconSize: [0,0] })}
+          eventHandlers={{
+            drag: (e) => handleDrag(idx, e),
+            dragend: (e) => handleDragEnd(idx, e)
+          }}
+        />
+      ))}
+    </>
+  );
+};
 
 export default function Geoportal() {
   const navigate = useNavigate();
@@ -390,6 +670,36 @@ export default function Geoportal() {
     }).catch(console.error);
   }, []);
   const [geoJsonCacheAdicionales, setGeoJsonCacheAdicionales] = useState({});
+  const [expandedPredios, setExpandedPredios] = useState(false);
+  const [expandedCapasAdicionales, setExpandedCapasAdicionales] = useState({});
+  const [visibleCounts, setVisibleCounts] = useState({});
+
+  const toggleExpandCapaAdicional = async (tabla_db) => {
+    const isExp = !!expandedCapasAdicionales[tabla_db];
+    setExpandedCapasAdicionales(prev => ({
+      ...prev,
+      [tabla_db]: !isExp
+    }));
+
+    if (!isExp && !geoJsonCacheAdicionales[tabla_db]) {
+      try {
+        const res = await fetch(`${API_URL}/api/gis/capa-adicional/${tabla_db}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+          const geojson = await res.json();
+          if (geojson && (geojson.type === 'FeatureCollection' || geojson.type === 'Feature')) {
+            setGeoJsonCacheAdicionales(prev => ({
+              ...prev,
+              [tabla_db]: geojson
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching capa adicional GeoJSON on expand", err);
+      }
+    }
+  };
 
   const fetchCapasAdicionales = async () => {
     try {
@@ -459,8 +769,261 @@ export default function Geoportal() {
   });
   const toggleCategory = (cat) => setCollapsedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
 
-  // Estados para dibujo manual de predio
   const [isDrawingPredio, setIsDrawingPredio] = useState(false);
+  const [drawingMode, setDrawingMode] = useState(null); // 'Point', 'Line', 'Polyline', 'Polygon', 'Select'
+  const [freeDrawings, setFreeDrawings] = useState([]); // Array de bosquejos dibujados
+  const [currentFreeDrawing, setCurrentFreeDrawing] = useState([]);
+  const [showDrawingTools, setShowDrawingTools] = useState(false);
+  const [selectedFeatureIds, setSelectedFeatureIds] = useState([]);
+  const [editingFeatureId, setEditingFeatureId] = useState(null);
+
+  const addCompletedDrawing = (drawing) => {
+    const drawingWithId = { ...drawing, id: drawing.id || `fd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` };
+    setFreeDrawings(prev => [...prev, drawingWithId]);
+  };
+
+  const removeLastDrawing = () => {
+    setFreeDrawings(prev => prev.slice(0, -1));
+  };
+
+  const [selectionContextMenu, setSelectionContextMenu] = useState(null);
+
+    const getFeatureUTMCoords = (feature) => {
+    proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
+    let rawCoords = [];
+    if (feature.positions && feature.positions.length > 0) {
+      rawCoords = feature.positions.map(p => {
+        const lat = Array.isArray(p) ? p[0] : (p.lat !== undefined ? p.lat : p[0]);
+        const lng = Array.isArray(p) ? p[1] : (p.lng !== undefined ? p.lng : p[1]);
+        return { lat, lng };
+      });
+    } else if (feature.geometry && feature.geometry.coordinates) {
+      const ring = feature.geometry.type === 'Polygon' ? feature.geometry.coordinates[0] : feature.geometry.coordinates;
+      rawCoords = ring.map(pt => ({ lng: pt[0], lat: pt[1] }));
+    }
+    return rawCoords.map(pt => {
+      const utm = proj4('EPSG:4326', 'EPSG:32717', [pt.lng, pt.lat]);
+      return [utm[0], utm[1]];
+    });
+  };
+
+  const exportFeatureToShapefile = (feature) => {
+    try {
+      const utmCoords = getFeatureUTMCoords(feature);
+      if (utmCoords.length === 0) {
+        Swal.fire('Error', 'No hay coordenadas válidas para exportar.', 'error');
+        return;
+      }
+
+      const typeName = feature.type || 'Polygon';
+      let geojsonGeometry = null;
+
+      if (typeName === 'Point') {
+        geojsonGeometry = { type: 'Point', coordinates: utmCoords[0] };
+      } else if (typeName === 'Line' || typeName === 'Polyline') {
+        geojsonGeometry = { type: 'LineString', coordinates: utmCoords };
+      } else {
+        const closed = [...utmCoords];
+        if (closed[0][0] !== closed[closed.length - 1][0] || closed[0][1] !== closed[closed.length - 1][1]) {
+          closed.push([...closed[0]]);
+        }
+        geojsonGeometry = { type: 'Polygon', coordinates: [closed] };
+      }
+
+      const singleGeoJSON = {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: { id: feature.id, tipo: typeName },
+          geometry: geojsonGeometry
+        }]
+      };
+
+      const prj32717 = 'PROJCS["WGS_1984_UTM_Zone_17S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",-81.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]';
+      const cleanName = `dibujo_${typeName.toLowerCase()}_${Date.now()}`;
+      const options = {
+        outputType: 'blob',
+        compression: 'STORE',
+        prj: prj32717,
+        types: {
+          point: `${cleanName}_pto`,
+          multipoint: `${cleanName}_pto`,
+          line: `${cleanName}_lin`,
+          multiline: `${cleanName}_lin`,
+          linestring: `${cleanName}_lin`,
+          multilinestring: `${cleanName}_lin`,
+          polygon: `${cleanName}_pol`,
+          multipolygon: `${cleanName}_pol`
+        }
+      };
+
+      Promise.resolve(shpwrite.zip(singleGeoJSON, options)).then(content => {
+        if (content && typeof content.generateAsync === 'function') return content.generateAsync({ type: 'blob', compression: 'STORE' });
+        if (content && typeof content.generate === 'function') return content.generate({ type: 'blob', compression: 'STORE' });
+        return content;
+      }).then(blob => {
+        const finalBlob = blob instanceof Blob ? blob : new Blob([blob], { type: 'application/zip' });
+        const url = URL.createObjectURL(finalBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${cleanName}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setToastMsg({ type: 'success', title: 'Exportado', message: 'Shapefile (.zip) descargado en EPSG:32717.' });
+      }).catch(err => {
+        console.error("SHP Export Error:", err);
+        Swal.fire('Error', 'Error al exportar Shapefile: ' + err.message, 'error');
+      });
+    } catch (err) {
+      Swal.fire('Error', 'Error al generar Shapefile: ' + err.message, 'error');
+    }
+  };
+
+  const exportFeatureToCAD = (feature) => {
+    try {
+      const utmCoords = getFeatureUTMCoords(feature);
+      if (utmCoords.length === 0) {
+        Swal.fire('Error', 'No hay coordenadas válidas para exportar.', 'error');
+        return;
+      }
+
+      const typeName = feature.type || 'Polygon';
+      let dxf = "0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nENDSEC\n0\nSECTION\n2\nBLOCKS\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
+
+      if (typeName === 'Point') {
+        const [x, y] = utmCoords[0];
+        dxf += `0\nPOINT\n8\nCATASTRO_DIBUJO\n10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}\n30\n0.0\n`;
+      } else if (typeName === 'Line' && utmCoords.length === 2) {
+        const [x1, y1] = utmCoords[0];
+        const [x2, y2] = utmCoords[1];
+        dxf += `0\nLINE\n8\nCATASTRO_DIBUJO\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`;
+      } else {
+        const isClosed = typeName === 'Polygon' ? 1 : 0;
+        dxf += `0\nLWPOLYLINE\n8\nCATASTRO_DIBUJO\n90\n${utmCoords.length}\n70\n${isClosed}\n`;
+        utmCoords.forEach(([x, y]) => {
+          dxf += `10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}\n`;
+        });
+      }
+
+      dxf += "0\nENDSEC\n0\nEOF\n";
+
+      const blob = new Blob([dxf], { type: 'application/dxf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const filename = `dibujo_${typeName.toLowerCase()}_${Date.now()}.dxf`;
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToastMsg({ type: 'success', title: 'Exportado', message: 'Archivo CAD (.dxf) descargado en UTM 17S.' });
+    } catch (err) {
+      Swal.fire('Error', 'Error al generar CAD: ' + err.message, 'error');
+    }
+  };
+
+  const handleFeatureInteraction = {
+    click: (e, d) => {
+      if (drawingMode === 'Select') {
+        if (e.originalEvent) { L.DomEvent.stop(e.originalEvent); }
+        setSelectedFeatureIds(prev => {
+          if (prev.includes(d.id)) return prev.filter(id => id !== d.id);
+          if (e.originalEvent && e.originalEvent.shiftKey) return [...prev, d.id];
+          return [d.id];
+        });
+      }
+    },
+    dblclick: (e, d) => {
+      if (e.originalEvent) { L.DomEvent.stop(e.originalEvent); }
+      setEditingFeatureId(d.id);
+      setDrawingMode(null);
+    },
+    contextmenu: (e, d) => {
+      if (e.originalEvent) { L.DomEvent.stop(e.originalEvent); }
+      if (!selectedFeatureIds.includes(d.id)) {
+         setSelectedFeatureIds([d.id]);
+      }
+        if (e.originalEvent) e.originalEvent.stopPropagation();
+        setSelectionContextMenu({
+        x: e.originalEvent.clientX,
+        y: e.originalEvent.clientY,
+        latlng: e.latlng
+      });
+    }
+  };
+
+  const [coordInput, setCoordInput] = useState('');
+
+  // Delete key listener for local shapes
+  useEffect(() => {
+    const handleGlobalKey = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedFeatureIds.length > 0 && !editingFeatureId) {
+        // Prevent if typing in an input
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        
+        Swal.fire({
+          title: '¿Eliminar dibujo(s)?',
+          text: 'Esta acción solo borrará el dibujo localmente de su mapa.',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#ef4444',
+          cancelButtonColor: '#cbd5e1',
+          confirmButtonText: 'Sí, eliminar',
+          cancelButtonText: 'Cancelar'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            setFreeDrawings(prev => prev.filter(f => !selectedFeatureIds.includes(f.id)));
+            setSelectedFeatureIds([]);
+            setToastMsg({ type: 'success', title: 'Eliminado', message: 'Dibujo eliminado localmente.' });
+          }
+        });
+      }
+      if (e.key === 'Escape') {
+         if (selectionContextMenu) setSelectionContextMenu(null);
+         if (editingFeatureId) setEditingFeatureId(null);
+         if (selectedFeatureIds.length > 0) setSelectedFeatureIds([]);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, [selectedFeatureIds, editingFeatureId, selectionContextMenu]);
+
+  const handleManualCoordSubmit = (e) => {
+    e.preventDefault();
+    if (!coordInput) return;
+    
+    const parts = coordInput.split(',').map(p => parseFloat(p.trim()));
+    if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+      setToastMsg({ type: 'error', title: 'Error', message: 'Formato inválido. Use "Lat, Lng" o "X, Y" (UTM)' });
+      return;
+    }
+    
+    let latlng;
+    if (Math.abs(parts[0]) > 1000) {
+       const wgs = proj4('EPSG:32717', 'EPSG:4326', [parts[0], parts[1]]);
+       latlng = { lat: wgs[1], lng: wgs[0] };
+    } else {
+       latlng = { lat: parts[0], lng: parts[1] };
+    }
+
+    if (drawingMode === 'Point') {
+       addCompletedDrawing({ type: 'Point', positions: [latlng] });
+       setDrawingMode(null);
+    } else if (drawingMode === 'Line') {
+       if (currentFreeDrawing.length === 0) {
+         setCurrentFreeDrawing([latlng]);
+       } else {
+         addCompletedDrawing({ type: 'Line', positions: [currentFreeDrawing[0], latlng] });
+         setCurrentFreeDrawing([]);
+       }
+    } else if (drawingMode === 'Polyline' || drawingMode === 'Polygon') {
+       setCurrentFreeDrawing(prev => [...prev, latlng]);
+    }
+    setCoordInput('');
+    if (map) {
+      map.panTo(latlng);
+    }
+  };
+
   const [isSnapped, setIsSnapped] = useState(false);
   const [drawPoints, setDrawPoints] = useState([]);
   const [tempPredioFormData, setTempPredioFormData] = useState(null);
@@ -488,6 +1051,8 @@ export default function Geoportal() {
   const [verticesData, setVerticesData] = useState(null);
   const [lineasData, setLineasData] = useState(null);
   const [importedShapes, setImportedShapes] = useState(null);
+  const [showAtlasModal, setShowAtlasModal] = useState(false);
+  const [atlasFileName, setAtlasFileName] = useState('');
   const shapefileInputRef = useRef(null);
 
   // Filtros y Visibilidad
@@ -623,13 +1188,15 @@ export default function Geoportal() {
   const handleImportShapefile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setAtlasFileName(file.name);
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
         const buffer = evt.target.result;
         const geojson = await shp(buffer);
         setImportedShapes(geojson);
-        setToastMsg({ type: 'success', title: 'Importado', message: 'Shapefile cargado al mapa visualmente.' });
+        setShowAtlasModal(true);
+        setToastMsg({ type: 'success', title: 'Atlas de Importación', message: 'Shapefile cargado en modo Atlas interactivo.' });
 
         if (map && geojson.features && geojson.features.length > 0) {
           const group = L.geoJSON(geojson);
@@ -1363,7 +1930,13 @@ export default function Geoportal() {
       {isDrawingPredio && (
         <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'var(--bg-panel)', backdropFilter: 'blur(10px)', padding: '10px 20px', borderRadius: '30px', border: '1px solid var(--accent-color)', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 0 20px rgba(0,0,0,0.5)' }}>
           <MousePointer2 size={18} color="var(--accent-color)" />
-          <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>Modo Dibujo: Doble clic para finalizar</span>
+          <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>Modo Dibujo: Doble clic o clic en Finalizar</span>
+          <button
+            style={{ padding: '5px 15px', fontSize: '12px', borderRadius: '15px', background: 'var(--accent-color)', color: 'white', border: 'none', cursor: 'pointer' }}
+            onClick={() => handleFinishDrawing(drawPoints)}
+          >
+            Finalizar
+          </button>
           <button
             className="btn-cancel"
             style={{ padding: '5px 15px', fontSize: '12px', borderRadius: '15px' }}
@@ -1405,23 +1978,27 @@ export default function Geoportal() {
             flexDirection: 'column',
             pointerEvents: 'auto'
           }}>
-            {!sidebarContextMenu.isAdicional && (
-              <div
-                onClick={(e) => { e.stopPropagation(); setActiveTableData(sidebarContextMenu.layerType); setSidebarContextMenu(null); }}
-                style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-              >
-                <TableProperties size={16} color="#3b82f6" /> Ver Tabla de Atributos
-              </div>
-            )}
+            <div
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                setActiveTableData(sidebarContextMenu.layerType); 
+                setSidebarContextMenu(null); 
+              }}
+              style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <TableProperties size={16} color="#3b82f6" /> Ver Tabla de Atributos
+            </div>
             <div
               onClick={(e) => {
                 e.stopPropagation();
                 const data = sidebarContextMenu.isAdicional
                   ? geoJsonCacheAdicionales[sidebarContextMenu.layerType]
                   : sidebarContextMenu.layerType === 'predios' ? prediosData : sidebarContextMenu.layerType === 'lineas' ? lineasData : verticesData;
-                zoomToVectorLayer(data);
+                if (data) {
+                  zoomToVectorLayer(data);
+                }
                 setSidebarContextMenu(null);
               }}
               style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
@@ -1433,6 +2010,51 @@ export default function Geoportal() {
 
             {sidebarContextMenu.isAdicional && (
               <>
+                <div
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const tabla = sidebarContextMenu.layerType;
+                    const capaObj = capasAdicionales.find(c => c.tabla_db === tabla);
+                    setSidebarContextMenu(null);
+                    let geojsonData = geoJsonCacheAdicionales[tabla];
+
+                    if (!geojsonData) {
+                      Swal.fire({
+                        title: 'Cargando Capa...',
+                        text: 'Descargando y procesando elementos para el Asistente Atlas...',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                      });
+                      try {
+                        const res = await fetch(`${API_URL}/api/gis/capa-adicional/${tabla}`, {
+                          headers: { 'Authorization': `Bearer ${authToken}` }
+                        });
+                        if (res.ok) {
+                          geojsonData = await res.json();
+                          setGeoJsonCacheAdicionales(prev => ({ ...prev, [tabla]: geojsonData }));
+                        }
+                      } catch (err) {
+                        console.error("Error al cargar capa para Atlas:", err);
+                      } finally {
+                        Swal.close();
+                      }
+                    }
+
+                    if (geojsonData && geojsonData.features && geojsonData.features.length > 0) {
+                      setImportedShapes(geojsonData);
+                      setAtlasFileName(capaObj?.nombre_capa || tabla);
+                      setShowAtlasModal(true);
+                    } else {
+                      showError('No se encontraron elementos o geometrías en esta capa adicional.');
+                    }
+                  }}
+                  style={{ padding: '10px 15px', color: 'var(--accent-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem', fontWeight: '500' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Sparkles size={16} color="var(--accent-color)" /> Exportar capa a Base de Datos
+                </div>
+
                 <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
                 <div
                   onClick={(e) => {
@@ -1460,6 +2082,42 @@ export default function Geoportal() {
             } else if (action === 'popup') {
               if (featureContextMenu?.layer && featureContextMenu.layer.openPopup) {
                 featureContextMenu.layer.openPopup();
+              }
+            } else if (action === 'atlas') {
+              const tabla = feature?.layerType || featureContextMenu?.layerType;
+              const capaObj = capasAdicionales.find(c => c.tabla_db === tabla);
+              let geojsonData = geoJsonCacheAdicionales[tabla];
+              if (geojsonData && geojsonData.features && geojsonData.features.length > 0) {
+                setImportedShapes(geojsonData);
+                setAtlasFileName(capaObj?.nombre_capa || tabla || "Capa Adicional");
+                setShowAtlasModal(true);
+              } else if (tabla) {
+                Swal.fire({
+                  title: 'Cargando Capa...',
+                  text: 'Descargando geometrías para el Asistente Atlas...',
+                  allowOutsideClick: false,
+                  didOpen: () => Swal.showLoading()
+                });
+                fetch(`${API_URL}/api/gis/capa-adicional/${tabla}`, {
+                  headers: { 'Authorization': `Bearer ${authToken}` }
+                })
+                  .then(r => r.json())
+                  .then(data => {
+                    Swal.close();
+                    if (data && data.features && data.features.length > 0) {
+                      setGeoJsonCacheAdicionales(prev => ({ ...prev, [tabla]: data }));
+                      setImportedShapes(data);
+                      setAtlasFileName(capaObj?.nombre_capa || tabla || "Capa Adicional");
+                      setShowAtlasModal(true);
+                    } else {
+                      showError('No se encontraron elementos en esta capa.');
+                    }
+                  })
+                  .catch(err => {
+                    Swal.close();
+                    console.error(err);
+                    showError('Error al conectar con el servidor.');
+                  });
               }
             } else if (action === 'table') {
               setActiveTableData('predios');
@@ -1764,9 +2422,21 @@ export default function Geoportal() {
                       ref={shapefileInputRef}
                       onChange={handleImportShapefile}
                     />
-                    <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile (Catastro o Adicional)">
-                      <UploadCloud size={16} /> Shapefile
+                    <button className="btn-primary" onClick={() => shapefileInputRef.current?.click()} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile para Asistente Atlas">
+                      <UploadCloud size={16} /> Shapefile Atlas
                     </button>
+                    <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ padding: '8px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile a Tablas Crudas / BD">
+                      <Database size={16} />
+                    </button>
+                  {importedShapes && (
+                    <button 
+                      onClick={() => setShowAtlasModal(true)} 
+                      style={{ width: '100%', marginBottom: '10px', padding: '8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', color: '#fff', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)' }}
+                    >
+                      <Sparkles size={16} /> 📖 Ver Atlas de Shapefile ({importedShapes.features?.length || 0})
+                    </button>
+                  )}
+
                   </div>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
                     <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
@@ -1869,6 +2539,7 @@ export default function Geoportal() {
                 <>
                   <div
                     className={`layer-item ${showPredios ? 'active' : ''}`}
+                    style={{ display: 'flex', alignItems: 'center' }}
                     onContextMenu={(e) => {
                       if (showPredios) {
                         e.preventDefault();
@@ -1876,11 +2547,20 @@ export default function Geoportal() {
                       }
                     }}
                   >
-                    <span onClick={togglePredios} style={{ flex: 1 }}>Predios (Polígonos)</span>
-                    <span onClick={togglePredios} style={{ cursor: 'pointer' }}>{showPredios ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
+                    <span 
+                      onClick={(e) => { e.stopPropagation(); setExpandedPredios(!expandedPredios); }} 
+                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', marginRight: '6px', color: 'var(--text-muted)' }}
+                      title={expandedPredios ? "Colapsar lista de predios" : "Expandir lista de predios"}
+                    >
+                      {expandedPredios ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </span>
+                    <span onClick={() => setExpandedPredios(!expandedPredios)} style={{ flex: 1, cursor: 'pointer' }}>Predios (Polígonos)</span>
+                    <span onClick={togglePredios} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px' }} title={showPredios ? "Ocultar en mapa" : "Mostrar en mapa"}>
+                      {showPredios ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
+                    </span>
                   </div>
-                  {showPredios && (
-                    <div style={{ padding: '5px 10px 10px 30px', backgroundColor: 'var(--bg-main)' }}>
+                  {expandedPredios && (
+                    <div style={{ padding: '5px 10px 10px 20px', backgroundColor: 'var(--bg-main)', borderLeft: '2px solid var(--card-border)', marginLeft: '12px' }}>
                       <div style={{ marginBottom: '5px', display: 'flex', gap: '10px', alignItems: 'center' }}>
                         <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mostrar por:</label>
                         <select
@@ -1909,63 +2589,87 @@ export default function Geoportal() {
                             No hay predios en esta empresa.
                           </div>
                         )}
-                        {!loadingPredios && (prediosData?.features || [])
-                          .filter(f => f && f.properties)
-                          .filter(f => searchResults === null || searchResults.includes(f.properties.id))
-                          .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
-                          .map(f => {
-                            const isHidden = hiddenFeatureIds.includes(f.properties.id);
-                            const displayText = listDisplayMode === 'codigo'
-                              ? (f.properties.cod_catastral || `Predio ${f.properties.id}`)
-                              : (f.properties.nombre_posesionario || 'Sin Nombre');
-                            return (
-                              <div
-                                key={f.properties.id}
-                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
-                                onClick={() => zoomToFeature(f)}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  setFeatureContextMenu({
-                                    feature: f,
-                                    mouseX: e.clientX,
-                                    mouseY: e.clientY
-                                  });
-                                }}
-                              >
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={displayText}>{displayText}</span>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  <span
-                                    style={{ cursor: 'pointer', color: '#3b82f6' }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingPredio({
-                                        id: f.properties.id,
-                                        posesionario_id: f.properties.posesionario_id,
-                                        cod_catastral: f.properties.cod_catastral,
-                                        geom_geojson: JSON.stringify(f.geometry, null, 2)
+                        {!loadingPredios && (() => {
+                          const filteredPredios = (prediosData?.features || [])
+                            .filter(f => f && f.properties)
+                            .filter(f => searchResults === null || searchResults.includes(f.properties.id))
+                            .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)));
+                          
+                          const limit = visibleCounts['predios'] || 20;
+                          const visibleItems = filteredPredios.slice(0, limit);
+
+                          return (
+                            <>
+                              {visibleItems.map(f => {
+                                const isHidden = hiddenFeatureIds.includes(f.properties.id);
+                                const displayText = listDisplayMode === 'codigo'
+                                  ? (f.properties.cod_catastral || `Predio ${f.properties.id}`)
+                                  : (f.properties.nombre_posesionario || 'Sin Nombre');
+                                return (
+                                  <div
+                                    key={f.properties.id}
+                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
+                                    onClick={() => zoomToFeature(f)}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault();
+                                      setFeatureContextMenu({
+                                        feature: f,
+                                        mouseX: e.clientX,
+                                        mouseY: e.clientY
                                       });
                                     }}
-                                    title="Editar predio"
                                   >
-                                    <Edit size={14} />
-                                  </span>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={displayText}>{displayText}</span>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                      <span
+                                        style={{ cursor: 'pointer', color: '#3b82f6' }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingPredio({
+                                            id: f.properties.id,
+                                            posesionario_id: f.properties.posesionario_id,
+                                            cod_catastral: f.properties.cod_catastral,
+                                            geom_geojson: JSON.stringify(f.geometry, null, 2)
+                                          });
+                                        }}
+                                        title="Editar predio"
+                                      >
+                                        <Edit size={14} />
+                                      </span>
 
-                                  <span
-                                    style={{ cursor: 'pointer' }}
+                                      <span
+                                        style={{ cursor: 'pointer' }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (isHidden) setHiddenFeatureIds(hiddenFeatureIds.filter(id => id !== f.properties.id));
+                                          else setHiddenFeatureIds([...hiddenFeatureIds, f.properties.id]);
+                                        }}
+                                        title={isHidden ? "Mostrar lote" : "Ocultar lote"}
+                                      >
+                                        {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {filteredPredios.length > limit && (
+                                <div style={{ padding: '6px 0', textAlign: 'center' }}>
+                                  <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (isHidden) setHiddenFeatureIds(hiddenFeatureIds.filter(id => id !== f.properties.id));
-                                      else setHiddenFeatureIds([...hiddenFeatureIds, f.properties.id]);
+                                      setVisibleCounts(prev => ({ ...prev, predios: (prev['predios'] || 20) + 20 }));
                                     }}
-                                    title={isHidden ? "Mostrar lote" : "Ocultar lote"}
+                                    style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', cursor: 'pointer' }}
                                   >
-                                    {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-                                  </span>
+                                    Cargar más (+20) • {limit} de {filteredPredios.length}
+                                  </button>
                                 </div>
-                              </div>
-                            );
-                          })
-                        }
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -2005,38 +2709,101 @@ export default function Geoportal() {
                         <React.Fragment key={capa.tabla_db}>
                           <div
                             className={`layer-item ${activeCapasAdicionales[capa.tabla_db] ? 'active' : ''}`}
+                            style={{ display: 'flex', alignItems: 'center' }}
                             onContextMenu={(e) => {
-                              if (activeCapasAdicionales[capa.tabla_db]) {
-                                e.preventDefault();
-                                setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: capa.tabla_db, isAdicional: true });
-                              }
+                              e.preventDefault();
+                              setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: capa.tabla_db, isAdicional: true });
                             }}
                           >
-                            <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
-                              {getGeometryIcon(capa.tipo_geometria)}
-                              {capa.nombre_capa}
+                            <span 
+                              onClick={(e) => { e.stopPropagation(); toggleExpandCapaAdicional(capa.tabla_db); }} 
+                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', marginRight: '6px', color: 'var(--text-muted)' }}
+                              title={expandedCapasAdicionales[capa.tabla_db] ? "Colapsar elementos" : "Expandir elementos"}
+                            >
+                              {expandedCapasAdicionales[capa.tabla_db] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                             </span>
-                            <span onClick={() => toggleCapaAdicional(capa.tabla_db)} style={{ cursor: 'pointer' }}>
+                            <span 
+                              onClick={() => toggleExpandCapaAdicional(capa.tabla_db)} 
+                              style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                              title={capa.nombre_capa}
+                            >
+                              {getGeometryIcon(capa.tipo_geometria)}
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{capa.nombre_capa}</span>
+                            </span>
+                            <span 
+                              onClick={(e) => { e.stopPropagation(); toggleCapaAdicional(capa.tabla_db); }} 
+                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px' }}
+                              title={activeCapasAdicionales[capa.tabla_db] ? "Ocultar capa en el mapa" : "Mostrar capa en el mapa"}
+                            >
                               {activeCapasAdicionales[capa.tabla_db] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
                             </span>
                           </div>
-                          {activeCapasAdicionales[capa.tabla_db] && geoJsonCacheAdicionales[capa.tabla_db] && (
-                            <div className="feature-list" style={{ marginLeft: '10px', marginTop: '5px', maxHeight: '150px', overflowY: 'auto' }}>
-                              {geoJsonCacheAdicionales[capa.tabla_db].features.map((f, i) => {
-                                const name = f.properties.nombre || f.properties.name || f.properties.codigo || f.properties.cod_catastral || `Elemento ${i + 1}`;
+                          {expandedCapasAdicionales[capa.tabla_db] && (
+                            <div className="feature-list" style={{ marginLeft: '14px', marginTop: '5px', marginBottom: '8px', maxHeight: '180px', overflowY: 'auto', borderLeft: '2px solid var(--card-border)', paddingLeft: '6px' }}>
+                              {!geoJsonCacheAdicionales[capa.tabla_db] ? (
+                                <div style={{ padding: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                  Cargando elementos...
+                                </div>
+                              ) : (!geoJsonCacheAdicionales[capa.tabla_db].features || geoJsonCacheAdicionales[capa.tabla_db].features.length === 0) ? (
+                                <div style={{ padding: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                  No hay elementos en esta capa.
+                                </div>
+                              ) : (() => {
+                                const allFeatures = geoJsonCacheAdicionales[capa.tabla_db].features || [];
+                                const limit = visibleCounts[capa.tabla_db] || 20;
+                                const visibleFeatures = allFeatures.slice(0, limit);
+
                                 return (
-                                  <div key={i} className="feature-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', cursor: 'pointer' }} onClick={() => zoomToFeature(f)}>
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={name}>{name}</span>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                      <Target size={14} style={{ cursor: 'pointer', color: '#fbbf24' }} onClick={(e) => { e.stopPropagation(); zoomToFeature(f); }} />
-                                      <TableProperties size={14} style={{ cursor: 'pointer', color: '#eab308' }} onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (f.layer && f.layer.openPopup) f.layer.openPopup();
-                                      }} />
-                                    </div>
-                                  </div>
+                                  <>
+                                    {visibleFeatures.map((f, i) => {
+                                      const name = f.properties.nombre || f.properties.name || f.properties.codigo || f.properties.cod_catastral || `Elemento ${i + 1}`;
+                                      return (
+                                        <div
+                                          key={i}
+                                          className="feature-item"
+                                          style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 6px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', cursor: 'pointer' }}
+                                          onClick={() => zoomToFeature(f)}
+                                          onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            setFeatureContextMenu({
+                                              feature: f,
+                                              mouseX: e.clientX,
+                                              mouseY: e.clientY,
+                                              type: 'generico',
+                                              layerName: capa.nombre_capa,
+                                              layerType: capa.tabla_db
+                                            });
+                                          }}
+                                        >
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={name}>{name}</span>
+                                          <div style={{ display: 'flex', gap: '8px' }}>
+                                            <Target size={14} style={{ cursor: 'pointer', color: '#fbbf24' }} title="Acercar" onClick={(e) => { e.stopPropagation(); zoomToFeature(f); }} />
+                                            <TableProperties size={14} style={{ cursor: 'pointer', color: '#eab308' }} title="Atributos" onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (f.layer && f.layer.openPopup) f.layer.openPopup();
+                                            }} />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+
+                                    {allFeatures.length > limit && (
+                                      <div style={{ padding: '6px 0', textAlign: 'center' }}>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setVisibleCounts(prev => ({ ...prev, [capa.tabla_db]: (prev[capa.tabla_db] || 20) + 20 }));
+                                          }}
+                                          style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', cursor: 'pointer' }}
+                                        >
+                                          Cargar más (+20) • {limit} de {allFeatures.length}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </>
                                 );
-                              })}
+                              })()}
                             </div>
                           )}
                         </React.Fragment>
@@ -2222,7 +2989,160 @@ export default function Geoportal() {
           />
         )}
 
+        <InteractiveSelectionHandler 
+           mode={drawingMode}
+           freeDrawings={freeDrawings}
+           setSelectedFeatureIds={setSelectedFeatureIds}
+        />
 
+
+
+
+        {/* Barra Flotante de Dibujo Libre */}
+        {/* Botón para abrir herramientas si están ocultas */}
+        {!showDrawingTools && (
+          <div style={{ position: 'absolute', top: '80px', left: '20px', zIndex: 1000 }}>
+            <button 
+              className="tools-toggle-btn" 
+              onClick={() => setShowDrawingTools(true)} 
+              title="Mostrar Herramientas de Dibujo"
+            >
+              <Boxes size={20} color="var(--accent-color)" />
+            </button>
+          </div>
+        )}
+
+        {/* Barra Flotante de Dibujo Libre (Diseño Moderno & Paleta Actual) */}
+        {showDrawingTools && (
+          <div className="floating-tools-panel">
+            <div className="tools-header">
+              <h4 className="tools-header-title">
+                <Boxes size={18} className="tools-header-icon" /> Herramientas
+              </h4>
+              <button 
+                onClick={() => setShowDrawingTools(false)} 
+                className="tools-close-btn" 
+                title="Ocultar herramientas"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="tools-divider" />
+            
+            <div className="tools-btn-list">
+              <button 
+                onClick={() => setDrawingMode(drawingMode === 'Select' ? null : 'Select')} 
+                className={`tool-action-btn ${drawingMode === 'Select' ? 'active' : ''}`}
+              >
+                <MousePointer2 size={16} /> <span>Seleccionar</span>
+              </button>
+
+              <button 
+                onClick={() => setDrawingMode(drawingMode === 'Point' ? null : 'Point')} 
+                className={`tool-action-btn ${drawingMode === 'Point' ? 'active' : ''}`}
+              >
+                {drawingMode === 'Point' ? <Plus size={16} /> : <MapPin size={16} />} <span>Punto</span>
+              </button>
+
+              <button 
+                onClick={() => setDrawingMode(drawingMode === 'Line' ? null : 'Line')} 
+                className={`tool-action-btn ${drawingMode === 'Line' ? 'active' : ''}`}
+              >
+                <Minus size={16} /> <span>Línea</span>
+              </button>
+
+              <button 
+                onClick={() => setDrawingMode(drawingMode === 'Polyline' ? null : 'Polyline')} 
+                className={`tool-action-btn ${drawingMode === 'Polyline' ? 'active' : ''}`}
+              >
+                <Layers size={16} /> <span>Polilínea</span>
+              </button>
+              
+              {/* Deshabilitar Polígono si ya existe un polígono dibujado */}
+              <button 
+                onClick={() => {
+                  if (!freeDrawings.some(d => d.type === 'Polygon')) {
+                    setDrawingMode(drawingMode === 'Polygon' ? null : 'Polygon');
+                  }
+                }} 
+                className={`tool-action-btn ${drawingMode === 'Polygon' ? 'active' : ''}`}
+                disabled={freeDrawings.some(d => d.type === 'Polygon')}
+                title={freeDrawings.some(d => d.type === 'Polygon') ? "Ya has dibujado un polígono. Elimínalo primero para dibujar otro." : ""}
+              >
+                <Hexagon size={16} /> <span>Polígono</span>
+              </button>
+            </div>
+            
+            {drawingMode && drawingMode !== 'Select' && (
+               <div className="tool-subcard">
+                 <div className="tool-subcard-header">
+                   <span className="tool-subcard-title">
+                     {drawingMode === 'Point' && 'Añadiendo punto'}
+                     {drawingMode === 'Line' && 'Añadiendo línea'}
+                     {drawingMode === 'Polyline' && 'Añadiendo polilínea'}
+                     {drawingMode === 'Polygon' && 'Añadiendo polígono'}
+                   </span>
+                   <button 
+                     onClick={() => { setDrawingMode(null); setCurrentFreeDrawing([]); }} 
+                     className="tool-subcard-close" 
+                     title="Cancelar"
+                   >
+                     <X size={12} />
+                   </button>
+                 </div>
+
+                 <form onSubmit={handleManualCoordSubmit} className="tool-subcard-form">
+                   <input 
+                     type="text" 
+                     value={coordInput}
+                     onChange={e => setCoordInput(e.target.value)}
+                     placeholder="Lat, Long o X, Y" 
+                     className="tool-subcard-input"
+                     autoFocus
+                   />
+                   <button type="submit" className="tool-subcard-btn" title="Añadir coordenada">
+                     <Plus size={16} strokeWidth={2.5} />
+                   </button>
+                 </form>
+
+                 {(drawingMode === 'Polyline' || drawingMode === 'Polygon') && currentFreeDrawing.length > 0 && (
+                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px', paddingTop: '6px', borderTop: '1px dashed var(--card-border)' }}>
+                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                       {currentFreeDrawing.length} punto(s)
+                     </span>
+                     <button
+                       type="button"
+                       onClick={() => {
+                         if (currentFreeDrawing.length > (drawingMode === 'Polygon' ? 2 : 1)) {
+                           addCompletedDrawing({ type: drawingMode, positions: currentFreeDrawing });
+                           setCurrentFreeDrawing([]);
+                         } else {
+                           setToastMsg({ type: 'warning', title: 'Puntos insuficientes', message: `Se requieren al menos ${drawingMode === 'Polygon' ? 3 : 2} puntos.` });
+                         }
+                       }}
+                       style={{
+                         background: 'var(--accent-color)',
+                         color: '#fff',
+                         border: 'none',
+                         borderRadius: '6px',
+                         padding: '3px 8px',
+                         fontSize: '11px',
+                         fontWeight: '600',
+                         cursor: 'pointer',
+                         display: 'flex',
+                         alignItems: 'center',
+                         gap: '4px'
+                       }}
+                     >
+                       <Check size={12} /> Finalizar
+                     </button>
+                   </div>
+                 )}
+               </div>
+            )}
+          </div>
+        )}
 
         {isDrawingPredio && (
           <DrawPolygonTool
@@ -2233,6 +3153,153 @@ export default function Geoportal() {
             onFinish={handleFinishDrawing}
             setIsSnapped={setIsSnapped}
           />
+        )}
+
+        {selectionContextMenu && (
+          <div 
+            style={{ position: 'fixed', top: selectionContextMenu.y, left: selectionContextMenu.x, zIndex: 9999, background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', borderRadius: '6px', padding: '5px', minWidth: '200px', border: '1px solid #e2e8f0' }}
+            onMouseLeave={() => setSelectionContextMenu(null)}
+          >
+            <button 
+               onClick={() => {
+                 const feature = freeDrawings.find(f => f.id === selectedFeatureIds[0]);
+                 if (feature) exportFeatureToShapefile(feature);
+                 setSelectionContextMenu(null);
+               }} 
+               style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#16a34a', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}
+               onMouseOver={(e) => e.target.style.background = '#f0fdf4'}
+               onMouseOut={(e) => e.target.style.background = 'transparent'}
+            >
+              📁 Exportar a Shapefile (.zip)
+            </button>
+            <button 
+               onClick={() => {
+                 const feature = freeDrawings.find(f => f.id === selectedFeatureIds[0]);
+                 if (feature) exportFeatureToCAD(feature);
+                 setSelectionContextMenu(null);
+               }} 
+               style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#ea580c', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}
+               onMouseOver={(e) => e.target.style.background = '#fff7ed'}
+               onMouseOut={(e) => e.target.style.background = 'transparent'}
+            >
+              📐 Exportar a CAD (.dxf)
+            </button>
+            <button 
+               onClick={() => {
+                 const feature = freeDrawings.find(f => f.id === selectedFeatureIds[0]);
+                 if (feature) {
+                   proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
+                   let coordsText = '';
+                   let rawCoords = [];
+                   if (feature.positions && feature.positions.length > 0) {
+                       rawCoords = feature.positions.map(p => {
+                           const lat = Array.isArray(p) ? p[0] : (p.lat !== undefined ? p.lat : p[0]);
+                           const lng = Array.isArray(p) ? p[1] : (p.lng !== undefined ? p.lng : p[1]);
+                           return { lat, lng };
+                       });
+                   } else if (feature.geometry && feature.geometry.coordinates) {
+                       const ring = feature.geometry.type === 'Polygon' ? feature.geometry.coordinates[0] : feature.geometry.coordinates;
+                       rawCoords = ring.map(pt => ({ lng: pt[0], lat: pt[1] }));
+                   }
+                   rawCoords.forEach(pt => {
+                       const utm = proj4('EPSG:4326', 'EPSG:32717', [pt.lng, pt.lat]);
+                       coordsText += `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}\n`;
+                   });
+                   
+                   setTempPredioFormData({ 
+                       geometry: feature, 
+                       latlng: selectionContextMenu.latlng, 
+                       geom_text: coordsText, 
+                       geom_geojson: coordsText,
+                       es_utm: true 
+                   });
+                   setIsAddingPredio(true);
+                   setSelectionContextMenu(null);
+                 }
+               }} 
+               style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#0369a1', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}
+               onMouseOver={(e) => e.target.style.background = '#e0f2fe'}
+               onMouseOut={(e) => e.target.style.background = 'transparent'}
+            >
+              💾 Guardar en BD (Predio)
+            </button>
+          </div>
+        )}
+
+        <FreeDrawHandler
+          drawingMode={drawingMode}
+          setDrawingMode={setDrawingMode}
+          currentDrawing={currentFreeDrawing}
+          setCurrentDrawing={setCurrentFreeDrawing}
+          addCompletedDrawing={addCompletedDrawing}
+          removeLastDrawing={removeLastDrawing}
+          setMousePos={setMousePos}
+          freeDrawings={freeDrawings}
+          setIsSnapped={setIsSnapped}
+        />
+
+        {/* Dibujos Libres Completados */}
+        {freeDrawings.map((d, i) => {
+          // Si está siendo editado, lo ocultamos aquí y lo renderizamos en FeatureEditor
+          if (d.id === editingFeatureId) return null;
+          
+          const isSelected = selectedFeatureIds.includes(d.id);
+          const color = isSelected ? '#06b6d4' : '#0284c7'; // Cyan si está seleccionado
+          const weight = isSelected ? 4 : 3;
+          
+          const handlers = {
+            click: (e) => handleFeatureInteraction.click(e, d),
+            dblclick: (e) => handleFeatureInteraction.dblclick(e, d),
+            contextmenu: (e) => handleFeatureInteraction.contextmenu(e, d)
+          };
+
+          if (d.type === 'Point') return <CircleMarker key={d.id} center={d.positions[0]} radius={isSelected ? 6 : 5} color={color} fillColor={isSelected ? '#cffafe' : '#fff'} fillOpacity={1} weight={2} eventHandlers={handlers} />;
+          if (d.type === 'Line' || d.type === 'Polyline') return <Polyline key={d.id} positions={d.positions} color={color} weight={weight} eventHandlers={handlers} />;
+          if (d.type === 'Polygon') return <Polygon key={d.id} positions={d.positions} color={color} fillColor={color} weight={weight} fillOpacity={isSelected ? 0.4 : 0.2} eventHandlers={handlers} />;
+          return null;
+        })}
+
+        {/* Feature Editor (Doble Clic) */}
+        {editingFeatureId && (() => {
+          const feature = freeDrawings.find(f => f.id === editingFeatureId);
+          if (!feature) return null;
+          return (
+            <FeatureEditor 
+              feature={feature}
+              onUpdate={(newPositions) => {
+                 setFreeDrawings(prev => prev.map(f => f.id === editingFeatureId ? { ...f, positions: newPositions } : f));
+              }}
+            />
+          );
+        })()}
+
+        {/* Dibujo Libre en Progreso */}
+        {drawingMode === 'Line' && currentFreeDrawing.length === 1 && mousePos && (
+          <Polyline positions={[currentFreeDrawing[0], mousePos]} color="#0284c7" weight={3} dashArray="5, 8" />
+        )}
+        {drawingMode === 'Polyline' && currentFreeDrawing.length > 0 && mousePos && (
+          <Polyline positions={[...currentFreeDrawing, mousePos]} color="#0284c7" weight={3} dashArray="5, 8" />
+        )}
+        {drawingMode === 'Polygon' && currentFreeDrawing.length > 0 && mousePos && (
+          <Polygon positions={[...currentFreeDrawing, mousePos]} color="#0284c7" fillColor="#0284c7" weight={3} fillOpacity={0.2} dashArray="5, 8" />
+        )}
+        {drawingMode && currentFreeDrawing.map((pt, i) => (
+          <CircleMarker key={`pt-${i}`} center={pt} radius={5} color="#0284c7" fillColor="#fff" fillOpacity={1} weight={2} />
+        ))}
+        {/* Referencia de posición del ratón al dibujar */}
+        {drawingMode && mousePos && (
+          isSnapped ? (
+            <Marker
+              position={mousePos}
+              icon={L.divIcon({
+                className: 'snap-icon',
+                html: '<div style="width: 14px; height: 14px; border: 2px solid #22c55e; background: rgba(34,197,94,0.4); transform: translate(-50%, -50%);"></div>',
+                iconSize: [0, 0]
+              })}
+            />
+          ) : (
+            <CircleMarker center={mousePos} radius={5} color="#fbbf24" fillColor="#fbbf24" fillOpacity={0.8} weight={2} />
+          )
         )}
 
         {/* Línea temporal para medir */}
@@ -2767,6 +3834,20 @@ export default function Geoportal() {
           />
         );
       })()}
+
+      {showAtlasModal && importedShapes && (
+        <ShapefileAtlasModal
+          geoJsonData={importedShapes}
+          fileName={atlasFileName || "Capa Adicional"}
+          onClose={() => setShowAtlasModal(false)}
+          onSavedPredio={() => {
+            fetchMapData();
+            if (!showPredios) setShowPredios(true);
+            if (showVertices) { setVerticesData(null); toggleVertices(); setTimeout(toggleVertices, 400); }
+            if (showLineas) { setLineasData(null); toggleLineas(); setTimeout(toggleLineas, 400); }
+          }}
+        />
+      )}
 
       {/* Modal Carga Shapefile Dinámico */}
       {showShapefileUploader && (

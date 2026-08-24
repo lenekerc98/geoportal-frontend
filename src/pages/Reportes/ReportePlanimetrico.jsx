@@ -492,9 +492,17 @@ export default function ReportePlanimetrico() {
       {/* BARRA DE CONTROLES ATLAS DE NAVEGACIÓN */}
       <div className="report-controls no-print">
         {/* FILA 1: Volver */}
-        <div className="rc-row rc-back">
-          <button className="rc-btn-back" onClick={() => navigate('/reporteria')}>
-            <ChevronLeft size={16} /> Volver a Reportería
+        <div className="rc-row rc-back" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button className="rc-btn-back" onClick={() => navigate('/geoportal')} title="Regresar al Geoportal / Mapa">
+            <ChevronLeft size={16} /> Volver al Geoportal
+          </button>
+          <button 
+            className="rc-btn-back" 
+            onClick={() => navigate('/reporteria')} 
+            style={{ background: 'transparent', border: '1px solid #cbd5e1', color: '#64748b' }}
+            title="Ir al listado de reportes"
+          >
+            Reportería
           </button>
         </div>
 
@@ -813,7 +821,7 @@ export default function ReportePlanimetrico() {
                         <MapContainer center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false}>
                           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
                           <UtmGrid />
-                          <Polygon positions={polygonCoords} pathOptions={{ color: 'yellow', weight: 1, fillColor: 'transparent' }} />
+                          <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
                         </MapContainer>
                       </div>
                       <div className="box-content-center" style={{ fontSize: '9px', borderTop: '1px solid black', padding: '5px' }}>
