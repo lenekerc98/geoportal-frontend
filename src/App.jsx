@@ -15,6 +15,32 @@ import { AppProvider } from './context/AppContext';
 import ReportePlanimetrico from './pages/Reportes/ReportePlanimetrico';
 import ReporteLinderacion from './pages/Reportes/ReporteLinderacion';
 import ErrorBoundary from './components/ErrorBoundary';
+import { API_URL } from './services/api';
+
+const reportErrorToBackend = async (errorMsg) => {
+  try {
+    const userStr = localStorage.getItem('catastro_user');
+    let userDesc = 'Usuario no autenticado / Sesión anónima';
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        userDesc = `${u.username || u.nombre || u.email || 'Usuario'} (ID: ${u.id || 'N/A'})`;
+      } catch(e) {}
+    }
+    
+    await fetch(`${API_URL}/api/system/report-error`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        error: String(errorMsg),
+        user: userDesc,
+        url: window.location.href
+      })
+    });
+  } catch (err) {
+    console.error("No se pudo reportar el error al backend:", err);
+  }
+};
 
 export default function App() {
   const [fatalError, setFatalError] = useState(localStorage.getItem('catastro_fatal_error'));
@@ -29,6 +55,7 @@ export default function App() {
       }
       localStorage.setItem('catastro_fatal_error', errorMsg);
       setFatalError(errorMsg);
+      reportErrorToBackend(errorMsg);
     };
     const handleUnhandledRejection = (event) => {
       let errorMsg = 'Unhandled Promise Rejection';
@@ -37,6 +64,7 @@ export default function App() {
       }
       localStorage.setItem('catastro_fatal_error', errorMsg);
       setFatalError(errorMsg);
+      reportErrorToBackend(errorMsg);
     };
 
     window.addEventListener('error', handleGlobalError);

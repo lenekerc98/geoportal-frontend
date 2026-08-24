@@ -1,4 +1,5 @@
 import React from 'react';
+import { API_URL } from '../services/api';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -13,6 +14,25 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
     this.setState({ errorInfo });
+    try {
+      const userStr = localStorage.getItem('catastro_user');
+      let userDesc = 'Usuario no autenticado';
+      if (userStr) {
+        try {
+          const u = JSON.parse(userStr);
+          userDesc = `${u.username || u.nombre || u.email || 'Usuario'} (ID: ${u.id || 'N/A'})`;
+        } catch(e) {}
+      }
+      fetch(`${API_URL}/api/system/report-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: `${error?.stack || error?.message || String(error)}\n\nComponent Stack:\n${errorInfo?.componentStack || ''}`,
+          user: userDesc,
+          url: window.location.href
+        })
+      }).catch(() => {});
+    } catch(e) {}
   }
 
   render() {

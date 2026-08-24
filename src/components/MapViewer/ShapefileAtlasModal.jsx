@@ -174,13 +174,30 @@ export default function ShapefileAtlasModal({
         let area = 0;
         let perimetro = 0;
         const nPoints = utmCoords.length - 1;
+        const midPoints = [];
+        let latSum = 0;
+        let lngSum = 0;
+
         for (let i = 0; i < nPoints; i++) {
           area += (utmCoords[i][0] * utmCoords[i+1][1]) - (utmCoords[i+1][0] * utmCoords[i][1]);
           const dx = utmCoords[i+1][0] - utmCoords[i][0];
           const dy = utmCoords[i+1][1] - utmCoords[i][1];
-          perimetro += Math.sqrt(dx*dx + dy*dy);
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          perimetro += dist;
+
+          latSum += latLngs[i][0];
+          lngSum += latLngs[i][1];
+
+          const midLat = (latLngs[i][0] + latLngs[i + 1][0]) / 2;
+          const midLng = (latLngs[i][1] + latLngs[i + 1][1]) / 2;
+          midPoints.push({
+            center: [midLat, midLng],
+            distancia: dist.toFixed(2)
+          });
         }
         const areaM2 = Math.abs(area) / 2.0;
+        const centerLat = latSum / (nPoints || 1);
+        const centerLng = lngSum / (nPoints || 1);
 
         results.push({
           id: `${idx}-${rIdx}`,
@@ -188,6 +205,9 @@ export default function ShapefileAtlasModal({
           ringIndex: rIdx,
           latLngs,
           utmCoords,
+          centerLat,
+          centerLng,
+          midPoints,
           areaM2: areaM2.toFixed(2),
           areaHa: (areaM2 / 10000).toFixed(4),
           perimetro: perimetro.toFixed(2),
@@ -745,7 +765,7 @@ export default function ShapefileAtlasModal({
               />
 
               {/* Marcadores de vértices V1, V2... con etiquetas de texto visibles */}
-              {currentFeature.latLngs.slice(0, -1).map((pt, vIdx) => (
+              {(currentFeature?.latLngs || []).slice(0, -1).map((pt, vIdx) => (
                 <Marker
                   key={`v-${vIdx}`}
                   position={pt}
@@ -753,14 +773,14 @@ export default function ShapefileAtlasModal({
                     vIdx + 1, 
                     pt[0], 
                     pt[1], 
-                    currentFeature.centerLat, 
-                    currentFeature.centerLng
+                    currentFeature?.centerLat || pt[0], 
+                    currentFeature?.centerLng || pt[1]
                   )}
                 />
               ))}
 
               {/* Cotas de distancia en cada tramo del polígono */}
-              {currentFeature.midPoints.map((mp, mIdx) => (
+              {(currentFeature?.midPoints || []).map((mp, mIdx) => (
                 <Marker 
                   key={`dist-${mIdx}`}
                   position={mp.center}
