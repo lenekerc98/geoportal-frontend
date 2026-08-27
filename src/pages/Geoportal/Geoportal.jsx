@@ -1,11 +1,11 @@
 import ShapefileAtlasModal from '../../components/MapViewer/ShapefileAtlasModal';
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, useMap, Polyline, CircleMarker, Polygon, Popup, Marker, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin, Clock, Database, Image, Map, Settings, Info, Boxes, Check, Sparkles } from 'lucide-react';
+import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin, Clock, Database, Image, Map, Settings, Info, Boxes, Check, Sparkles, FileSpreadsheet } from 'lucide-react';
 import proj4 from 'proj4';
 import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
@@ -1751,6 +1751,9 @@ export default function Geoportal() {
 
   const onDragOver = (e) => {
     e.preventDefault();
+    if (showShapefileUploader || showCadUploader || showReportModal || isAddingPredio || editingPredio) {
+      return;
+    }
     setIsDragging(true);
   };
 
@@ -1762,6 +1765,10 @@ export default function Geoportal() {
   const onDrop = async (e) => {
     e.preventDefault();
     setIsDragging(false);
+
+    if (showShapefileUploader || showCadUploader || showReportModal || isAddingPredio || editingPredio) {
+      return;
+    }
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
@@ -1889,8 +1896,6 @@ export default function Geoportal() {
     setIsAddingPredio(true);
   };
 
-
-
   const geojsonStyle = {
     color: '#ff0000',
     weight: 4,
@@ -1900,14 +1905,15 @@ export default function Geoportal() {
 
   return (
     <div className="app-wrapper" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-      {isDragging && (
+      {isDragging && !showShapefileUploader && !showReportModal && (
         <div className="drag-overlay" style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(59, 130, 246, 0.4)', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(5px)', border: '4px dashed #3b82f6'
+          backdropFilter: 'blur(5px)', border: '4px dashed #3b82f6',
+          pointerEvents: 'none'
         }}>
-          <h1 style={{ color: 'white', textShadow: '0 2px 10px rgba(0,0,0,0.5)', fontSize: '2.5rem' }}>
+          <h1 style={{ color: 'white', textShadow: '0 2px 10px rgba(0,0,0,0.5)', fontSize: '2.5rem', pointerEvents: 'none' }}>
             Suelta tu archivo aquí (Ortofoto o ZIP)
           </h1>
         </div>
@@ -3860,6 +3866,8 @@ export default function Geoportal() {
             setShowShapefileUploader(false);
             setPrediosData(null);
             if (showPredios) togglePredios();
+            // Refrescar capas adicionales si están activas
+            fetchCapasAdicionales();
             // Refrescar vértices y líneas si están activos
             if (showVertices) { setVerticesData(null); toggleVertices(); setTimeout(toggleVertices, 500); }
             if (showLineas) { setLineasData(null); toggleLineas(); setTimeout(toggleLineas, 500); }

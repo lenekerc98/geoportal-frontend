@@ -10,6 +10,7 @@ import GestionDPA from './pages/System/GestionDPA';
 import EmpresasManager from './pages/System/EmpresasManager';
 import ProjectsManager from './pages/System/ProjectsManager';
 import Users from './pages/Users/Users';
+import CartasTopograficas from './pages/Cartas/CartasTopograficas';
 import SidebarLayout from './components/Layout/SidebarLayout';
 import { AppProvider } from './context/AppContext';
 import ReportePlanimetrico from './pages/Reportes/ReportePlanimetrico';
@@ -112,6 +113,7 @@ export default function App() {
             <Route path="/geoportal" element={<Geoportal />} />
             <Route path="/dashboard" element={<AnalyticsDashboard />} />
             <Route path="/reporteria" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
+            <Route path="/cartas-topograficas" element={<CartasTopograficas />} />
             <Route path="/usuarios" element={<Users />} />
             <Route path="/localizacion/dpa" element={<GestionDPA />} />
             <Route path="/sistema/parametros" element={<SystemParams />} />

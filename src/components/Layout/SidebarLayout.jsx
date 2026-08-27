@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2, FileText } from 'lucide-react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2, FileText, ChevronDown, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 
 const SystemHealthIndicator = ({ collapsed }) => {
   const [health, setHealth] = useState({ api: 'PENDING', database: 'PENDING', storage: 'PENDING' });
-  
+  const [isOpen, setIsOpen] = useState(false);
+  const [userRole, setUserRole] = useState('');
+
   useEffect(() => {
     const checkHealth = async () => {
       try {
@@ -23,7 +25,7 @@ const SystemHealthIndicator = ({ collapsed }) => {
     };
     
     checkHealth();
-    const interval = setInterval(checkHealth, 30000); // Check every 30s
+    const interval = setInterval(checkHealth, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -31,10 +33,7 @@ const SystemHealthIndicator = ({ collapsed }) => {
   const hasError = health.api === 'ERROR' || health.database.startsWith('ERROR') || health.storage.startsWith('ERROR');
   
   const statusColor = isAllOk ? 'var(--success)' : (hasError ? 'var(--danger)' : 'var(--warning)');
-  const statusText = isAllOk ? 'Sistema en línea' : (hasError ? 'Error de conexión' : 'Verificando...');
 
-  const [userRole, setUserRole] = useState('');
-  
   useEffect(() => {
     const token = localStorage.getItem('catastro_token');
     if (token) {
@@ -47,32 +46,41 @@ const SystemHealthIndicator = ({ collapsed }) => {
 
   if (collapsed) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', borderTop: '1px solid var(--sidebar-border)' }} title={statusText}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', borderTop: '1px solid var(--sidebar-border)' }} title="Status Sistema">
         <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}` }}></div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '15px', borderTop: '1px solid var(--sidebar-border)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}` }}></div>
-        <span style={{ fontWeight: 'bold' }}>{statusText}</span>
+    <div style={{ padding: '12px 15px', borderTop: '1px solid var(--sidebar-border)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+      <div 
+        onClick={() => setIsOpen(!isOpen)} 
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}` }}></div>
+          <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Status Sistema</span>
+        </div>
+        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>API Backend:</span>
-          <span style={{ color: health.api === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.api}</span>
+
+      {isOpen && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', paddingLeft: '17px', marginTop: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>API Backend:</span>
+            <span style={{ color: health.api === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.api}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.database !== 'OK' ? health.database : undefined}>
+            <span>Base de Datos:</span>
+            <span style={{ color: health.database === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.database === 'OK' ? 'OK' : 'ERROR'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.storage !== 'OK' ? health.storage : undefined}>
+            <span>Almacenamiento:</span>
+            <span style={{ color: health.storage === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.storage === 'OK' ? 'OK' : 'ERROR'}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.database !== 'OK' ? health.database : undefined}>
-          <span>Base de Datos:</span>
-          <span style={{ color: health.database === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.database === 'OK' ? 'OK' : 'ERROR'}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.storage !== 'OK' ? health.storage : undefined}>
-          <span>Almacenamiento:</span>
-          <span style={{ color: health.storage === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.storage === 'OK' ? 'OK' : 'ERROR'}</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -93,6 +101,7 @@ export default function SidebarLayout() {
   const [userRole, setUserRole] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('catastro_theme_v2') || 'light');
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -305,6 +314,11 @@ export default function SidebarLayout() {
           <NavLink to="/reporteria" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <FileText size={20} />
             <span>Reportería</span>
+          </NavLink>
+
+          <NavLink to="/cartas-topograficas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <FileSpreadsheet size={20} />
+            <span>Cartas Topográficas</span>
           </NavLink>
           
           {hasAccess(['admin']) && (

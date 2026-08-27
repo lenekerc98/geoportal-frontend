@@ -45,9 +45,14 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     }
   }, [isSuperAdmin, authToken]);
 
-  const handleFileChange = (e) => {
-    const selected = e.target.files[0];
-    if (selected && selected.name.endsWith('.zip')) {
+  const [isDragOverBox, setIsDragOverBox] = useState(false);
+
+  const processSelectedFile = (selected) => {
+    if (!selected) return;
+    const name = selected.name.toLowerCase();
+    const isZip = name.endsWith('.zip');
+
+    if (isZip) {
       setFile(selected);
       setUploadStatus(null);
       setPreviewColumns([]);
@@ -87,34 +92,66 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
         }
       };
       reader.readAsArrayBuffer(selected);
-    } else {
-      alert("Por favor selecciona un archivo .zip que contenga el shapefile.");
-      setFile(null);
-      setPreviewColumns([]);
-      setIsParsing(false);
-      setParsedGeoJson(null);
+      return;
+    }
+
+    alert("Por favor selecciona un archivo .zip que contenga el shapefile.");
+    setFile(null);
+    setPreviewColumns([]);
+    setIsParsing(false);
+    setParsedGeoJson(null);
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processSelectedFile(e.target.files[0]);
     }
   };
 
   const handleUpload = async () => {
     if (!file) return;
-    if (isSuperAdmin && !selectedEmpresa) {
-      alert("Por favor selecciona una Empresa.");
+    setIsUploading(true);
+    setUploadStatus(null);
+
+    // Caso 1: Archivo CAD DXF
+    if (file.name.toLowerCase().endsWith('.dxf') || importType === 'cad_dxf') {
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const response = await fetch(`${API_URL}/api/gis/import-dxf`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: formData
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showSuccess(`Archivo CAD DXF importado exitosamente (${data?.data?.total_entidades || 0} entidades en ${data?.data?.capas_detectadas?.length || 0} capas).`);
+          if (onSuccess) onSuccess();
+        } else {
+          setUploadStatus({ type: 'error', message: data.detail || 'Error al importar archivo DXF.' });
+        }
+      } catch (error) {
+        setUploadStatus({ type: 'error', message: 'Error de conexión al importar DXF.' });
+      } finally {
+        setIsUploading(false);
+      }
       return;
     }
 
-    setIsUploading(true);
-    setUploadStatus(null);
+    // Caso 2: Shapefile ZIP
+    if (isSuperAdmin && !selectedEmpresa) {
+      alert("Por favor selecciona una Empresa.");
+      setIsUploading(false);
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("import_type", importType);
     if (nombreCapa) formData.append("nombre_capa", nombreCapa);
     
-    // Si no es superadmin, se usa 0 y el backend debería usar el del current_user
     const empId = isSuperAdmin ? selectedEmpresa : (user?.empresa_id || 0);
 
-    // Enviar mapping y renames
     let url = `${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}&renames=${encodeURIComponent(JSON.stringify(renames))}`;
     if (fechaVigencia) {
       url += `&fecha_creacion=${fechaVigencia}T00:00:00`;
@@ -149,8 +186,16 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   };
 
   return (
-    <div className="shapefile-uploader-overlay">
-      <div className="shapefile-uploader-modal">
+    <div 
+      className="shapefile-uploader-overlay" 
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
+    >
+      <div 
+        className="shapefile-uploader-modal"
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      >
         <button className="close-btn" onClick={onClose}><X size={20} /></button>
         <h2>Importar Shapefile de Polígonos</h2>
         <p className="subtitle">Sube un archivo <b>.zip</b> que contenga el shapefile (.shp, .shx, .dbf, .prj) para generar Predios, Posesionarios, Vértices y Linderos dinámicamente.</p>
@@ -197,9 +242,35 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
           </div>
         )}
 
-        <div className="upload-box" style={{ border: file ? '2px solid var(--primary)' : '2px dashed var(--card-border)', padding: '30px', textAlign: 'center', borderRadius: '8px', marginBottom: '15px', position: 'relative' }}>
-          <UploadCloud size={40} color={file ? "var(--primary)" : "gray"} style={{marginBottom: '10px'}} />
-          <p style={{margin: 0}}>{file ? file.name : "1. Selecciona el archivo ZIP aquí"}</p>
+        <div 
+          className="upload-box" 
+          onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOverBox(true); }}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOverBox(true); }}
+          onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOverBox(false); }}
+          onDrop={(e) => { 
+            e.preventDefault(); 
+            e.stopPropagation(); 
+            setIsDragOverBox(false); 
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              processSelectedFile(e.dataTransfer.files[0]);
+            }
+          }}
+          style={{ 
+            border: isDragOverBox ? '2px solid #2563eb' : (file ? '2px solid var(--primary)' : '2px dashed var(--card-border)'), 
+            background: isDragOverBox ? 'rgba(37, 99, 235, 0.08)' : (file ? 'rgba(16, 185, 129, 0.04)' : 'transparent'),
+            padding: '30px 20px', 
+            textAlign: 'center', 
+            borderRadius: '10px', 
+            marginBottom: '15px', 
+            position: 'relative',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer'
+          }}
+        >
+          <UploadCloud size={40} color={isDragOverBox ? "#2563eb" : (file ? "var(--primary)" : "gray")} style={{marginBottom: '10px', transition: 'transform 0.2s', transform: isDragOverBox ? 'scale(1.15)' : 'scale(1)'}} />
+          <p style={{margin: 0, fontWeight: isDragOverBox ? 'bold' : 'normal', color: isDragOverBox ? '#2563eb' : 'inherit'}}>
+            {file ? file.name : (isDragOverBox ? "¡Suelta tu archivo ZIP aquí!" : "1. Arrastra o selecciona el archivo ZIP aquí")}
+          </p>
           <input type="file" accept=".zip" onChange={handleFileChange} style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer'}} />
         </div>
 

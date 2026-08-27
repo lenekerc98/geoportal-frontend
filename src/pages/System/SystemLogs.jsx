@@ -46,10 +46,11 @@ export default function SystemLogs() {
   });
 
   const getLogIcon = (tipo) => {
-    switch (tipo) {
+    switch (tipo?.toUpperCase()) {
       case 'INFO': return <CheckCircle size={18} color="#10b981" />;
       case 'WARNING': return <AlertTriangle size={18} color="#f59e0b" />;
-      case 'ERROR': return <ShieldAlert size={18} color="#ef4444" />;
+      case 'ERROR':
+      case 'CRITICAL': return <ShieldAlert size={18} color="#ef4444" />;
       default: return <Info size={18} color="#3b82f6" />;
     }
   };

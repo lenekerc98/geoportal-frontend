@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl, GeoJSON } from 'react-leaflet';
 import L from 'leaflet';
 import proj4 from 'proj4';
 
 // Definir proyección UTM 17S
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
-import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, AlertCircle } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, AlertCircle, Save, Layers, Maximize2, X, ZoomIn } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { getOfflinePredioById } from '../../services/offlineDB';
 import { AppContext } from '../../context/AppContext';
@@ -85,8 +85,6 @@ const getOrientacionGeometrica = (center, midPoint, width, height) => {
 
   if (angle >= 45 && angle < 135) return 'NORTE';
   if (angle >= -45 && angle < 45) return 'ESTE';
-  if (angle >= -135 && angle < -45) return 'SUR';
-  return 'OESTE';
 };
 
 const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGraphicScale }) => {
@@ -154,7 +152,7 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
   return null;
 };
 
-const UtmGrid = ({ setMapGridLabels }) => {
+const UtmGrid = ({ setMapGridLabels, isMinimap = false }) => {
   const map = useMap();
   const [gridLines, setGridLines] = useState([]);
 
@@ -167,12 +165,16 @@ const UtmGrid = ({ setMapGridLabels }) => {
 
       const widthUtm = Math.abs(neUtm[0] - swUtm[0]);
       let step = 1000;
-      if (widthUtm < 200) step = 20;
-      else if (widthUtm < 500) step = 50;
-      else if (widthUtm < 1500) step = 100;
-      else if (widthUtm < 5000) step = 500;
-      else if (widthUtm < 15000) step = 1000;
-      else step = 5000;
+      if (isMinimap) {
+        step = widthUtm > 6000 ? 2000 : 1000;
+      } else {
+        if (widthUtm < 200) step = 20;
+        else if (widthUtm < 500) step = 50;
+        else if (widthUtm < 1500) step = 100;
+        else if (widthUtm < 5000) step = 500;
+        else if (widthUtm < 15000) step = 1000;
+        else step = 5000;
+      }
 
       const lines = [];
       const labels = { top: [], bottom: [], left: [], right: [] };
@@ -217,12 +219,12 @@ const UtmGrid = ({ setMapGridLabels }) => {
     updateGrid();
     map.on('moveend zoomend', updateGrid);
     return () => map.off('moveend zoomend', updateGrid);
-  }, [map, setMapGridLabels]);
+  }, [map, setMapGridLabels, isMinimap]);
 
   return (
     <>
       {gridLines.map((line, i) => (
-        <Polyline key={i} positions={line} pathOptions={{ color: '#444444', weight: 0.6, opacity: 0.6 }} />
+        <Polyline key={i} positions={line} pathOptions={{ color: '#444444', weight: isMinimap ? 0.4 : 0.6, opacity: 0.6 }} />
       ))}
     </>
   );
@@ -242,16 +244,92 @@ export default function ReportePlanimetrico() {
   const [calculatedScale, setCalculatedScale] = useState('Auto');
   const [graphicScale, setGraphicScale] = useState({ totalWidthPx: 200, ticks: [0, 50, 100, 150, 200, 250] });
   const [mapGridLabels, setMapGridLabels] = useState({ top: [], bottom: [], left: [], right: [] });
+  const [minimapGridLabels, setMinimapGridLabels] = useState({ top: [], bottom: [], left: [], right: [] });
 
   const [showTextModal, setShowTextModal] = useState(false);
+  const [codigoCarta, setCodigoCarta] = useState('');
   const [nombreCarta, setNombreCarta] = useState('');
-  const [nombreCuadricula, setNombreCuadricula] = useState('');
+  const [nombreCuadricula, setNombreCuadricula] = useState('ZONA 17S');
+  const [cartasCatalog, setCartasCatalog] = useState([]);
+  const [isSavingCarta, setIsSavingCarta] = useState(false);
+
+  // Estados de Capa de Fondo para el Mapa Referencial Pequeño
+  const [fondoMinimapa, setFondoMinimapa] = useState('cad'); // 'cad' | 'osm' | 'satelital' | 'blanco'
+  const [cadArchivosList, setCadArchivosList] = useState([]);
+  const [selectedCadFile, setSelectedCadFile] = useState('');
+  const [cadGeoJson, setCadGeoJson] = useState(null);
+  const [isLoadingCad, setIsLoadingCad] = useState(false);
+
+  // Estado de Ventana Emergente de Previsualización Interactiva
+  const [previewModal, setPreviewModal] = useState({ isOpen: false, type: 'plano' }); // 'plano' | 'minimapa'
+  const [modalLayerType, setModalLayerType] = useState('cad'); // 'cad' | 'satelital' | 'osm' | 'blanco'
 
   // Controles de tamaño de puntos y texto
   const [pointSize, setPointSize] = useState(6);
   const [textSize, setTextSize] = useState(10);
 
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
+
+  const fetchCartasCatalog = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('catastro_token');
+      const res = await fetch(`${API_URL}/api/gis/cartas-topograficas`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setCartasCatalog(json);
+      }
+    } catch (e) { }
+  }, []);
+
+  const fetchCadArchivos = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('catastro_token');
+      const res = await fetch(`${API_URL}/api/gis/cad-archivos`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json)) {
+          setCadArchivosList(json);
+          if (json.length > 0 && !selectedCadFile) {
+            setSelectedCadFile(json[0].nombre_archivo);
+          }
+        }
+      }
+    } catch (e) { }
+  }, [selectedCadFile]);
+
+  const fetchCadGeoJson = useCallback(async (archivo) => {
+    if (!archivo) return;
+    try {
+      setIsLoadingCad(true);
+      const token = localStorage.getItem('catastro_token');
+      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setCadGeoJson(json);
+      }
+    } catch (e) {
+      console.error("Error al cargar GeoJSON CAD:", e);
+    } finally {
+      setIsLoadingCad(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCartasCatalog();
+    fetchCadArchivos();
+  }, [fetchCartasCatalog, fetchCadArchivos]);
+
+  useEffect(() => {
+    if (fondoMinimapa === 'cad' && selectedCadFile) {
+      fetchCadGeoJson(selectedCadFile);
+    }
+  }, [fondoMinimapa, selectedCadFile, fetchCadGeoJson]);
 
   useEffect(() => {
     document.body.style.overflow = 'auto';
@@ -322,6 +400,29 @@ export default function ReportePlanimetrico() {
       if (res.ok) {
         const json = await res.json();
         setData(json);
+        if (json.predio) {
+          const cod = json.predio.codigo_carta || '';
+          const nom = json.predio.nombre_carta || '';
+          const cuad = json.predio.cuadricula_carta || 'ZONA 17S';
+          setCodigoCarta(cod);
+          setNombreCarta(nom);
+          setNombreCuadricula(cuad);
+
+          // Si viene carta detectada automáticamente por intersección espacial, buscar archivo CAD
+          if (nom || cod) {
+            const nomClean = nom.toUpperCase();
+            const codClean = cod.toUpperCase();
+            const matchCad = cadArchivosList.find(a =>
+              (nomClean && a.nombre && a.nombre.toUpperCase() === nomClean) ||
+              (codClean && a.codigo && a.codigo.toUpperCase() === codClean) ||
+              (nomClean && a.nombre_archivo.toUpperCase().includes(nomClean)) ||
+              (codClean && a.nombre_archivo.toUpperCase().includes(codClean))
+            );
+            if (matchCad) {
+              setSelectedCadFile(matchCad.nombre_archivo);
+            }
+          }
+        }
       } else {
         showError('No se pudo cargar la información del predio (Puede no tener mapa asociado)');
       }
@@ -332,9 +433,98 @@ export default function ReportePlanimetrico() {
     }
   };
 
+  // Auto-seleccionar archivo CAD cuando cargue la lista o cambie la carta detectada
+  useEffect(() => {
+    if (cadArchivosList.length > 0) {
+      const nomClean = (nombreCarta || '').trim().toUpperCase();
+      const codClean = (codigoCarta || '').trim().toUpperCase();
+      const matchCad = cadArchivosList.find(a =>
+        (nomClean && a.nombre && a.nombre.toUpperCase() === nomClean) ||
+        (codClean && a.codigo && a.codigo.toUpperCase() === codClean) ||
+        (nomClean && a.nombre_archivo.toUpperCase().includes(nomClean)) ||
+        (codClean && a.nombre_archivo.toUpperCase().includes(codClean))
+      );
+      if (matchCad) {
+        setSelectedCadFile(matchCad.nombre_archivo);
+      } else if (!selectedCadFile && cadArchivosList.length > 0) {
+        setSelectedCadFile(cadArchivosList[0].nombre_archivo);
+      }
+    }
+  }, [cadArchivosList, nombreCarta, codigoCarta]);
+
   const predio = data?.predio || {};
   const vertices = data?.vertices || [];
   const linderos = data?.linderos || [];
+
+  const displayCarta = useMemo(() => {
+    // Si nombreCarta existe, mostrar solo ese nombre limpio (ej: CATARAMA o JUAN MONTALVO)
+    if (nombreCarta) return nombreCarta.trim().toUpperCase();
+    if (codigoCarta) return codigoCarta.trim().toUpperCase();
+    if (selectedCadFile) {
+      const match = cartasCatalog.find(c => c.nombre === selectedCadFile || c.codigo === selectedCadFile);
+      if (match?.nombre) return match.nombre.trim().toUpperCase();
+      if (match?.codigo) return match.codigo.trim().toUpperCase();
+
+      const cadMatch = cadArchivosList.find(a => a.nombre_archivo === selectedCadFile);
+      if (cadMatch?.nombre) return cadMatch.nombre.trim().toUpperCase();
+
+      let clean = selectedCadFile.replace(/\.[^/.]+$/, '');
+      clean = clean.replace(/^[A-Za-z0-9]+-[A-Za-z0-9]+/i, '').replace(/[-_]/g, ' ').trim().toUpperCase();
+      return clean || selectedCadFile.replace(/\.[^/.]+$/, '').toUpperCase();
+    }
+    return '';
+  }, [codigoCarta, nombreCarta, selectedCadFile, cartasCatalog, cadArchivosList]);
+
+  const displayCuadricula = useMemo(() => {
+    if (nombreCuadricula && nombreCuadricula !== 'ZONA 17S') return nombreCuadricula.trim().toUpperCase();
+    if (selectedCadFile) {
+      const match = cartasCatalog.find(c => c.nombre === selectedCadFile || c.codigo === selectedCadFile);
+      if (match?.cuadricula) return match.cuadricula.trim().toUpperCase();
+
+      const cadMatch = cadArchivosList.find(a => a.nombre_archivo === selectedCadFile);
+      if (cadMatch?.cuadricula) return cadMatch.cuadricula.trim().toUpperCase();
+
+      const m = selectedCadFile.match(/([A-Za-z0-9]+-[A-Za-z0-9]+)/i);
+      if (m) return m[1].toUpperCase();
+    }
+    return nombreCuadricula || 'ZONA 17S';
+  }, [nombreCuadricula, selectedCadFile, cartasCatalog, cadArchivosList]);
+
+  const handleSaveCartaToDB = async () => {
+    const targetIdOrCod = predio?.id || predio?.cod_catastral || codigo || id;
+    if (!targetIdOrCod) {
+      showError('No se encontró el identificador del predio para guardar');
+      return;
+    }
+    try {
+      setIsSavingCarta(true);
+      const token = localStorage.getItem('catastro_token');
+      const res = await fetch(`${API_URL}/api/gis/predios/${targetIdOrCod}/carta-topografica`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          codigo_carta: codigoCarta,
+          nombre_carta: nombreCarta,
+          cuadricula_carta: nombreCuadricula
+        })
+      });
+      if (res.ok) {
+        showSuccess('Carta topográfica guardada en la base de datos');
+        fetchCartasCatalog();
+        setShowTextModal(false);
+      } else {
+        const err = await res.json();
+        showError(err.detail || 'Error al guardar carta topográfica');
+      }
+    } catch (e) {
+      showError('Error de conexión al guardar carta topográfica');
+    } finally {
+      setIsSavingCarta(false);
+    }
+  };
 
   const polygonCoords = useMemo(() => {
     const coords = [];
@@ -461,9 +651,9 @@ export default function ReportePlanimetrico() {
   const handleSaveAngle = async () => {
     if (!predio?.id && !predio?.offline_id) return;
     if (predio?.offline_id) {
-       // Cannot save angle to API if it's offline
-       showSuccess('Ángulo actualizado solo en vista (predio offline)');
-       return;
+      // Cannot save angle to API if it's offline
+      showSuccess('Ángulo actualizado solo en vista (predio offline)');
+      return;
     }
     try {
       const token = localStorage.getItem('catastro_token');
@@ -496,9 +686,9 @@ export default function ReportePlanimetrico() {
           <button className="rc-btn-back" onClick={() => navigate('/geoportal')} title="Regresar al Geoportal / Mapa">
             <ChevronLeft size={16} /> Volver al Geoportal
           </button>
-          <button 
-            className="rc-btn-back" 
-            onClick={() => navigate('/reporteria')} 
+          <button
+            className="rc-btn-back"
+            onClick={() => navigate('/reporteria')}
             style={{ background: 'transparent', border: '1px solid #cbd5e1', color: '#64748b' }}
             title="Ir al listado de reportes"
           >
@@ -556,16 +746,16 @@ export default function ReportePlanimetrico() {
           <span className="rc-label" style={{ marginLeft: '10px' }}>Ángulo Texto:</span>
           <div className="rc-scale-controls">
             <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => (a - 15 + 360) % 360 || 360)}>-</button>
-            <input 
-              type="number" 
-              className="rc-counter" 
-              style={{ width: '45px', textAlign: 'center', border: 'none', background: 'transparent', MozAppearance: 'textfield' }} 
-              value={textAngleOffset} 
+            <input
+              type="number"
+              className="rc-counter"
+              style={{ width: '45px', textAlign: 'center', border: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+              value={textAngleOffset}
               onChange={(e) => {
                 let val = parseInt(e.target.value);
                 if (isNaN(val)) val = 0;
                 setTextAngleOffset((val % 360 + 360) % 360 || 360);
-              }} 
+              }}
             />
             <span style={{ marginLeft: '-5px', fontSize: '11px', color: '#64748b' }}>°</span>
             <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => (a + 15) % 360 || 360)}>+</button>
@@ -575,9 +765,55 @@ export default function ReportePlanimetrico() {
           </button>
         </div>
 
-        {/* FILA 6: Botones de acción */}
+        {/* FILA 6: Fondo de Carta Referencial (Minimapa) */}
+        <div className="rc-row rc-layers" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="rc-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Layers size={14} /> Fondo Carta Referencial:
+          </span>
+          <select
+            className="rc-select"
+            value={fondoMinimapa}
+            onChange={(e) => setFondoMinimapa(e.target.value)}
+            style={{ fontSize: '12px', padding: '3px 8px', borderRadius: '4px' }}
+          >
+            <option value="cad">Carta Topográfica CAD (.dxf)</option>
+            <option value="osm">OpenStreetMap</option>
+            <option value="satelital">Ortofoto / Satelital</option>
+            <option value="blanco">Solo Cuadrícula</option>
+          </select>
+
+          {fondoMinimapa === 'cad' && cadArchivosList.length > 0 && (
+            <select
+              className="rc-select"
+              value={selectedCadFile}
+              onChange={(e) => setSelectedCadFile(e.target.value)}
+              style={{ fontSize: '11px', maxWidth: '220px', padding: '3px 6px', borderRadius: '4px' }}
+              title="Seleccionar Carta CAD de Fondo"
+            >
+              {cadArchivosList.map(a => (
+                <option key={a.nombre_archivo} value={a.nombre_archivo}>
+                  {a.nombre_archivo} ({a.total_elementos || 0} ent.)
+                </option>
+              ))}
+            </select>
+          )}
+
+          {fondoMinimapa === 'cad' && isLoadingCad && (
+            <Loader2 size={14} className="spin" color="#0284c7" />
+          )}
+        </div>
+
+        {/* FILA 7: Botones de acción */}
         <div className="rc-row rc-actions">
           <button className="rc-btn-outline" onClick={() => setShowTextModal(true)}>Textos Carta</button>
+          <button
+            className="rc-btn-outline"
+            onClick={() => { setModalLayerType(fondoMinimapa); setPreviewModal({ isOpen: true, type: 'minimapa' }); }}
+            title="Abrir ventana emergente interactiva para explorar la carta CAD"
+            style={{ color: '#0284c7', borderColor: '#bae6fd', background: '#f0f9ff' }}
+          >
+            <Maximize2 size={15} /> Previsualizar Carta CAD
+          </button>
           <button className="rc-btn-primary" onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }} disabled={!data}>
             <Printer size={18} /> Imprimir PDF
           </button>
@@ -602,23 +838,90 @@ export default function ReportePlanimetrico() {
       {!loading && data && (
         <>
           {showTextModal && (
-            <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <div style={{ background: 'white', padding: '20px', borderRadius: '8px', width: '400px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Configurar Textos del Mapa</h3>
+            <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '450px', maxWidth: '90vw', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>Configurar Carta Topográfica</h3>
+                  <button onClick={() => setShowTextModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#94a3b8', fontWeight: 'bold' }}>✕</button>
+                </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Nombre Carta Topográfica:</label>
-                  <input type="text" value={nombreCarta} onChange={(e) => setNombreCarta(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Ej: CT-1234" />
+                {cartasCatalog.length > 0 && (
+                  <div style={{ marginBottom: '16px', background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
+                      Elegir de Cartas Registradas en BD:
+                    </label>
+                    <select
+                      style={{ width: '100%', padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', background: 'white' }}
+                      onChange={(e) => {
+                        const selected = cartasCatalog.find(c => String(c.id) === e.target.value);
+                        if (selected) {
+                          setCodigoCarta(selected.codigo || '');
+                          setNombreCarta(selected.nombre || '');
+                          if (selected.cuadricula) setNombreCuadricula(selected.cuadricula);
+                        }
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>-- Seleccionar una carta existente --</option>
+                      {cartasCatalog.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.codigo ? `${c.codigo} - ` : ''}{c.nombre} ({c.cuadricula || 'ZONA 17S'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Código Carta:</label>
+                    <input
+                      type="text"
+                      value={codigoCarta}
+                      onChange={(e) => setCodigoCarta(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                      placeholder="Ej: 3862-I o CT-ÑIV-C1"
+                    />
+                  </div>
+                  <div style={{ flex: 1.5 }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Nombre Carta:</label>
+                    <input
+                      type="text"
+                      value={nombreCarta}
+                      onChange={(e) => setNombreCarta(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                      placeholder="Ej: CHONE, ROCAFUERTE"
+                    />
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Nombre Cuadrícula General:</label>
-                  <input type="text" value={nombreCuadricula} onChange={(e) => setNombreCuadricula(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Ej: Malla 1" />
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Cuadrícula / Zona:</label>
+                  <input
+                    type="text"
+                    value={nombreCuadricula}
+                    onChange={(e) => setNombreCuadricula(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                    placeholder="Ej: ZONA 17S, MALLA 1"
+                  />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button onClick={() => setShowTextModal(false)} style={{ padding: '8px 15px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: '#f8fafc', fontWeight: 'bold' }}>
-                    Aceptar
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowTextModal(false)}
+                    style={{ padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', background: '#f8fafc', fontWeight: '600', fontSize: '13px', color: '#64748b' }}
+                  >
+                    Solo Vista Previa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCartaToDB}
+                    disabled={isSavingCarta}
+                    style={{ padding: '8px 16px', border: 'none', borderRadius: '6px', cursor: 'pointer', background: '#2563eb', color: 'white', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {isSavingCarta ? <Loader2 size={16} className="spin" /> : <Save size={16} />}
+                    Guardar en BD
                   </button>
                 </div>
               </div>
@@ -668,11 +971,19 @@ export default function ReportePlanimetrico() {
                     {/* Mapa */}
                     <div className="report-map-container" style={{ flex: 1, position: 'relative', padding: '30px 25px 20px 30px', backgroundColor: 'white', overflow: 'hidden', borderRight: 'none' }}>
                       <div style={{ position: 'relative', width: '100%', height: '100%', border: '2px solid black', backgroundColor: 'white', zIndex: 0 }}>
+                        {/* Botón flotante para previsualización interactiva */}
+                        <button
+                          type="button"
+                          className="no-print"
+                          onClick={() => { setModalLayerType('blanco'); setPreviewModal({ isOpen: true, type: 'plano' }); }}
+                          style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 999, background: '#0284c7', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}
+                          title="Abrir ventana emergente interactiva de este plano"
+                        >
+                          <Maximize2 size={13} /> Previsualizar
+                        </button>
+
                         {polygonCoords.length > 0 && (
                           <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
-                            {/* Se desactiva la ortofoto a petición del usuario para evitar parpadeos y mejorar la impresión */}
-                            {/* <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /> */}
-
                             <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                             <UtmGrid setMapGridLabels={setMapGridLabels} />
 
@@ -723,7 +1034,7 @@ export default function ReportePlanimetrico() {
                                   contiguousGroups.push(currGroup);
                                 }
                               });
-                              
+
                               // Seleccionar el índice central geométrico para cada grupo contiguo
                               const centerIndices = new Set();
                               contiguousGroups.forEach(group => {
@@ -742,10 +1053,10 @@ export default function ReportePlanimetrico() {
                                     const midLat = (points[0][0] + points[1][0]) / 2;
                                     const midLng = (points[0][1] + points[1][1]) / 2;
                                     const medida = `${l.longitud.toFixed(2)}m`;
-                                    
+
                                     // Solo pasar el nombre del colindante si este es el segmento central del grupo
                                     const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
-                                    
+
                                     return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindanteToRender, medida, points[0], points[1], center[0], center[1])} />;
                                   }
                                 } catch (e) { }
@@ -817,18 +1128,78 @@ export default function ReportePlanimetrico() {
                   {/* COLUMNA DERECHA: Sidebar */}
                   <div className="report-sidebar">
                     <div className="sidebar-box">
-                      <div className="minimap-box">
-                        <MapContainer center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false}>
-                          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-                          <UtmGrid />
-                          <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
-                        </MapContainer>
+                      <div className="minimap-box" style={{ height: '235px', position: 'relative', overflow: 'hidden', padding: '16px 8px 6px 28px', backgroundColor: 'white' }}>
+                        <div style={{ position: 'relative', width: '100%', height: '100%', border: '1px solid black', backgroundColor: 'white' }}>
+                          {/* Botón flotante para previsualización interactiva de carta CAD */}
+                          <button
+                            type="button"
+                            className="no-print"
+                            onClick={() => { setModalLayerType(fondoMinimapa); setPreviewModal({ isOpen: true, type: 'minimapa' }); }}
+                            style={{ position: 'absolute', top: '4px', right: '4px', zIndex: 999, background: '#0284c7', color: 'white', border: 'none', padding: '3px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}
+                            title="Abrir ventana emergente interactiva de la carta CAD"
+                          >
+                            <Maximize2 size={10} /> Previsualizar
+                          </button>
+
+                          <MapContainer center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                            {fondoMinimapa === 'osm' && (
+                              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+                            )}
+
+                            {fondoMinimapa === 'satelital' && (
+                              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                            )}
+
+                            {fondoMinimapa === 'cad' && cadGeoJson && (
+                              <GeoJSON
+                                key={'minimap_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
+                                data={cadGeoJson}
+                                style={(feature) => {
+                                  const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
+                                  if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.6, opacity: 0.6 };
+                                  if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.2, opacity: 0.85 };
+                                  if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.0, opacity: 0.85 };
+                                  if (capa.includes('CURVA') || capa.includes('NIVEL') || capa.includes('ACCIDENTE')) return { color: '#ca8a04', weight: 0.6, opacity: 0.75 };
+                                  return { color: '#475569', weight: 0.7, opacity: 0.7 };
+                                }}
+                                pointToLayer={(feature, latlng) => {
+                                  const textVal = feature?.properties?.texto || feature?.properties?.text;
+                                  if (textVal) {
+                                    return L.marker(latlng, {
+                                      icon: L.divIcon({
+                                        className: 'cad-text-label',
+                                        html: `<div style="font-size: 6px; font-weight: bold; color: #1e293b; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
+                                        iconSize: [0, 0]
+                                      })
+                                    });
+                                  }
+                                  return L.circleMarker(latlng, { radius: 1.5, color: '#64748b', weight: 1, opacity: 0.5 });
+                                }}
+                              />
+                            )}
+
+                            <UtmGrid setMapGridLabels={setMinimapGridLabels} isMinimap={true} />
+                            <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2.5, fillColor: '#ea580c', fillOpacity: 0.85 }} />
+                          </MapContainer>
+                        </div>
+
+                        {/* Coordenadas UTM Referenciales en Bordes del Minimapa */}
+                        {minimapGridLabels.top.map((lbl, i) => (
+                          <div key={`mt-${i}`} style={{ position: 'absolute', top: '2px', left: `${lbl.val + 28}px`, transform: 'translateX(-50%)', fontSize: '6.5px', fontWeight: 'bold', color: '#0f172a' }}>
+                            {lbl.text}
+                          </div>
+                        ))}
+                        {minimapGridLabels.left.map((lbl, i) => (
+                          <div key={`ml-${i}`} style={{ position: 'absolute', left: '-14px', top: `${lbl.val + 16}px`, transform: 'translateY(-50%) rotate(-90deg)', fontSize: '6.5px', fontWeight: 'bold', color: '#0f172a', width: '55px', textAlign: 'center' }}>
+                            {lbl.text}
+                          </div>
+                        ))}
                       </div>
-                      <div className="box-content-center" style={{ fontSize: '9px', borderTop: '1px solid black', padding: '5px' }}>
+                      <div className="box-content-center" style={{ fontSize: '8.5px', borderTop: '1px solid black', padding: '4px 5px', lineHeight: '1.3' }}>
                         <div style={{ fontWeight: 'bold' }}>UBICACIÓN:</div>
-                        <div>CARTA TOPOGRÁFICA: {nombreCarta || '_________________'}</div>
-                        <div>CUADRÍCULA: {nombreCuadricula || '_________________'}</div>
-                        <div style={{ marginTop: '2px', fontWeight: 'bold' }}>ESCALA 1:50000</div>
+                        <div>CARTA TOPOGRÁFICA: {displayCarta || '_________________'}</div>
+                        <div style={{ marginTop: '1px' }}>ESCALA 1:50000</div>
+                        <div>CÓDIGO: {displayCuadricula || 'ZONA 17S'}</div>
                       </div>
                     </div>
 
@@ -888,17 +1259,18 @@ export default function ReportePlanimetrico() {
                           <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>RESP. TÉCNICO:</div>
                           <div style={{ textAlign: 'center', marginBottom: '2px' }}>
                             <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
-                            <div style={{ fontSize: '7px', fontWeight: 'bold' }}>{activeEmpresa?.nombre_director || '______________________'}</div>
+                            <div style={{ fontSize: '7px', fontWeight: 'bold', minHeight: '10px' }}>
+                              {activeEmpresa?.nombre_director || ' '}
+                            </div>
                           </div>
                         </div>
                         <div style={{ flex: 1, padding: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
                           <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>REVISADO Y APROBADO POR:</div>
                           <div style={{ textAlign: 'center', marginBottom: '2px' }}>
                             <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
-                            {/* Textos ocultos para igualar la altura de la caja izquierda y alinear la línea */}
-                            <div style={{ fontSize: '7px', fontWeight: 'bold', visibility: 'hidden' }}>Espacio</div>
-                            <div style={{ fontSize: '7px', visibility: 'hidden' }}>Espacio</div>
-                            <div style={{ fontSize: '7px' }}>Jefe de Avaluo y Catastro</div>
+                            <div style={{ fontSize: '7px', fontWeight: 'bold', minHeight: '10px', color: 'transparent', userSelect: 'none' }}>
+                              .
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1046,6 +1418,148 @@ export default function ReportePlanimetrico() {
               </div>
             </div>
           </div>
+
+          {/* VENTANA EMERGENTE DE PREVISUALIZACIÓN INTERACTIVA */}
+          {previewModal.isOpen && (
+            <div
+              className="no-print"
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                backdropFilter: 'blur(6px)',
+                zIndex: 99999,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '20px'
+              }}
+              onClick={() => setPreviewModal({ isOpen: false, type: 'plano' })}
+            >
+              <div
+                style={{
+                  background: 'white',
+                  borderRadius: '12px',
+                  width: '95vw',
+                  maxWidth: '1200px',
+                  height: '88vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                  border: '1px solid #e2e8f0',
+                  overflow: 'hidden'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header Modal - Tema Claro */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', color: '#0f172a' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
+                      <ZoomIn size={18} color="#0284c7" />
+                      {previewModal.type === 'plano' ? 'Previsualización Interactiva: Levantamiento Planimétrico' : 'Previsualización Interactiva: Carta Topográfica (Ubicación 1:50000)'}
+                    </h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+                      Rueda del mouse o botones para acercar (+), alejar (-) y mover. La lámina del reporte permanecerá fija con su escala oficial.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {/* Selector de capa en modal */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>Capa:</span>
+                      <select
+                        value={modalLayerType}
+                        onChange={(e) => setModalLayerType(e.target.value)}
+                        style={{ background: 'white', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '11px', padding: '2px 6px', fontWeight: '500' }}
+                      >
+                        <option value="cad">Carta CAD (.dxf)</option>
+                        <option value="satelital">Ortofoto / Satelital</option>
+                        <option value="osm">OpenStreetMap</option>
+                        <option value="blanco">Plano Blanco</option>
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={() => setPreviewModal({ isOpen: false, type: 'plano' })}
+                      style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: '6px', padding: '6px 12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+                    >
+                      <X size={14} /> Cerrar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Contenedor del Mapa Interactivo */}
+                <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                  <MapContainer
+                    center={center}
+                    zoom={previewModal.type === 'plano' ? 18 : 14}
+                    style={{ width: '100%', height: '100%' }}
+                    zoomControl={true}
+                    scrollWheelZoom={true}
+                    doubleClickZoom={true}
+                    dragging={true}
+                    touchZoom={true}
+                  >
+                    {modalLayerType === 'osm' && (
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+                    )}
+                    {modalLayerType === 'satelital' && (
+                      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                    )}
+                    {modalLayerType === 'cad' && cadGeoJson && (
+                      <GeoJSON
+                        key={'modal_cad_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
+                        data={cadGeoJson}
+                        style={(feature) => {
+                          const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
+                          if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.8, opacity: 0.6 };
+                          if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.4, opacity: 0.9 };
+                          if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.2, opacity: 0.9 };
+                          if (capa.includes('CURVA') || capa.includes('NIVEL')) return { color: '#ca8a04', weight: 0.7, opacity: 0.8 };
+                          return { color: '#475569', weight: 0.8, opacity: 0.7 };
+                        }}
+                        pointToLayer={(feature, latlng) => {
+                          const textVal = feature?.properties?.texto || feature?.properties?.text;
+                          if (textVal) {
+                            return L.marker(latlng, {
+                              icon: L.divIcon({
+                                className: 'cad-text-label',
+                                html: `<div style="font-size: 8px; font-weight: bold; color: #0f172a; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
+                                iconSize: [0, 0]
+                              })
+                            });
+                          }
+                          return L.circleMarker(latlng, { radius: 2, color: '#64748b', weight: 1 });
+                        }}
+                      />
+                    )}
+
+                    <UtmGrid isMinimap={previewModal.type === 'minimapa'} />
+                    <Polygon positions={polygonCoords} pathOptions={{ color: '#0f172a', weight: 3, fillColor: '#f97316', fillOpacity: 0.35 }} />
+
+                    {/* Vértices del Predio */}
+                    {vertices.map(v => {
+                      let lat = 0, lng = 0;
+                      if (v.geom_wkt) {
+                        try {
+                          const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
+                          lng = parseFloat(parts[0]);
+                          lat = parseFloat(parts[1]);
+                        } catch (e) { }
+                      }
+                      if (!lat || !lng) return null;
+                      return (
+                        <Marker key={v.id} position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label', 7, 11, lat, lng, center[0], center[1])} />
+                      );
+                    })}
+                  </MapContainer>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
