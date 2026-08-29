@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FileSpreadsheet, UploadCloud, Trash2, Edit2, X, Check, Eye, Map, Layers, RefreshCw, Loader2, CheckCircle2, FileText, Search } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { showSuccess, showError } from '../../utils/swal';
@@ -99,12 +99,16 @@ export default function CartasTopograficas() {
     }
   };
 
-  const filteredArchivos = archivosCad.filter(a => 
-    a.nombre_archivo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (a.nombre && a.nombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (a.codigo && a.codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (a.capas && a.capas.some(c => c.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
+  const filteredArchivos = useMemo(() => {
+    if (!searchTerm.trim()) return archivosCad;
+    const term = searchTerm.toLowerCase();
+    return archivosCad.filter(a => 
+      a.nombre_archivo?.toLowerCase().includes(term) ||
+      (a.nombre && a.nombre.toLowerCase().includes(term)) ||
+      (a.codigo && a.codigo.toLowerCase().includes(term)) ||
+      (a.capas && a.capas.some(c => c.toLowerCase().includes(term)))
+    );
+  }, [archivosCad, searchTerm]);
 
   return (
     <div className="cartas-container">

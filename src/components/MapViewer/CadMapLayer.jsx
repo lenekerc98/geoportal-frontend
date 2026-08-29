@@ -17,6 +17,37 @@ export default function CadMapLayer({ geojsonData, isVisible = true }) {
     };
   }, [geojsonData, isVisible]);
 
+  // Memoizar marcadores de texto para evitar saturar el DOM de Leaflet
+  const renderedMarkers = useMemo(() => {
+    if (!textFeatures || textFeatures.length === 0) return null;
+    const visibleTexts = textFeatures.slice(0, 300);
+
+    return visibleTexts.map((f, idx) => {
+      const coords = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+      const texto = f.properties.texto;
+      const layer = (f.properties.capa_cad || '').toUpperCase();
+
+      let textColor = '#0f172a';
+      let fontSize = 10;
+      if (layer === 'VALORCUADRICULAR') {
+        textColor = '#1e40af';
+        fontSize = 9.5;
+      } else if (layer === 'PROYECCION') {
+        textColor = '#065f46';
+        fontSize = 8.5;
+      }
+
+      const icon = L.divIcon({
+        className: 'cad-text-label',
+        html: `<div style="font-size: ${fontSize}px; font-weight: bold; color: ${textColor}; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff; pointer-events: none; user-select: none;">${texto}</div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      });
+
+      return <Marker key={`cad-text-${idx}-${layer}`} position={coords} icon={icon} interactive={false} />;
+    });
+  }, [textFeatures]);
+
   if (!isVisible || !geojsonData) return null;
 
   return (
@@ -64,31 +95,8 @@ export default function CadMapLayer({ geojsonData, isVisible = true }) {
         />
       )}
 
-      {/* Renderizado de Textos / Anotaciones del CAD con divIcon */}
-      {textFeatures.map((f, idx) => {
-        const coords = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
-        const texto = f.properties.texto;
-        const layer = (f.properties.capa_cad || '').toUpperCase();
-
-        let textColor = '#0f172a';
-        let fontSize = 10;
-        if (layer === 'VALORCUADRICULAR') {
-          textColor = '#1e40af';
-          fontSize = 9.5;
-        } else if (layer === 'PROYECCION') {
-          textColor = '#065f46';
-          fontSize = 8.5;
-        }
-
-        const icon = L.divIcon({
-          className: 'cad-text-label',
-          html: `<div style="font-size: ${fontSize}px; font-weight: bold; color: ${textColor}; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff; pointer-events: none; user-select: none;">${texto}</div>`,
-          iconSize: [0, 0],
-          iconAnchor: [0, 0]
-        });
-
-        return <Marker key={`cad-text-${idx}-${layer}`} position={coords} icon={icon} interactive={false} />;
-      })}
+      {/* Renderizado de Textos / Anotaciones del CAD */}
+      {renderedMarkers}
     </>
   );
 }

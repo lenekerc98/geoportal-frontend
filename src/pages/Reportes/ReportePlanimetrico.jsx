@@ -13,6 +13,9 @@ import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import './ReportePlanimetrico.css';
 
+// Caché en memoria para evitar re-descargas pesadas de capas CAD GeoJSON
+const cadGeoJsonCache = new Map();
+
 // Helper: Crear icono de texto Leaflet
 const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, lng = 0, centerLat = 0, centerLng = 0) => {
   const dy = lat - centerLat;
@@ -303,14 +306,19 @@ export default function ReportePlanimetrico() {
 
   const fetchCadGeoJson = useCallback(async (archivo) => {
     if (!archivo) return;
+    if (cadGeoJsonCache.has(archivo)) {
+      setCadGeoJson(cadGeoJsonCache.get(archivo));
+      return;
+    }
     try {
       setIsLoadingCad(true);
       const token = localStorage.getItem('catastro_token');
-      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}`, {
+      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}&simplify=1.5`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const json = await res.json();
+        cadGeoJsonCache.set(archivo, json);
         setCadGeoJson(json);
       }
     } catch (e) {
@@ -983,7 +991,7 @@ export default function ReportePlanimetrico() {
                         </button>
 
                         {polygonCoords.length > 0 && (
-                          <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                          <MapContainer preferCanvas={true} center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                             <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                             <UtmGrid setMapGridLabels={setMapGridLabels} />
 
@@ -1141,7 +1149,7 @@ export default function ReportePlanimetrico() {
                             <Maximize2 size={10} /> Previsualizar
                           </button>
 
-                          <MapContainer center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                          <MapContainer preferCanvas={true} center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                             {fondoMinimapa === 'osm' && (
                               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
                             )}
@@ -1164,7 +1172,7 @@ export default function ReportePlanimetrico() {
                                 }}
                                 pointToLayer={(feature, latlng) => {
                                   const textVal = feature?.properties?.texto || feature?.properties?.text;
-                                  if (textVal) {
+                                  if (textVal && String(textVal).trim()) {
                                     return L.marker(latlng, {
                                       icon: L.divIcon({
                                         className: 'cad-text-label',
@@ -1173,7 +1181,7 @@ export default function ReportePlanimetrico() {
                                       })
                                     });
                                   }
-                                  return L.circleMarker(latlng, { radius: 1.5, color: '#64748b', weight: 1, opacity: 0.5 });
+                                  return null;
                                 }}
                               />
                             )}
@@ -1494,6 +1502,7 @@ export default function ReportePlanimetrico() {
                 {/* Contenedor del Mapa Interactivo */}
                 <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                   <MapContainer
+                    preferCanvas={true}
                     center={center}
                     zoom={previewModal.type === 'plano' ? 18 : 14}
                     style={{ width: '100%', height: '100%' }}
@@ -1523,7 +1532,7 @@ export default function ReportePlanimetrico() {
                         }}
                         pointToLayer={(feature, latlng) => {
                           const textVal = feature?.properties?.texto || feature?.properties?.text;
-                          if (textVal) {
+                          if (textVal && String(textVal).trim()) {
                             return L.marker(latlng, {
                               icon: L.divIcon({
                                 className: 'cad-text-label',
@@ -1532,7 +1541,7 @@ export default function ReportePlanimetrico() {
                               })
                             });
                           }
-                          return L.circleMarker(latlng, { radius: 2, color: '#64748b', weight: 1 });
+                          return null;
                         }}
                       />
                     )}
