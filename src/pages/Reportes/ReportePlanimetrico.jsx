@@ -11,6 +11,7 @@ import { API_URL } from '../../services/api';
 import { getOfflinePredioById } from '../../services/offlineDB';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
+import { escapeHtml } from '../../utils/sanitize';
 import './ReportePlanimetrico.css';
 
 // Caché en memoria para evitar re-descargas pesadas de capas CAD GeoJSON
@@ -29,11 +30,13 @@ const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, 
   const offsetX = Math.cos(angle) * dist;
   const offsetY = Math.sin(angle) * dist;
 
+  const safeText = escapeHtml(text);
+
   return L.divIcon({
     className: className,
     html: `
       <div style="position: relative; width: ${pointSize}px; height: ${pointSize}px; background: #ffb6c1; border: 1px solid black; border-radius: 50%;">
-        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px); font-size: ${textSize}px; font-weight: bold; color: black; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">${text}</span>
+        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px); font-size: ${textSize}px; font-weight: bold; color: black; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">${safeText}</span>
       </div>
     `,
     iconSize: [pointSize, pointSize],
@@ -59,15 +62,18 @@ const createRotatedTextIcon = (colindante, medida, p1, p2, centerLat, centerLng)
   const offCx = Math.cos(outAngle) * offsetColindante;
   const offCy = Math.sin(outAngle) * offsetColindante;
 
+  const safeMedida = escapeHtml(medida);
+  const safeColindante = escapeHtml(colindante);
+
   return L.divIcon({
     className: 'lindero-rotated',
     html: `
       <div style="position: absolute; transform: translate(-50%, -50%) translate(${offMx}px, ${offMy}px) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; color: #37474f; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
-        ${medida}
+        ${safeMedida}
       </div>
       ${colindante ? `
       <div style="position: absolute; transform: translate(-50%, -50%) translate(${offCx}px, ${offCy}px) rotate(${angle}deg); white-space: nowrap; font-size: 10px; font-weight: bold; color: #1a237e; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;">
-        ${colindante}
+        ${safeColindante}
       </div>` : ''}
     `,
     iconSize: [0, 0],

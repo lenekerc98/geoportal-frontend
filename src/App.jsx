@@ -43,6 +43,14 @@ const reportErrorToBackend = async (errorMsg) => {
   }
 };
 
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('catastro_token');
+  if (!token) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 export default function App() {
   const [fatalError, setFatalError] = useState(localStorage.getItem('catastro_fatal_error'));
 
@@ -122,10 +130,10 @@ export default function App() {
             <Route path="/proyectos" element={<ProjectsManager />} />
           </Route>
           
-          <Route path="/reporte/planimetrico/:id" element={<ReportePlanimetrico />} />
-          <Route path="/reporte/planimetrico/codigo/:codigo" element={<ReportePlanimetrico />} />
+          <Route path="/reporte/planimetrico/:id" element={<ProtectedRoute><ReportePlanimetrico /></ProtectedRoute>} />
+          <Route path="/reporte/planimetrico/codigo/:codigo" element={<ProtectedRoute><ReportePlanimetrico /></ProtectedRoute>} />
           
-          <Route path="/reporte/linderacion/codigo/:codigo" element={<ReporteLinderacion />} />
+          <Route path="/reporte/linderacion/codigo/:codigo" element={<ProtectedRoute><ReporteLinderacion /></ProtectedRoute>} />
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

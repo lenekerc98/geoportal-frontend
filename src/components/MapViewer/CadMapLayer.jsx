@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { GeoJSON, Marker } from 'react-leaflet';
 import L from 'leaflet';
+import { escapeHtml } from '../../utils/sanitize';
 
 export default function CadMapLayer({ geojsonData, isVisible = true }) {
   // Separar puntos de texto y geometrías vectoriales
@@ -39,7 +40,7 @@ export default function CadMapLayer({ geojsonData, isVisible = true }) {
 
       const icon = L.divIcon({
         className: 'cad-text-label',
-        html: `<div style="font-size: ${fontSize}px; font-weight: bold; color: ${textColor}; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff; pointer-events: none; user-select: none;">${texto}</div>`,
+        html: `<div style="font-size: ${fontSize}px; font-weight: bold; color: ${textColor}; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff; pointer-events: none; user-select: none;">${escapeHtml(texto)}</div>`,
         iconSize: [0, 0],
         iconAnchor: [0, 0]
       });

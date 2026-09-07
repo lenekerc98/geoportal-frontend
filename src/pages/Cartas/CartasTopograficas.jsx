@@ -102,7 +102,7 @@ export default function CartasTopograficas() {
   const filteredArchivos = useMemo(() => {
     if (!searchTerm.trim()) return archivosCad;
     const term = searchTerm.toLowerCase();
-    return archivosCad.filter(a => 
+    return archivosCad.filter(a =>
       a.nombre_archivo?.toLowerCase().includes(term) ||
       (a.nombre && a.nombre.toLowerCase().includes(term)) ||
       (a.codigo && a.codigo.toLowerCase().includes(term)) ||
@@ -121,17 +121,17 @@ export default function CartasTopograficas() {
         </div>
 
         <div className="cartas-actions">
-          <button 
-            type="button" 
-            className="btn-refresh" 
+          <button
+            type="button"
+            className="btn-refresh"
             onClick={fetchArchivos}
             title="Refrescar lista"
           >
             <RefreshCw size={18} className={loading ? "spin" : ""} />
           </button>
 
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="btn-upload-cad"
             onClick={() => setShowUploader(true)}
           >
@@ -143,9 +143,9 @@ export default function CartasTopograficas() {
       <div className="cartas-toolbar">
         <div className="cartas-search">
           <Search size={18} color="#94a3b8" />
-          <input 
-            type="text" 
-            placeholder="Buscar por nombre de carta, archivo o capa..." 
+          <input
+            type="text"
+            placeholder="Buscar por nombre de carta, archivo o capa..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -166,8 +166,8 @@ export default function CartasTopograficas() {
           <FileSpreadsheet size={48} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
           <h3>No hay cartas topográficas registradas</h3>
           <p>Sube un archivo de AutoCAD (.dxf) para guardar sus entidades vectoriales y asociarlas a los reportes planimétricos.</p>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="btn-upload-cad"
             onClick={() => setShowUploader(true)}
             style={{ marginTop: '15px' }}
@@ -208,7 +208,7 @@ export default function CartasTopograficas() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <button 
+                    <button
                       type="button"
                       className="btn-edit-carta"
                       onClick={() => handleOpenEdit(archivo)}
@@ -218,7 +218,7 @@ export default function CartasTopograficas() {
                       <Edit2 size={14} /> Editar
                     </button>
 
-                    <button 
+                    <button
                       type="button"
                       className="btn-delete-carta"
                       onClick={() => handleDelete(archivo.nombre_archivo)}
@@ -258,7 +258,7 @@ export default function CartasTopograficas() {
 
       {/* MODAL DE EDICIÓN DE METADATOS (TEMA CLARO) */}
       {editingCarta && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -275,7 +275,7 @@ export default function CartasTopograficas() {
           }}
           onClick={() => setEditingCarta(null)}
         >
-          <div 
+          <div
             style={{
               background: 'white',
               borderRadius: '12px',
@@ -295,7 +295,7 @@ export default function CartasTopograficas() {
                   Editar Carta Topográfica
                 </h3>
               </div>
-              <button 
+              <button
                 onClick={() => setEditingCarta(null)}
                 style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}
               >
@@ -313,7 +313,7 @@ export default function CartasTopograficas() {
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#334155', marginBottom: '4px' }}>
                   Nombre Oficial de la Carta:
                 </label>
-                <input 
+                <input
                   type="text"
                   value={editingCarta.nombre}
                   onChange={(e) => setEditingCarta({ ...editingCarta, nombre: e.target.value.toUpperCase() })}
@@ -330,7 +330,7 @@ export default function CartasTopograficas() {
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#334155', marginBottom: '4px' }}>
                     Código de Carta:
                   </label>
-                  <input 
+                  <input
                     type="text"
                     value={editingCarta.codigo}
                     onChange={(e) => setEditingCarta({ ...editingCarta, codigo: e.target.value.toUpperCase() })}
@@ -343,7 +343,7 @@ export default function CartasTopograficas() {
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#334155', marginBottom: '4px' }}>
                     Cuadrícula:
                   </label>
-                  <input 
+                  <input
                     type="text"
                     value={editingCarta.cuadricula}
                     onChange={(e) => setEditingCarta({ ...editingCarta, cuadricula: e.target.value.toUpperCase() })}
@@ -367,14 +367,14 @@ export default function CartasTopograficas() {
 
             {/* Footer Modal */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-              <button 
+              <button
                 type="button"
                 onClick={() => setEditingCarta(null)}
                 style={{ padding: '7px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={handleSaveMetadata}
                 disabled={savingEdit}
@@ -389,7 +389,7 @@ export default function CartasTopograficas() {
       )}
 
       {showUploader && (
-        <CadUploaderModal 
+        <CadUploaderModal
           onClose={() => setShowUploader(false)}
           onSuccess={() => {
             fetchArchivos();
