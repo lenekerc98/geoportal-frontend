@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileSpreadsheet, UploadCloud, Trash2, Edit2, X, Check, Eye, Map, Layers, RefreshCw, Loader2, CheckCircle2, FileText, Search } from 'lucide-react';
+import { FileSpreadsheet, UploadCloud, Trash2, Edit2, X, Check, Eye, Map, Layers, RefreshCw, Loader2, CheckCircle2, FileText, Search, ShieldAlert } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { showSuccess, showError } from '../../utils/swal';
 import CadUploaderModal from '../../components/MapViewer/CadUploaderModal';
@@ -13,7 +13,37 @@ export default function CartasTopograficas() {
   const [selectedArchivo, setSelectedArchivo] = useState(null);
   const [editingCarta, setEditingCarta] = useState(null); // { nombre_archivo, codigo, nombre, cuadricula, escala }
   const [savingEdit, setSavingEdit] = useState(false);
+  const [hasAccess, setHasAccess] = useState(true);
   const authToken = localStorage.getItem('catastro_token');
+
+  useEffect(() => {
+    if (!authToken) return;
+    try {
+      const payload = JSON.parse(atob(authToken.split('.')[1]));
+      const role = (payload.role || '').toLowerCase();
+      if (role !== 'superadmin' && role !== 'superadministrador') {
+        if (payload.permisos && payload.permisos.cartas_topograficas === false) {
+          setHasAccess(false);
+        }
+      }
+    } catch (e) {}
+
+    fetch(`${API_URL}/api/users/me/`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(userData => {
+        const role = (userData?.rol?.nombre || '').toLowerCase();
+        if (role !== 'superadmin' && role !== 'superadministrador') {
+          if (userData?.rol?.permisos?.cartas_topograficas === false) {
+            setHasAccess(false);
+          } else {
+            setHasAccess(true);
+          }
+        }
+      })
+      .catch(console.error);
+  }, [authToken]);
 
   const fetchArchivos = useCallback(async () => {
     try {
@@ -109,6 +139,25 @@ export default function CartasTopograficas() {
       (a.capas && a.capas.some(c => c.toLowerCase().includes(term)))
     );
   }, [archivosCad, searchTerm]);
+
+  if (!hasAccess) {
+    return (
+      <div className="cartas-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', padding: '40px 20px' }}>
+        <ShieldAlert size={64} style={{ color: 'var(--danger, #ef4444)', marginBottom: '16px' }} />
+        <h2 style={{ fontSize: '22px', fontWeight: 'bold', color: 'var(--text-main)', margin: '0 0 8px 0' }}>Acceso Restringido</h2>
+        <p style={{ color: 'var(--text-muted)', maxWidth: '440px', margin: '0 0 24px 0', fontSize: '14px', lineHeight: '1.5' }}>
+          Tu rol no cuenta con los permisos necesarios para visualizar o administrar el módulo de Cartas Topográficas.
+        </p>
+        <button 
+          onClick={() => window.location.href = '/geoportal'}
+          className="btn-upload-cad"
+          style={{ padding: '10px 24px', borderRadius: '8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Map size={18} /> Volver al Geoportal
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="cartas-container">

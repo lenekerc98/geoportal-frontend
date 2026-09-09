@@ -14,6 +14,7 @@ export default function SystemParams() {
   const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
   const [empresaConfig, setEmpresaConfig] = useState({ 
     modo_historico: 'automatico',
+    capa_predios_activa: true,
     logo_url: '',
     nombre_alcalde: '',
     nombre_director: '',
@@ -27,6 +28,7 @@ export default function SystemParams() {
     if (activeEmpresa) {
       setEmpresaConfig({
         modo_historico: activeEmpresa.parametros?.modo_historico || 'automatico',
+        capa_predios_activa: activeEmpresa.parametros?.capa_predios_activa !== undefined ? Boolean(activeEmpresa.parametros.capa_predios_activa) : true,
         logo_url: activeEmpresa.logo_url || '',
         nombre_alcalde: activeEmpresa.nombre_alcalde || '',
         nombre_director: activeEmpresa.nombre_director || '',
@@ -43,7 +45,11 @@ export default function SystemParams() {
     try {
       const token = localStorage.getItem('catastro_token');
       const updateData = {
-          parametros: { ...activeEmpresa.parametros, modo_historico: empresaConfig.modo_historico },
+          parametros: { 
+            ...activeEmpresa.parametros, 
+            modo_historico: empresaConfig.modo_historico,
+            capa_predios_activa: empresaConfig.capa_predios_activa
+          },
           logo_url: empresaConfig.logo_url || null,
           nombre_alcalde: empresaConfig.nombre_alcalde || null,
           nombre_director: empresaConfig.nombre_director || null,
@@ -124,6 +130,21 @@ export default function SystemParams() {
                 </select>
                 <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-muted)' }}>
                   Si seleccionas "Manual", aparecerá un campo de fecha opcional al subir un Shapefile.
+                </small>
+              </div>
+
+              <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-lighter)', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox"
+                    checked={empresaConfig.capa_predios_activa}
+                    onChange={(e) => setEmpresaConfig({...empresaConfig, capa_predios_activa: e.target.checked})}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span>Capa Predios (Polígonos) encendida por defecto</span>
+                </label>
+                <small style={{ display: 'block', marginTop: '6px', color: 'var(--text-muted)', marginLeft: '28px' }}>
+                  Al ingresar al Geoportal, la capa de polígonos de predios se mostrará encendida automáticamente.
                 </small>
               </div>
 

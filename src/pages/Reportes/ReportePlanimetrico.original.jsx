@@ -626,7 +626,7 @@ export default function ReportePlanimetrico() {
 
   const renderLinderoText = (l) => {
     const tramoStr = (l.tramo || '').replace(' - ', ' al ');
-    return `Del ${tramoStr} con una distancia de ${l.longitud ? l.longitud.toFixed(1) : '0.0'} m, Rumbo ${l.rumbo || '-'}; ${l.colindante || ''}`;
+    return `Del ${tramoStr} con una distancia de ${l.longitud ? l.longitud.toFixed(2) : '0.00'} m, Rumbo ${l.rumbo || '-'}; ${l.colindante || ''}`;
   };
 
   const currentDate = new Date().toLocaleDateString('es-ES');
@@ -654,7 +654,6 @@ export default function ReportePlanimetrico() {
 
   // Zoom del reporte (documento)
   const [reportZoom, setReportZoom] = useState(window.innerWidth <= 768 ? 0.4 : 1);
-  const [showToolsPanel, setShowToolsPanel] = useState(false);
   const [textAngleOffset, setTextAngleOffset] = useState(0);
 
   useEffect(() => {
@@ -696,241 +695,146 @@ export default function ReportePlanimetrico() {
   return (
     <div className="report-wrapper" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* HEADER BAR SLIM & MODERNO (1 SOLA FILA) */}
-      <header className="report-header-bar no-print">
-        {/* Izquierda: Volver */}
-        <div className="rh-left">
-          <button className="rh-btn" onClick={() => navigate('/geoportal')} title="Regresar al Geoportal / Mapa">
+      {/* BARRA DE CONTROLES ATLAS DE NAVEGACIÓN */}
+      <div className="report-controls no-print">
+        {/* FILA 1: Volver */}
+        <div className="rc-row rc-back" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button className="rc-btn-back" onClick={() => navigate('/geoportal')} title="Regresar al Geoportal / Mapa">
             <ChevronLeft size={16} /> Volver al Geoportal
           </button>
           <button
-            className="rh-btn-subtle"
+            className="rc-btn-back"
             onClick={() => navigate('/reporteria')}
+            style={{ background: 'transparent', border: '1px solid #cbd5e1', color: '#64748b' }}
             title="Ir al listado de reportes"
           >
             Reportería
           </button>
         </div>
 
-        {/* Centro: Navegador Atlas Rápido */}
-        <div className="rh-center">
-          <span className="rh-atlas-tag">ATLAS</span>
-          <button className="rh-nav-btn" onClick={goFirst} disabled={currentIndex <= 0} title="Primer predio">
-            <ChevronsLeft size={15} />
+        {/* FILA 2: Atlas navegación */}
+        <div className="rc-row rc-atlas">
+          <span className="rc-label">ATLAS</span>
+          <div className="rc-atlas-nav">
+            <button className="rc-btn-nav" onClick={goFirst} disabled={currentIndex <= 0}><ChevronsLeft size={16} /></button>
+            <button className="rc-btn-nav" onClick={goPrev} disabled={currentIndex <= 0}><ChevronLeft size={16} /></button>
+            <select className="rc-select-atlas" value={codigo || predio?.codigo || ''} onChange={(e) => navigate(`/reporte/planimetrico/codigo/${e.target.value}`)}>
+              {allPredios.map(p => (
+                <option key={p.codigo} value={p.codigo}>{p.codigo} ({p.nombre_posesionario || 'SIN NOMBRE'})</option>
+              ))}
+            </select>
+            <span className="rc-counter">{currentIndex + 1} / {allPredios.length}</span>
+            <button className="rc-btn-nav" onClick={goNext} disabled={currentIndex >= allPredios.length - 1}><ChevronRight size={16} /></button>
+            <button className="rc-btn-nav" onClick={goLast} disabled={currentIndex >= allPredios.length - 1}><ChevronsRight size={16} /></button>
+          </div>
+        </div>
+
+        {/* FILA 3: Escala Mapa */}
+        <div className="rc-row rc-scale">
+          <span className="rc-label">Escala Mapa</span>
+          <div className="rc-scale-controls">
+            <select className="rc-select" value={scale} onChange={(e) => setScale(e.target.value)}>
+              {predefinedScales.map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="custom">Manual...</option>
+            </select>
+            {scale === 'custom' && (
+              <input type="text" className="rc-input" placeholder="1:..." value={customScale} onChange={(e) => setCustomScale(e.target.value)} style={{ width: '80px' }} />
+            )}
+          </div>
+        </div>
+
+        {/* FILA 4: Punto y Texto */}
+        <div className="rc-row rc-sizes">
+          <span className="rc-label">Punto (px)</span>
+          <input type="number" className="rc-input" min="1" max="20" value={pointSize} onChange={(e) => setPointSize(Number(e.target.value))} />
+          <span className="rc-label" style={{ marginLeft: '10px' }}>Texto</span>
+          <input type="number" className="rc-input" min="5" max="30" value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} />
+        </div>
+
+        {/* FILA 5: Zoom Documento */}
+        <div className="rc-row rc-zoom">
+          <span className="rc-label">Zoom Documento:</span>
+          <div className="rc-scale-controls">
+            <button className="rc-btn-nav" onClick={() => setReportZoom(z => Math.max(0.2, z - 0.2))}>-</button>
+            <span className="rc-counter" style={{ width: '40px', textAlign: 'center' }}>{Math.round(reportZoom * 100)}%</span>
+            <button className="rc-btn-nav" onClick={() => setReportZoom(z => Math.min(3, z + 0.2))}>+</button>
+          </div>
+          <span className="rc-label" style={{ marginLeft: '10px' }}>Ángulo Texto:</span>
+          <div className="rc-scale-controls">
+            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => (a - 15 + 360) % 360 || 360)}>-</button>
+            <input
+              type="number"
+              className="rc-counter"
+              style={{ width: '45px', textAlign: 'center', border: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+              value={textAngleOffset}
+              onChange={(e) => {
+                let val = parseInt(e.target.value);
+                if (isNaN(val)) val = 0;
+                setTextAngleOffset((val % 360 + 360) % 360 || 360);
+              }}
+            />
+            <span style={{ marginLeft: '-5px', fontSize: '11px', color: '#64748b' }}>°</span>
+            <button className="rc-btn-nav" onClick={() => setTextAngleOffset(a => (a + 15) % 360 || 360)}>+</button>
+          </div>
+          <button className="rc-btn-nav" onClick={handleSaveAngle} style={{ marginLeft: '5px', padding: '0 8px', fontSize: '11px' }}>
+            Guardar
           </button>
-          <button className="rh-nav-btn" onClick={goPrev} disabled={currentIndex <= 0} title="Predio anterior">
-            <ChevronLeft size={15} />
-          </button>
+        </div>
+
+        {/* FILA 6: Fondo de Carta Referencial (Minimapa) */}
+        <div className="rc-row rc-layers" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="rc-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Layers size={14} /> Fondo Carta Referencial:
+          </span>
           <select
-            className="rh-select-predio"
-            value={codigo || predio?.codigo || ''}
-            onChange={(e) => navigate(`/reporte/planimetrico/codigo/${e.target.value}`)}
+            className="rc-select"
+            value={fondoMinimapa}
+            onChange={(e) => setFondoMinimapa(e.target.value)}
+            style={{ fontSize: '12px', padding: '3px 8px', borderRadius: '4px' }}
           >
-            {allPredios.map(p => (
-              <option key={p.codigo} value={p.codigo}>
-                {p.codigo} - {p.nombre_posesionario || 'SIN NOMBRE'}
-              </option>
-            ))}
+            <option value="cad">Carta Topográfica CAD (.dxf)</option>
+            <option value="osm">OpenStreetMap</option>
+            <option value="satelital">Ortofoto / Satelital</option>
+            <option value="blanco">Solo Cuadrícula</option>
           </select>
-          <span className="rh-counter">{currentIndex + 1} / {allPredios.length}</span>
-          <button className="rh-nav-btn" onClick={goNext} disabled={currentIndex >= allPredios.length - 1} title="Siguiente predio">
-            <ChevronRight size={15} />
-          </button>
-          <button className="rh-nav-btn" onClick={goLast} disabled={currentIndex >= allPredios.length - 1} title="Último predio">
-            <ChevronsRight size={15} />
-          </button>
-        </div>
 
-        {/* Derecha: Botón de Herramientas y Botón Imprimir */}
-        <div className="rh-right">
-          <button
-            type="button"
-            className={`rh-btn-toggle ${showToolsPanel ? 'active' : ''}`}
-            onClick={() => setShowToolsPanel(prev => !prev)}
-            title="Abrir u ocultar panel flotante de herramientas"
-          >
-            <Layers size={16} color={showToolsPanel ? '#2563eb' : '#475569'} />
-            <span>Opciones / Capas</span>
-          </button>
-          <button
-            type="button"
-            className="rh-btn-print"
-            onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }}
-            disabled={!data}
-            title="Imprimir plano en PDF"
-          >
-            <Printer size={16} />
-            <span>Imprimir PDF</span>
-          </button>
-        </div>
-      </header>
-
-      {/* VENTANA FLOTANTE TIPO CAPAS (HERRAMIENTAS DEL ATLAS) */}
-      {showToolsPanel && (
-        <div className="report-floating-panel no-print">
-          <div className="rfp-header">
-            <div className="rfp-title">
-              <Layers size={16} color="#2563eb" />
-              <span>Opciones del Atlas</span>
-            </div>
-            <button
-              type="button"
-              className="rfp-close-btn"
-              onClick={() => setShowToolsPanel(false)}
-              title="Minimizar panel"
+          {fondoMinimapa === 'cad' && cadArchivosList.length > 0 && (
+            <select
+              className="rc-select"
+              value={selectedCadFile}
+              onChange={(e) => setSelectedCadFile(e.target.value)}
+              style={{ fontSize: '11px', maxWidth: '220px', padding: '3px 6px', borderRadius: '4px' }}
+              title="Seleccionar Carta CAD de Fondo"
             >
-              <X size={16} />
-            </button>
-          </div>
+              {cadArchivosList.map(a => (
+                <option key={a.nombre_archivo} value={a.nombre_archivo}>
+                  {a.nombre_archivo} ({a.total_elementos || 0} ent.)
+                </option>
+              ))}
+            </select>
+          )}
 
-          <div className="rfp-body">
-            {/* Sección 1: Escala Cartográfica */}
-            <div className="rfp-group">
-              <label className="rfp-label">Escala Cartográfica:</label>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <select className="rfp-select" value={scale} onChange={(e) => setScale(e.target.value)}>
-                  {predefinedScales.map(s => <option key={s} value={s}>{s}</option>)}
-                  <option value="custom">Manual...</option>
-                </select>
-                {scale === 'custom' && (
-                  <input
-                    type="text"
-                    className="rfp-input"
-                    placeholder="1:..."
-                    value={customScale}
-                    onChange={(e) => setCustomScale(e.target.value)}
-                    style={{ width: '85px' }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Sección 2: Simbología (Punto y Texto) */}
-            <div className="rfp-group">
-              <label className="rfp-label">Simbología en Mapa:</label>
-              <div className="rfp-grid-2">
-                <div>
-                  <span className="rfp-sublabel">Punto (px)</span>
-                  <input
-                    type="number"
-                    className="rfp-input"
-                    min="1"
-                    max="20"
-                    value={pointSize}
-                    onChange={(e) => setPointSize(Number(e.target.value))}
-                    style={{ width: '100%' }}
-                  />
-                </div>
-                <div>
-                  <span className="rfp-sublabel">Texto (pt)</span>
-                  <input
-                    type="number"
-                    className="rfp-input"
-                    min="5"
-                    max="30"
-                    value={textSize}
-                    onChange={(e) => setTextSize(Number(e.target.value))}
-                    style={{ width: '100%' }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Sección 3: Ángulo de Rotación */}
-            <div className="rfp-group">
-              <label className="rfp-label">Rotación Etiqueta Central:</label>
-              <div className="rfp-stepper-row">
-                <button type="button" className="rfp-step-btn" onClick={() => setTextAngleOffset(a => (a - 15 + 360) % 360 || 360)}>-</button>
-                <div className="rfp-stepper-val">
-                  <input
-                    type="number"
-                    className="rfp-stepper-input"
-                    value={textAngleOffset}
-                    onChange={(e) => {
-                      let val = parseInt(e.target.value);
-                      if (isNaN(val)) val = 0;
-                      setTextAngleOffset((val % 360 + 360) % 360 || 360);
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>°</span>
-                </div>
-                <button type="button" className="rfp-step-btn" onClick={() => setTextAngleOffset(a => (a + 15) % 360 || 360)}>+</button>
-                <button type="button" className="rfp-save-btn" onClick={handleSaveAngle} title="Guardar ángulo en base de datos">
-                  Guardar
-                </button>
-              </div>
-            </div>
-
-            {/* Sección 4: Fondo Carta Referencial (Minimapa) */}
-            <div className="rfp-group">
-              <label className="rfp-label">Fondo Carta Referencial (Minimapa):</label>
-              <select
-                className="rfp-select"
-                value={fondoMinimapa}
-                onChange={(e) => setFondoMinimapa(e.target.value)}
-              >
-                <option value="cad">Carta Topográfica CAD (.dxf)</option>
-                <option value="osm">OpenStreetMap</option>
-                <option value="satelital">Ortofoto / Satelital</option>
-                <option value="blanco">Solo Cuadrícula</option>
-              </select>
-
-              {fondoMinimapa === 'cad' && cadArchivosList.length > 0 && (
-                <select
-                  className="rfp-select"
-                  value={selectedCadFile}
-                  onChange={(e) => setSelectedCadFile(e.target.value)}
-                  style={{ marginTop: '6px' }}
-                  title="Seleccionar Carta CAD de Fondo"
-                >
-                  {cadArchivosList.map(a => (
-                    <option key={a.nombre_archivo} value={a.nombre_archivo}>
-                      {a.nombre_archivo} ({a.total_elementos || 0} ent.)
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {fondoMinimapa === 'cad' && isLoadingCad && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#0284c7', marginTop: '5px' }}>
-                  <Loader2 size={12} className="spin" /> Cargando carta CAD...
-                </div>
-              )}
-
-              <button
-                type="button"
-                className="rfp-btn-action"
-                style={{ marginTop: '8px' }}
-                onClick={() => { setModalLayerType(fondoMinimapa); setPreviewModal({ isOpen: true, type: 'minimapa' }); }}
-              >
-                <Maximize2 size={14} color="#0284c7" /> Previsualizar Carta CAD
-              </button>
-            </div>
-
-            {/* Sección 5: Textos de Carta Topográfica */}
-            <div className="rfp-group">
-              <button
-                type="button"
-                className="rfp-btn-action"
-                onClick={() => setShowTextModal(true)}
-              >
-                Configurar Textos de Carta
-              </button>
-            </div>
-
-            {/* Sección 6: Zoom del Documento */}
-            <div className="rfp-group">
-              <label className="rfp-label">Zoom en Pantalla:</label>
-              <div className="rfp-stepper-row">
-                <button type="button" className="rfp-step-btn" onClick={() => setReportZoom(z => Math.max(0.2, z - 0.2))}>-</button>
-                <span className="rfp-zoom-val">{Math.round(reportZoom * 100)}%</span>
-                <button type="button" className="rfp-step-btn" onClick={() => setReportZoom(z => Math.min(3, z + 0.2))}>+</button>
-                <button type="button" className="rfp-step-btn" onClick={() => setReportZoom(1)} style={{ fontSize: '10px', width: 'auto', padding: '0 8px' }}>100%</button>
-              </div>
-            </div>
-          </div>
+          {fondoMinimapa === 'cad' && isLoadingCad && (
+            <Loader2 size={14} className="spin" color="#0284c7" />
+          )}
         </div>
-      )}
+
+        {/* FILA 7: Botones de acción */}
+        <div className="rc-row rc-actions">
+          <button className="rc-btn-outline" onClick={() => setShowTextModal(true)}>Textos Carta</button>
+          <button
+            className="rc-btn-outline"
+            onClick={() => { setModalLayerType(fondoMinimapa); setPreviewModal({ isOpen: true, type: 'minimapa' }); }}
+            title="Abrir ventana emergente interactiva para explorar la carta CAD"
+            style={{ color: '#0284c7', borderColor: '#bae6fd', background: '#f0f9ff' }}
+          >
+            <Maximize2 size={15} /> Previsualizar Carta CAD
+          </button>
+          <button className="rc-btn-primary" onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }} disabled={!data}>
+            <Printer size={18} /> Imprimir PDF
+          </button>
+        </div>
+      </div>
 
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', flexDirection: 'column' }}>
@@ -1164,7 +1068,7 @@ export default function ReportePlanimetrico() {
                                   if (points.length >= 2) {
                                     const midLat = (points[0][0] + points[1][0]) / 2;
                                     const midLng = (points[0][1] + points[1][1]) / 2;
-                                    const medida = `${l.longitud.toFixed(1)}m`;
+                                    const medida = `${l.longitud.toFixed(2)}m`;
 
                                     // Solo pasar el nombre del colindante si este es el segmento central del grupo
                                     const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
@@ -1395,10 +1299,14 @@ export default function ReportePlanimetrico() {
             {/* PÁGINA 2: TABLAS DE LINDEROS */}
             <div className="print-page">
               <div className="report-inner-border">
+                <div className="page2-header">
+                  <div className="page2-title">INFORME DE LINDERACIÓN</div>
+                  <div className="page2-title">DESCRIPCIÓN DE LINDEROS</div>
+                </div>
+
                 <div className="page2-body">
                   {/* LADO IZQUIERDO: TABLA VERTICES */}
                   <div className="page2-col-left">
-                    <div className="page2-title">INFORME DE LINDERACIÓN</div>
                     <div className="dpa-grid" style={{ border: '1px solid black', marginBottom: '10px' }}>
                       <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>PROVINCIA:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaProvincia}</div></div>
                       <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>CANTÓN:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaCanton}</div></div>
@@ -1448,10 +1356,10 @@ export default function ReportePlanimetrico() {
                           return (
                             <tr key={v.id || i}>
                               <td>{currentCode}</td>
-                              <td>{v.coord_x ? v.coord_x.toFixed(1) : '-'}</td>
-                              <td>{v.coord_y ? v.coord_y.toFixed(1) : '-'}</td>
+                              <td>{v.coord_x ? v.coord_x.toFixed(3) : '-'}</td>
+                              <td>{v.coord_y ? v.coord_y.toFixed(3) : '-'}</td>
                               <td>{desdeHasta}</td>
-                              <td>{l.longitud ? l.longitud.toFixed(1) : '-'}</td>
+                              <td>{l.longitud ? l.longitud.toFixed(2) : '-'}</td>
                               <td>{l.rumbo || '-'}</td>
                               <td style={{ fontSize: '8px' }}>{l.colindante || '-'}</td>
                             </tr>
@@ -1475,7 +1383,6 @@ export default function ReportePlanimetrico() {
 
                   {/* LADO DERECHO: DESCRIPCION ORIENTACION */}
                   <div className="page2-col-right" style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div className="page2-title">DESCRIPCIÓN DE LINDEROS</div>
                     <div className="desc-box">
                       <div className="desc-box-title">COLINDANTE NORTE</div>
                       <div className="desc-box-content">

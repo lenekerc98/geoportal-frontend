@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMapEvents, useMap, Polyline, CircleMarker, Polygon, Popup, Marker, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin, Clock, Database, Image, Map, Settings, Info, Boxes, Check, Sparkles, FileSpreadsheet, Scissors } from 'lucide-react';
+import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, Download, User, TableProperties, MousePointer2, UploadCloud, Loader2, FolderSearch, AlertCircle, CheckCircle2, Ruler, Edit, Menu, Navigation, ChevronDown, ChevronRight, DownloadCloud, Upload, ZoomIn, ZoomOut, Scan, Hexagon, Minus, MapPin, Clock, Database, Image, Map, Settings, Info, Boxes, Check, Sparkles, FileSpreadsheet } from 'lucide-react';
 import proj4 from 'proj4';
 import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
@@ -22,9 +22,6 @@ import DrawPolygonTool from '../../components/MapViewer/DrawPolygonTool';
 import QgisStatusBar from '../../components/MapViewer/QgisStatusBar';
 import S3BrowserModal from '../../components/S3BrowserModal';
 import ShapefileUploader from '../../components/MapViewer/ShapefileUploader';
-import SplitPolygonTool from '../../components/MapViewer/SplitPolygonTool';
-import SplitPredioModal from '../../components/MapViewer/SplitPredioModal';
-
 const getGeometryIcon = (tipo) => {
   if (!tipo) return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
   const t = tipo.toUpperCase();
@@ -381,14 +378,6 @@ function FeatureContextMenuComponent({ context, onClose, onAction }) {
               <TableProperties size={16} color="#eab308" /> Tabla de Atributos
             </div>
             <div style={{ borderTop: '1px solid var(--card-border)', margin: '5px 0' }}></div>
-            <div
-              onClick={(e) => { e.stopPropagation(); onAction('split', context.feature); onClose(); }}
-              style={{ padding: '10px 15px', color: '#f59e0b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem', fontWeight: '600' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <Scissors size={16} color="#f59e0b" /> Fraccionar / Desmembrar Lote
-            </div>
             <div
               onClick={(e) => { e.stopPropagation(); onAction('edit', context.feature); onClose(); }}
               style={{ padding: '10px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
@@ -1104,12 +1093,6 @@ export default function Geoportal() {
   const [reporteLinderacionCode, setReporteLinderacionCode] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
 
-  // Fraccionamiento de Predios
-  const [isSplittingPredio, setIsSplittingPredio] = useState(false);
-  const [splitTargetPredio, setSplitTargetPredio] = useState(null);
-  const [splitDataResult, setSplitDataResult] = useState(null);
-  const [showSplitModal, setShowSplitModal] = useState(false);
-
   // Búsqueda
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
@@ -1364,118 +1347,6 @@ export default function Geoportal() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEmpresa?.id, activeProyecto?.id]);
-
-  const handleStartFraccionamiento = () => {
-    if (isSplittingPredio) {
-      setIsSplittingPredio(false);
-      setSplitTargetPredio(null);
-      return;
-    }
-
-    let target = null;
-    if (selectedPredioId && prediosData?.features) {
-      target = prediosData.features.find(f => f.properties.id === selectedPredioId);
-    }
-
-    if (!target) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Seleccione un Predio',
-        text: 'Haga clic sobre un predio en el mapa para seleccionarlo, o haga clic derecho sobre el predio y elija "Fraccionar / Desmembrar Lote".',
-        confirmButtonColor: '#3b82f6'
-      });
-      return;
-    }
-
-    setIsSplittingPredio(true);
-    setSplitTargetPredio(target);
-    setIsMeasuring(false);
-    setIsAddingPredio(false);
-    setIsDrawingPredio(false);
-    setZoomMode(null);
-  };
-
-  const handleConfirmSplit = async (payload) => {
-    try {
-      Swal.fire({
-        title: 'Aplicando Fraccionamiento...',
-        text: 'Actualizando lote matriz y registrando la nueva fracción en la base de datos catastral.',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-      });
-
-      // 1. Actualizar Lote Matriz (Lote 1 Remanente)
-      const putRes = await fetch(`${API_URL}/api/gis/predios/${payload.matrizId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify({
-          cod_catastral: payload.lote1.cod_catastral,
-          geom_geojson: payload.lote1.geometry
-        })
-      });
-
-      if (!putRes.ok) {
-        const putErr = await putRes.json().catch(() => ({}));
-        throw new Error('Error al actualizar el lote matriz: ' + JSON.stringify(putErr));
-      }
-
-      // 2. Registrar la Nueva Fracción (Lote 2 Desmembrado)
-      const postBody = {
-        cod_catastral: payload.lote2.cod_catastral,
-        geom_geojson: payload.lote2.geometry,
-        empresa_id: payload.lote2.empresa_id || null,
-        proyecto_id: payload.lote2.proyecto_id || null
-      };
-
-      if (payload.lote2.posesionario_id) {
-        postBody.posesionario_id = payload.lote2.posesionario_id;
-      } else if (payload.lote2.cedula && payload.lote2.nombre) {
-        postBody.cedula_temporal = payload.lote2.cedula;
-        postBody.nombre_temporal = payload.lote2.nombre;
-      }
-
-      const postRes = await fetch(`${API_URL}/api/gis/predios`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify(postBody)
-      });
-
-      if (!postRes.ok) {
-        const postErr = await postRes.json().catch(() => ({}));
-        throw new Error('Error al crear la nueva fracción desmembrada: ' + JSON.stringify(postErr));
-      }
-
-      Swal.close();
-      await Swal.fire({
-        icon: 'success',
-        title: '¡Fraccionamiento Completado con Éxito!',
-        html: `
-          <div style="text-align: left; font-size: 13px; line-height: 1.6;">
-            <p>Se ha dividido el predio correctamente en 2 lotes:</p>
-            <ul style="padding-left: 20px;">
-              <li><b>Lote 1 (Remanente):</b> ${payload.lote1.cod_catastral} con <b>${payload.lote1.area_m2.toFixed(1)} m²</b> (${payload.lote1.area_ha.toFixed(4)} ha)</li>
-              <li><b>Lote 2 (Fracción):</b> ${payload.lote2.cod_catastral} con <b>${payload.lote2.area_m2.toFixed(1)} m²</b> (${payload.lote2.area_ha.toFixed(4)} ha)</li>
-            </ul>
-          </div>
-        `,
-        confirmButtonColor: '#059669',
-        confirmButtonText: 'Aceptar'
-      });
-
-      if (showPredios) fetchMapData();
-      return true;
-    } catch (err) {
-      Swal.close();
-      console.error(err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error al fraccionar',
-        text: err.message,
-        confirmButtonColor: '#ef4444'
-      });
-      return false;
-    }
-  };
 
   const handleSavePredio = async (predioData) => {
     const isUpdate = !!editingPredio;
@@ -2075,21 +1946,6 @@ export default function Geoportal() {
         </div>
       )}
 
-      {showSplitModal && splitDataResult && (
-        <SplitPredioModal
-          isOpen={showSplitModal}
-          onClose={() => {
-            setShowSplitModal(false);
-            setSplitDataResult(null);
-            setSplitTargetPredio(null);
-          }}
-          splitData={splitDataResult}
-          onConfirmSplit={handleConfirmSplit}
-          authToken={authToken}
-          API_URL={API_URL}
-        />
-      )}
-
       {(isAddingPredio || editingPredio) && !isDrawingPredio && (
         <PredioForm
           initialData={editingPredio || tempPredioFormData}
@@ -2298,13 +2154,6 @@ export default function Geoportal() {
               }
             } else if (action === 'table') {
               setActiveTableData('predios');
-            } else if (action === 'split') {
-              setIsSplittingPredio(true);
-              setSplitTargetPredio(feature);
-              setIsMeasuring(false);
-              setIsAddingPredio(false);
-              setIsDrawingPredio(false);
-              setZoomMode(null);
             } else if (action === 'edit') {
               setEditingPredio({
                 id: feature.properties.id,
@@ -2467,16 +2316,6 @@ export default function Geoportal() {
             className={`dock-button agregar ${(isAddingPredio || isDrawingPredio) ? 'active' : ''}`}
           >
             <Plus size={18} /> <span className="dock-button-text">Agregar Predio</span>
-          </button>
-
-          <div className="dock-divider"></div>
-
-          <button
-            onClick={handleStartFraccionamiento}
-            className={`dock-button fraccionar ${isSplittingPredio ? 'active' : ''}`}
-            title="Fraccionar / Desmembrar Lote (Seleccione un lote en el mapa)"
-          >
-            <Scissors size={18} /> <span className="dock-button-text">Fraccionar</span>
           </button>
 
           <div className="dock-divider"></div>
@@ -3346,22 +3185,6 @@ export default function Geoportal() {
             setMousePos={setMousePos}
             onFinish={handleFinishDrawing}
             setIsSnapped={setIsSnapped}
-          />
-        )}
-
-        {isSplittingPredio && splitTargetPredio && (
-          <SplitPolygonTool
-            activePredio={splitTargetPredio}
-            onSplitComplete={(result) => {
-              setIsSplittingPredio(false);
-              setSplitDataResult(result);
-              setShowSplitModal(true);
-            }}
-            onCancel={() => {
-              setIsSplittingPredio(false);
-              setSplitTargetPredio(null);
-            }}
-            setMousePos={setMousePos}
           />
         )}
 

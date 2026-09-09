@@ -532,3 +532,8 @@
   transform: translateY(0);
 }
 
+
+.dock-button.fraccionar { color: #f59e0b; }
+.dock-button.fraccionar.active { background: rgba(245, 158, 11, 0.25); color: #fbbf24; border-color: #f59e0b; }
+[data-theme="light"] .dock-button.fraccionar { color: #d97706; }
+[data-theme="light"] .dock-button.fraccionar.active { background: #fef3c7; color: #b45309; border-color: #f59e0b; }

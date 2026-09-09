@@ -21,12 +21,14 @@ export default function Users() {
   // State for Roles Permissions Matrix
   const [editingRolePermissions, setEditingRolePermissions] = useState({});
   const [savingRole, setSavingRole] = useState(null);
+  const [selectedRoleId, setSelectedRoleId] = useState(null);
 
   const availablePermissions = [
     { key: 'geoportal', label: 'Visor Geoportal / Mapa Interactivo', desc: 'Permite acceder al geoportal y navegar los mapas.' },
     { key: 'edicion_predios', label: 'Creación y Edición de Predios / Linderos', desc: 'Permite dibujar predios, editar vértices y linderos.' },
     { key: 'gestion_datos', label: 'Gestión de Datos (Ortofoto, Shapefile, DB)', desc: 'Permite subir ortofotos, cargar shapefiles y descargar la base de datos.' },
     { key: 'catastro_4d', label: 'Catastro Histórico (4D)', desc: 'Permite consultar el mapa en fechas pasadas.' },
+    { key: 'cartas_topograficas', label: 'Cartas Topográficas y CAD', desc: 'Permite visualizar y gestionar cartas topográficas en el menú lateral.' },
     { key: 'gestion_usuarios', label: 'Gestión de Usuarios y Roles', desc: 'Permite administrar cuentas de usuarios y sus permisos.' },
     { key: 'gestion_empresas', label: 'Gestión de Empresas y Proyectos', desc: 'Permite administrar los GADs, empresas y proyectos.' },
     { key: 'qgis_sync', label: 'Sincronización con QGIS Desktop', desc: 'Permite la conexión e interacción mediante plugin de QGIS.' }
@@ -69,9 +71,15 @@ export default function Users() {
         // Initialize permissions map
         const permMap = {};
         rolesData.forEach(r => {
-          permMap[r.id_rol] = r.permisos || {};
+          permMap[r.id_rol] = { ...(r.permisos || {}) };
+          if (permMap[r.id_rol].cartas_topograficas === undefined) {
+            permMap[r.id_rol].cartas_topograficas = true;
+          }
         });
         setEditingRolePermissions(permMap);
+        if (rolesData.length > 0) {
+          setSelectedRoleId(prev => prev || rolesData[0].id_rol);
+        }
       }
 
       // Parse token para el rol del usuario actual
@@ -176,6 +184,7 @@ export default function Users() {
       if (res.ok) {
         showSuccess('Permisos Actualizados', 'Los accesos del rol han sido guardados exitosamente');
         fetchData();
+        window.dispatchEvent(new CustomEvent('catastro_permissions_updated'));
       } else {
         const err = await res.json();
         showError('Error', err.detail);
@@ -185,6 +194,24 @@ export default function Users() {
     } finally {
       setSavingRole(null);
     }
+  };
+
+  const getRoleDisplayName = (name) => {
+    if (!name) return '';
+    const lower = name.toLowerCase();
+    if (lower === 'superadmin') return 'Superadministrador';
+    if (lower === 'admin') return 'Administrador';
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  };
+
+  const handleSelectAllPermissions = (roleId, value) => {
+    setEditingRolePermissions(prev => {
+      const updated = { ...(prev[roleId] || {}) };
+      availablePermissions.forEach(p => {
+        updated[p.key] = value;
+      });
+      return { ...prev, [roleId]: updated };
+    });
   };
 
   const getRoleBadge = (user) => {
@@ -453,82 +480,166 @@ export default function Users() {
           </div>
         )
       ) : (
-        /* Tab de Matriz de Permisos por Rol */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-          {roles.map(r => {
-            const rolePerms = editingRolePermissions[r.id_rol] || {};
-            const isSaving = savingRole === r.id_rol;
+        /* Tab de Matriz de Permisos por Rol (Visualización individual mediante Combo Box) */
+        <div style={{ maxWidth: '920px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Barra Superior con Selector de Rol (Combo Box) */}
+          <div className="glass-panel" style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Shield size={22} color="var(--accent-color)" />
+              </div>
+              <div>
+                <label htmlFor="role-select" style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-muted)', fontWeight: '700' }}>
+                  Seleccionar Rol a Configurar:
+                </label>
+                <div style={{ fontSize: '13px', color: 'var(--text-main)', fontWeight: '500' }}>
+                  Administra las herramientas permitidas para cada perfil
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1', maxWidth: '340px', minWidth: '220px' }}>
+              <select
+                id="role-select"
+                value={selectedRoleId || (roles[0]?.id_rol || '')}
+                onChange={(e) => setSelectedRoleId(Number(e.target.value))}
+                className="input-dynamic"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  borderColor: 'var(--accent-color)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
+                }}
+              >
+                {roles.map(r => (
+                  <option key={r.id_rol} value={r.id_rol}>
+                    {getRoleDisplayName(r.nombre)} (ID: {r.id_rol})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Tarjeta Única del Rol Seleccionado */}
+          {(() => {
+            const activeRole = roles.find(r => r.id_rol === Number(selectedRoleId)) || roles[0];
+            if (!activeRole) return null;
+
+            const rolePerms = editingRolePermissions[activeRole.id_rol] || {};
+            const isSaving = savingRole === activeRole.id_rol;
+            const activePermsCount = availablePermissions.filter(p => !!rolePerms[p.key]).length;
 
             return (
-              <div key={r.id_rol} className="glass-panel" style={{ padding: '25px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Shield size={22} color="var(--accent-color)" />
-                      <h3 style={{ margin: 0, textTransform: 'capitalize' }}>
-                        {r.nombre === 'superadmin' ? 'Superadministrador' : r.nombre === 'admin' ? 'Administrador' : r.nombre}
-                      </h3>
+              <div className="glass-panel" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '22px' }}>
+                {/* Cabecera del Rol Activo */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '15px', flexWrap: 'wrap', borderBottom: '1px solid var(--card-border)', paddingBottom: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)' }}>
+                      <Shield size={24} />
                     </div>
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ID: {r.id_rol}</span>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--text-main)' }}>
+                          {getRoleDisplayName(activeRole.nombre)}
+                        </h3>
+                        <span style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-color)', fontWeight: '700' }}>
+                          ID: {activeRole.id_rol}
+                        </span>
+                      </div>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+                        {activeRole.descripcion || 'Definición de accesos para este perfil de usuario.'}
+                      </p>
+                    </div>
                   </div>
 
-                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>
-                    {r.descripcion || 'Definición de accesos para este perfil de usuario.'}
-                  </p>
-
-                  <hr style={{ borderColor: 'var(--card-border)', marginBottom: '20px' }} />
-
-                  <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: 'var(--accent-color)' }}>Permisos de Herramientas:</h4>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {availablePermissions.map(p => {
-                      const isChecked = !!rolePerms[p.key];
-                      return (
-                        <label 
-                          key={p.key} 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'flex-start', 
-                            gap: '12px', 
-                            padding: '10px', 
-                            borderRadius: '8px', 
-                            backgroundColor: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
-                            border: `1px solid ${isChecked ? 'rgba(59, 130, 246, 0.2)' : 'transparent'}`,
-                            cursor: 'pointer' 
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handlePermissionToggle(r.id_rol, p.key)}
-                            style={{ marginTop: '3px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
-                          />
-                          <div>
-                            <span style={{ fontSize: '13px', fontWeight: '600', display: 'block', color: 'var(--text-main)' }}>
-                              {p.label}
-                            </span>
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                              {p.desc}
-                            </span>
-                          </div>
-                        </label>
-                      );
-                    })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '8px', background: 'var(--bg-main, rgba(0,0,0,0.03))', border: '1px solid var(--card-border)', color: 'var(--text-main)', fontWeight: '600' }}>
+                      <b>{activePermsCount}</b> de {availablePermissions.length} herramientas activas
+                    </span>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleSaveRolePermissions(r.id_rol)}
-                  disabled={isSaving}
-                  className="btn-dynamic"
-                  style={{ marginTop: '25px', width: '100%', justifyContent: 'center' }}
-                >
-                  {isSaving ? <Loader2 className="spin" size={18} /> : <Save size={18} />}
-                  {isSaving ? 'Guardando...' : 'Guardar Permisos del Rol'}
-                </button>
+                {/* Subcabecera y botones de acción rápida */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sliders size={16} /> Permisos de Herramientas y Módulos:
+                  </h4>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllPermissions(activeRole.id_rol, true)}
+                      style={{ padding: '6px 12px', fontSize: '11px', fontWeight: '600', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', color: 'var(--text-main)', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      Marcar Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllPermissions(activeRole.id_rol, false)}
+                      style={{ padding: '6px 12px', fontSize: '11px', fontWeight: '600', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      Desmarcar Todos
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid de Permisos (2 columnas elegantes y espaciosas) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '14px' }}>
+                  {availablePermissions.map(p => {
+                    const isChecked = !!rolePerms[p.key];
+                    return (
+                      <label
+                        key={p.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '14px',
+                          padding: '14px 16px',
+                          borderRadius: '10px',
+                          backgroundColor: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                          border: `1px solid ${isChecked ? 'rgba(59, 130, 246, 0.35)' : 'var(--card-border)'}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: isChecked ? '0 2px 6px rgba(59, 130, 246, 0.06)' : 'none'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handlePermissionToggle(activeRole.id_rol, p.key)}
+                          style={{ marginTop: '3px', width: '17px', height: '17px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '13.5px', fontWeight: '600', display: 'block', color: isChecked ? 'var(--accent-color)' : 'var(--text-main)' }}>
+                            {p.label}
+                          </span>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4', marginTop: '3px', display: 'block' }}>
+                            {p.desc}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* Botón de Guardado */}
+                <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: '20px', marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveRolePermissions(activeRole.id_rol)}
+                    disabled={isSaving}
+                    className="btn-dynamic"
+                    style={{ minWidth: '240px', justifyContent: 'center', padding: '12px 24px', fontSize: '14px', fontWeight: '600' }}
+                  >
+                    {isSaving ? <Loader2 className="spin" size={18} /> : <Save size={18} />}
+                    {isSaving ? 'Guardando Permisos...' : `Guardar Permisos (${getRoleDisplayName(activeRole.nombre)})`}
+                  </button>
+                </div>
               </div>
             );
-          })}
+          })()}
         </div>
       )}
     </div>

@@ -158,7 +158,7 @@ export default function AttributeTable({ data, layerName, onClose, hiddenFeature
                   if (typeof val === 'number') val = Number.isInteger(val) ? val : val.toFixed(4);
                   return (
                     <td key={col} style={{ padding: '6px 12px', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
-                      {val !== null && val !== undefined ? val.toString() : ''}
+                      {val !== null && val !== undefined ? (typeof val === 'object' ? JSON.stringify(val) : val.toString()) : ''}
                     </td>
                   );
                 })}

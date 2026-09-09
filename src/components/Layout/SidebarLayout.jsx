@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2, FileText, ChevronDown, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
@@ -99,6 +99,7 @@ export default function SidebarLayout() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   const [userRole, setUserRole] = useState('');
+  const [userPermisos, setUserPermisos] = useState({});
   const [theme, setTheme] = useState(localStorage.getItem('catastro_theme_v2') || 'light');
   const navigate = useNavigate();
   const location = useLocation();
@@ -162,6 +163,9 @@ export default function SidebarLayout() {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const exp = payload.exp;
       setUserRole(payload.role || '');
+      if (payload.permisos) {
+        setUserPermisos(payload.permisos);
+      }
       if (Date.now() >= exp * 1000) {
          localStorage.removeItem('catastro_token');
          navigate('/');
@@ -171,6 +175,29 @@ export default function SidebarLayout() {
       navigate('/');
     }
   }, [navigate]);
+
+  // Sincronizar en tiempo real los permisos del usuario desde el backend
+  const fetchUserPermissions = useCallback(() => {
+    const token = localStorage.getItem('catastro_token');
+    if (!token) return;
+    fetch(`${API_URL}/api/users/me/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(userData => {
+        if (userData?.rol?.permisos) {
+          setUserPermisos(userData.rol.permisos);
+        }
+      })
+      .catch(err => console.error("Error fetching user profile permissions:", err));
+  }, []);
+
+  useEffect(() => {
+    fetchUserPermissions();
+    const handlePermUpdate = () => fetchUserPermissions();
+    window.addEventListener('catastro_permissions_updated', handlePermUpdate);
+    return () => window.removeEventListener('catastro_permissions_updated', handlePermUpdate);
+  }, [fetchUserPermissions]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -187,6 +214,16 @@ export default function SidebarLayout() {
     const roleLower = userRole.toLowerCase();
     if (roleLower === 'superadmin' || roleLower === 'superadministrador') return true;
     return allowedRoles.includes(roleLower);
+  };
+
+  const hasPermission = (permissionKey) => {
+    if (!userRole) return false;
+    const roleLower = userRole.toLowerCase();
+    if (roleLower === 'superadmin' || roleLower === 'superadministrador') return true;
+    if (userPermisos && userPermisos[permissionKey] !== undefined) {
+      return Boolean(userPermisos[permissionKey]);
+    }
+    return true;
   };
 
   return (
@@ -316,10 +353,12 @@ export default function SidebarLayout() {
             <span>Reportería</span>
           </NavLink>
 
-          <NavLink to="/cartas-topograficas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <FileSpreadsheet size={20} />
-            <span>Cartas Topográficas</span>
-          </NavLink>
+          {hasPermission('cartas_topograficas') && (
+            <NavLink to="/cartas-topograficas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <FileSpreadsheet size={20} />
+              <span>Cartas Topográficas</span>
+            </NavLink>
+          )}
           
           {hasAccess(['admin']) && (
             <NavLink to="/usuarios" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>

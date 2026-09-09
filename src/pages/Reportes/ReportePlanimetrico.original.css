@@ -1,0 +1,548 @@
+.leaflet-control-attribution {
+  display: none !important;
+}
+
+.report-wrapper {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f1f5f9;
+  overflow: hidden;
+}
+
+.report-pages-container {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  text-align: center;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================= */
+/* CONTROLES DEL REPORTE                         */
+/* ============================================= */
+.report-controls {
+  padding: 15px 30px;
+  background: white;
+  border-bottom: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+  flex-shrink: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  overflow-x: auto;
+}
+
+/* Filas de controles */
+.rc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rc-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.rc-counter {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* Botones de navegación del atlas */
+.rc-btn-nav {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.rc-btn-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Botón de volver */
+.rc-btn-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: #334155;
+}
+
+/* Selects */
+.rc-select-atlas {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-weight: 600;
+  font-size: 13px;
+}
+.rc-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Inputs */
+.rc-input {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  width: 50px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Atlas nav container */
+.rc-atlas-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Scale controls container */
+.rc-scale-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Botón outline */
+.rc-btn-outline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: #334155;
+}
+
+/* Botón primario */
+.rc-btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 24px;
+  background: var(--primary, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+}
+.rc-btn-primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.print-page {
+  display: inline-block;
+  text-align: left;
+  width: 297mm;
+  height: 209mm;
+  background: white;
+  margin: 0 auto 20px auto;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  padding: 10mm;
+  box-sizing: border-box;
+  position: relative;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* MARCO PRINCIPAL */
+.report-border {
+  border: 2px solid black;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-inner-border {
+  border: 1px solid black;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER TITULO */
+.report-header {
+  text-align: center;
+  border-bottom: 1px solid black;
+  padding: 5px 0;
+}
+
+.report-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+/* CUERPO PAG 1 */
+.report-body {
+  display: flex;
+  flex: 1;
+}
+
+.report-map-container {
+  flex: 1;
+  border-right: 1px solid black;
+  position: relative;
+}
+
+.report-sidebar {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* MAPA */
+.report-body .leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background-color: white !important;
+  pointer-events: none !important;
+}
+
+.vertex-label {
+  /* Estilos manejados en línea por createTextIcon */
+  background-color: transparent;
+}
+
+.lindero-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: black;
+  text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff;
+  white-space: nowrap;
+}
+
+/* SIDEBAR CAJETIN */
+.sidebar-box {
+  border-bottom: 1px solid black;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-box:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.minimap-box {
+  height: 230px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.box-title {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 5px;
+  border-bottom: 1px solid black;
+  background: white;
+}
+.box-title-no-border {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 5px;
+}
+
+.box-content {
+  padding: 5px;
+  font-size: 11px;
+}
+
+.box-content-center {
+  text-align: center;
+  font-weight: bold;
+  padding: 10px 5px;
+}
+
+.dpa-grid {
+  display: flex;
+}
+.dpa-col {
+  flex: 1;
+  border-right: 1px solid black;
+}
+.dpa-col:last-child {
+  border-right: none;
+}
+
+/* BOTTOM FOOTER CAJETIN */
+.report-footer {
+  display: flex;
+  border-top: 1px solid black;
+  height: 40px;
+}
+.footer-box {
+  flex: 1;
+  border-right: 1px solid black;
+  display: flex;
+  flex-direction: column;
+}
+.footer-box:last-child {
+  border-right: none;
+}
+.footer-box .box-title {
+  border-bottom: none;
+  font-size: 9px;
+}
+.footer-box .box-content {
+  text-align: center;
+  font-weight: bold;
+  font-size: 12px;
+  padding-top: 0;
+}
+
+/* PÁGINA 2: TABLAS */
+.page2-header {
+  display: flex;
+  gap: 10px;
+  padding: 10px 10px 0 10px;
+}
+.page2-title {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  padding: 10px;
+  border: 1px solid black;
+}
+.page2-body {
+  display: flex;
+  flex: 1;
+  gap: 10px;
+  padding: 10px;
+}
+.page2-col-left {
+  flex: 1;
+}
+.page2-col-right {
+  flex: 1;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+.report-table th, .report-table td {
+  border: 1px solid black;
+  padding: 4px;
+  text-align: center;
+}
+.report-table th {
+  font-weight: bold;
+}
+
+.desc-box {
+  border: 1px solid black;
+  margin-bottom: -1px;
+}
+.desc-box-title {
+  font-weight: bold;
+  font-size: 11px;
+  border-bottom: 1px solid black;
+  padding: 4px;
+}
+.desc-box-content {
+  font-size: 10px;
+  padding: 6px;
+  min-height: 40px;
+}
+
+.firmas-grid {
+  display: flex;
+  margin-top: auto;
+}
+.firma-box {
+  flex: 1;
+  border: 1px solid black;
+  padding: 5px;
+  text-align: center;
+  font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 125px;
+}
+.firma-box-title {
+  font-weight: bold;
+  border-bottom: 1px solid black;
+  padding-bottom: 3px;
+}
+
+/* ============================================= */
+/* RESPONSIVE: TELÉFONOS Y TABLETS PEQUEÑAS      */
+/* ============================================= */
+@media screen and (max-width: 768px) {
+  .report-controls {
+    padding: 6px 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .rc-row {
+    width: 100%;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  /* El botón de volver ocupa toda la fila 1 */
+  .rc-back {
+    justify-content: flex-start;
+  }
+  .rc-btn-back {
+    width: 100%;
+    justify-content: center;
+    padding: 6px;
+    font-size: 11px;
+  }
+
+  /* Fila de Atlas */
+  .rc-atlas {
+    background: white;
+  }
+  .rc-label {
+    font-size: 10px;
+    color: #64748b;
+    text-transform: uppercase;
+  }
+  .rc-atlas-nav {
+    width: 100%;
+    justify-content: space-between;
+    margin-top: 2px;
+    gap: 4px;
+  }
+  .rc-select-atlas, .rc-select, .rc-input, .rc-btn-nav, .rc-counter {
+    font-size: 11px !important;
+    padding: 3px 6px !important;
+  }
+  .rc-select-atlas {
+    flex: 1;
+    min-width: 0;
+    text-overflow: ellipsis;
+  }
+
+  /* Fila Escala y Zoom */
+  .rc-scale, .rc-zoom {
+    justify-content: space-between;
+  }
+  
+  /* Fila Punto / Texto */
+  .rc-sizes {
+    justify-content: space-between;
+  }
+  .rc-sizes .rc-label {
+    margin-left: 0 !important;
+  }
+
+  /* Fila Botones de Acción */
+  .rc-actions {
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .rc-btn-outline, .rc-btn-primary {
+    width: 100%;
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  /* Ocultar texto largo en botón volver de ser necesario, pero ahora el botón es full width así que no hace falta */
+  /* .hide-on-mobile { display: none !important; } */
+
+  /* Ocultar controles de zoom de Leaflet en el reporte */
+  .print-page .leaflet-control-container {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page {
+    size: 297mm 210mm;
+    margin: 0;
+  }
+  html, body {
+    width: 297mm;
+    height: 210mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .no-print,
+  .report-header-controls,
+  .report-controls-group,
+  .leaflet-control-container {
+    display: none !important;
+  }
+  .report-wrapper,
+  .report-pages-container {
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+    transform: none !important;
+  }
+  .print-page {
+    margin: 0 !important;
+    padding: 10mm !important;
+    width: 297mm !important;
+    height: 209mm !important;
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    position: relative !important;
+  }
+  .print-page + .print-page {
+    page-break-before: always;
+  }
+}
