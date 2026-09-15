@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Settings, Map, Layers, Plus, Building2, Save, Mail } from 'lucide-react';
+import { Settings, Map, Layers, Plus, Building2, Save, Mail, Database } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import ProyectosManager from '../../components/System/ProyectosManager';
 import SMTPConfig from '../../components/System/SMTPConfig';
+import DatabaseEnvManager from '../../components/System/DatabaseEnvManager';
 import './SystemParams.css';
 
 export default function SystemParams() {
   const [activeTab, setActiveTab] = useState('empresa');
   const [logoFile, setLogoFile] = useState(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
   const [empresaConfig, setEmpresaConfig] = useState({ 
@@ -23,6 +25,17 @@ export default function SystemParams() {
     valor_m2_rural: ''
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('catastro_token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const role = (payload.role || '').toLowerCase();
+        setIsSuperAdmin(role.includes('superadmin') || role.includes('superadministrador'));
+      } catch (e) {}
+    }
+  }, []);
   
   useEffect(() => {
     if (activeEmpresa) {
@@ -106,10 +119,19 @@ export default function SystemParams() {
         >
           <Mail size={16} /> Alertas de Sistema
         </button>
+        {isSuperAdmin && (
+          <button 
+            onClick={() => setActiveTab('database')}
+            style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'database' ? '2px solid #d97706' : '2px solid transparent', color: activeTab === 'database' ? '#d97706' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Database size={16} /> Base de Datos (AWS)
+          </button>
+        )}
       </div>
 
       {activeTab === 'proyectos' && <ProyectosManager />}
       {activeTab === 'smtp' && <SMTPConfig />}
+      {activeTab === 'database' && isSuperAdmin && <DatabaseEnvManager />}
 
       {activeTab === 'empresa' && (
         <div style={{ background: 'var(--bg-panel)', padding: '25px', borderRadius: '8px', border: '1px solid var(--card-border)' }}>

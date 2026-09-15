@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2, FileText, ChevronDown, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
+import SandboxBanner from '../SandboxBanner';
 
 const SystemHealthIndicator = ({ collapsed }) => {
   const [health, setHealth] = useState({ api: 'PENDING', database: 'PENDING', storage: 'PENDING' });
@@ -429,6 +430,7 @@ export default function SidebarLayout() {
       </aside>
 
       <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
+        <SandboxBanner />
         <Outlet />
       </main>
     </div>

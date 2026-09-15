@@ -325,6 +325,34 @@ export default function SplitPredioModal({
                 Cuadre 100% exacto
               </span>
             </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#eff6ff',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: '1px solid #bfdbfe'
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#1d4ed8' }}>
+                🗓️ Vigencia Catastral: 01/01/{new Date().getFullYear() + 1}
+              </span>
+            </div>
+          </div>
+
+          {/* Nota de Vigencia Fiscal Catastral */}
+          <div style={{
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderLeft: '4px solid #0284c7',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            fontSize: '12px',
+            color: '#334155',
+            lineHeight: '1.5'
+          }}>
+            <b>Nota de Período Fiscal:</b> El <b>predio matriz original</b> se mantendrá vigente durante el año en curso ({new Date().getFullYear()}). Los 2 nuevos predios fraccionados entrarán en vigencia oficial a partir del <b>01/01/{new Date().getFullYear() + 1}</b> (siguiente año fiscal) y podrás consultarlos en el Geoportal utilizando el filtro de período histórico.
           </div>
 
           {/* Gráfico Vectorial 2D de Vista Previa */}

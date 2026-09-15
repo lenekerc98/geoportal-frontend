@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useMap, useMapEvents, Polyline, Polygon, CircleMarker, Marker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
-import { Scissors, Check, X, RotateCcw } from 'lucide-react';
+import { Scissors, Check, X, RotateCcw, MapPin } from 'lucide-react';
 import { splitPolygonByLine } from '../../utils/polygonSplit';
+import SplitCoordinatesFloatingWindow from './SplitCoordinatesFloatingWindow';
 import Swal from 'sweetalert2';
 
 const createVertexIcon = (number, isFirst = false) => {
@@ -26,6 +27,7 @@ export default function SplitPolygonTool({
   const [snappedLatLng, setSnappedLatLng] = useState(null);
   const [cachedSnapPoints, setCachedSnapPoints] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showCoordWindow, setShowCoordWindow] = useState(false);
 
   useEffect(() => {
     if (!activePredio || !activePredio.geometry) return;
@@ -331,6 +333,27 @@ export default function SplitPolygonTool({
         </button>
 
         <button
+          onClick={() => setShowCoordWindow(prev => !prev)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '6px 12px',
+            fontSize: '12px',
+            fontWeight: '600',
+            color: showCoordWindow ? '#0284c7' : '#334155',
+            background: showCoordWindow ? '#e0f2fe' : '#f8fafc',
+            border: showCoordWindow ? '1px solid #7dd3fc' : '1px solid #cbd5e1',
+            borderRadius: '6px',
+            cursor: 'pointer'
+          }}
+          title="Abrir ventana flotante de ingreso por coordenadas"
+        >
+          <MapPin size={14} color={showCoordWindow ? '#0284c7' : '#64748b'} />
+          Coordenadas
+        </button>
+
+        <button
           onClick={handleExecuteSplit}
           disabled={cutPoints.length < 2 || isProcessing}
           style={{
@@ -372,6 +395,15 @@ export default function SplitPolygonTool({
           <X size={14} /> Cancelar
         </button>
       </div>
+
+      <SplitCoordinatesFloatingWindow
+        isOpen={showCoordWindow}
+        onClose={() => setShowCoordWindow(false)}
+        onApplyCoordinates={(coords) => {
+          setCutPoints(coords);
+        }}
+        existingPoints={cutPoints}
+      />
     </>
   );
 }

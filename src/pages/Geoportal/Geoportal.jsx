@@ -1399,62 +1399,69 @@ export default function Geoportal() {
     try {
       Swal.fire({
         title: 'Aplicando Fraccionamiento...',
-        text: 'Actualizando lote matriz y registrando la nueva fracción en la base de datos catastral.',
+        text: 'Registrando la desmembración catastral para el siguiente período fiscal.',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
       });
 
-      // 1. Actualizar Lote Matriz (Lote 1 Remanente)
-      const putRes = await fetch(`${API_URL}/api/gis/predios/${payload.matrizId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify({
-          cod_catastral: payload.lote1.cod_catastral,
-          geom_geojson: payload.lote1.geometry
-        })
-      });
+      const targetEmpresaId = payload.lote2.empresa_id || splitTargetPredio?.properties?.empresa_id || activeEmpresa?.id || null;
+      const targetProyectoId = payload.lote2.proyecto_id || splitTargetPredio?.properties?.proyecto_id || activeProyecto?.id || null;
 
-      if (!putRes.ok) {
-        const putErr = await putRes.json().catch(() => ({}));
-        throw new Error('Error al actualizar el lote matriz: ' + JSON.stringify(putErr));
-      }
-
-      // 2. Registrar la Nueva Fracción (Lote 2 Desmembrado)
-      const postBody = {
-        cod_catastral: payload.lote2.cod_catastral,
-        geom_geojson: payload.lote2.geometry,
-        empresa_id: payload.lote2.empresa_id || null,
-        proyecto_id: payload.lote2.proyecto_id || null
+      const bodyPayload = {
+        matrizId: payload.matrizId,
+        lote1: {
+          ...payload.lote1,
+          empresa_id: targetEmpresaId,
+          proyecto_id: targetProyectoId
+        },
+        lote2: {
+          ...payload.lote2,
+          empresa_id: targetEmpresaId,
+          proyecto_id: targetProyectoId
+        }
       };
 
-      if (payload.lote2.posesionario_id) {
-        postBody.posesionario_id = payload.lote2.posesionario_id;
-      } else if (payload.lote2.cedula && payload.lote2.nombre) {
-        postBody.cedula_temporal = payload.lote2.cedula;
-        postBody.nombre_temporal = payload.lote2.nombre;
-      }
-
-      const postRes = await fetch(`${API_URL}/api/gis/predios`, {
+      const res = await fetch(`${API_URL}/api/gis/predios/fraccionar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify(postBody)
+        body: JSON.stringify(bodyPayload)
       });
 
-      if (!postRes.ok) {
-        const postErr = await postRes.json().catch(() => ({}));
-        throw new Error('Error al crear la nueva fracción desmembrada: ' + JSON.stringify(postErr));
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || 'Error al procesar el fraccionamiento catastral.');
       }
+
+      const resData = await res.json();
+
+      // Cerrar modal de fraccionamiento INMEDIATAMENTE para que no bloquee el SweetAlert
+      setShowSplitModal(false);
+      setSplitDataResult(null);
+      setSplitTargetPredio(null);
 
       Swal.close();
       await Swal.fire({
         icon: 'success',
-        title: '¡Fraccionamiento Completado con Éxito!',
+        title: '¡Fraccionamiento Registrado con Éxito!',
         html: `
           <div style="text-align: left; font-size: 13px; line-height: 1.6;">
-            <p>Se ha dividido el predio correctamente en 2 lotes:</p>
-            <ul style="padding-left: 20px;">
-              <li><b>Lote 1 (Remanente):</b> ${payload.lote1.cod_catastral} con <b>${payload.lote1.area_m2.toFixed(1)} m²</b> (${payload.lote1.area_ha.toFixed(4)} ha)</li>
-              <li><b>Lote 2 (Fracción):</b> ${payload.lote2.cod_catastral} con <b>${payload.lote2.area_m2.toFixed(1)} m²</b> (${payload.lote2.area_ha.toFixed(4)} ha)</li>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; margin-bottom: 12px;">
+              <span style="font-weight: 700; color: #166534;">🗓️ Vigencia Catastral:</span>
+              <p style="margin: 4px 0 0 0; color: #15803d; font-size: 12px;">
+                El <b>predio general/matriz</b> continúa vigente durante el año fiscal en curso (${new Date().getFullYear()}). Los dos lotes fraccionados entrarán en vigencia oficial a partir del <b>${resData.vigencia || 'próximo año fiscal'}</b>.
+              </p>
+            </div>
+            <ul style="padding-left: 18px; margin: 0;">
+              <li style="margin-bottom: 8px;">
+                <b>Lote 1 (Remanente):</b> ${resData.lote1_cod || payload.lote1.cod_catastral}<br/>
+                <span style="color: #2563eb; font-weight: 600;">Titular:</span> ${resData.lote1_titular || splitTargetPredio?.properties?.nombre_posesionario || 'Mismo Titular'}<br/>
+                <span style="color: #64748b;">Área:</span> <b>${payload.lote1.area_m2.toFixed(1)} m²</b> (${payload.lote1.area_ha.toFixed(4)} ha)
+              </li>
+              <li>
+                <b>Lote 2 (Fracción):</b> ${resData.lote2_cod || payload.lote2.cod_catastral}<br/>
+                <span style="color: #059669; font-weight: 600;">Titular:</span> ${resData.lote2_titular || payload.lote2.nombre || 'Nuevo Titular'}<br/>
+                <span style="color: #64748b;">Área:</span> <b>${payload.lote2.area_m2.toFixed(1)} m²</b> (${payload.lote2.area_ha.toFixed(4)} ha)
+              </li>
             </ul>
           </div>
         `,
