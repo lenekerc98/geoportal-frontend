@@ -107,6 +107,35 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       processSelectedFile(e.target.files[0]);
     }
   };
+  const handleImportError = (data, response, fileType = 'shapefile') => {
+    const rawDetail = data?.detail || response?.statusText || 'Error desconocido';
+    const isTechnicalError = 
+      response?.status >= 500 || 
+      /codec can't decode|unicodedecodeerror|traceback|syntaxerror|internal server error|database error|ogr2ogr/i.test(rawDetail);
+
+    if (isTechnicalError) {
+      // Disparar alerta por correo vía endpoint de reporte en el backend
+      fetch(`${API_URL}/api/system/report-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: `Falla en importación de ${fileType} (${file?.name || 'archivo'}): ${rawDetail}`,
+          user: `${user?.username || user?.nombre || 'Usuario'} (ID: ${user?.id || user?.id_usuario || 'N/A'})`,
+          url: window.location.href
+        })
+      }).catch(err => console.error("Error reportando a soporte:", err));
+
+      setUploadStatus({
+        type: 'error',
+        message: 'Ocurrió un error inesperado al procesar el archivo. Se ha enviado una alerta por correo al equipo de soporte. Por favor, consulte con soporte técnico.'
+      });
+    } else {
+      setUploadStatus({
+        type: 'error',
+        message: rawDetail
+      });
+    }
+  };
 
   const handleUpload = async () => {
     if (!file) return;
@@ -117,6 +146,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     if (file.name.toLowerCase().endsWith('.dxf') || importType === 'cad_dxf') {
       const formData = new FormData();
       formData.append("file", file);
+
       try {
         const response = await fetch(`${API_URL}/api/gis/import-dxf`, {
           method: 'POST',
@@ -128,7 +158,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
           showSuccess(`Archivo CAD DXF importado exitosamente (${data?.data?.total_entidades || 0} entidades en ${data?.data?.capas_detectadas?.length || 0} capas).`);
           if (onSuccess) onSuccess();
         } else {
-          setUploadStatus({ type: 'error', message: data.detail || 'Error al importar archivo DXF.' });
+          handleImportError(data, response, 'CAD DXF');
         }
       } catch (error) {
         setUploadStatus({ type: 'error', message: 'Error de conexión al importar DXF.' });
@@ -169,10 +199,10 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
         showSuccess('Shapefile importado correctamente.');
         if (onSuccess) onSuccess();
       } else {
-        setUploadStatus({ type: 'error', message: data.detail || 'Error al importar shapefile.' });
+        handleImportError(data, response, 'Shapefile ZIP');
       }
     } catch (error) {
-      setUploadStatus({ type: 'error', message: 'Error de conexión.' });
+      setUploadStatus({ type: 'error', message: 'Error de conexión con el servidor.' });
     } finally {
       setIsUploading(false);
     }
