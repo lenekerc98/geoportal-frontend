@@ -138,90 +138,141 @@
 
 .cartas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 22px;
 }
 
 .carta-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--card-border);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
 }
 
 .carta-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(56, 189, 248, 0.4);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 20px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
 }
 
+.carta-card.is-default {
+  border: 1.5px solid #f59e0b;
+  box-shadow: 0 4px 16px -2px rgba(245, 158, 11, 0.18);
+}
+
+/* CABECERA DE LA CARTA */
 .carta-card-header {
-  padding: 16px 18px;
+  padding: 16px 18px 14px 18px;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  border-bottom: 1px solid var(--card-border);
-  background: rgba(255, 255, 255, 0.02);
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.carta-header-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .carta-icon-box {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
-  background: rgba(2, 132, 199, 0.1);
+  background: #f0f9ff;
+  border: 1px solid #e0f2fe;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.carta-info {
+.carta-title-group {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.carta-info h3 {
-  margin: 0 0 4px 0;
-  font-size: 1rem;
+.carta-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.carta-card-title {
+  margin: 0;
+  font-size: 1.05rem;
   font-weight: 700;
-  color: var(--text-main);
+  color: #0f172a;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.carta-filename-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* METADATOS EN PILLS */
+.carta-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.carta-badge {
+  font-size: 0.73rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-code {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  font-weight: 700;
+}
+
+.badge-cuad {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.carta-badge {
-  font-size: 0.75rem;
-  background: rgba(148, 163, 184, 0.15);
-  color: var(--text-muted);
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-weight: 600;
+.badge-entidades {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
-.btn-delete-carta {
-  background: transparent;
-  border: none;
-  color: #ef4444;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-delete-carta:hover {
-  background: rgba(239, 68, 68, 0.1);
-}
-
+/* CUERPO: CAPAS */
 .carta-card-body {
-  padding: 16px 18px;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -232,20 +283,28 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.82rem;
-  color: var(--text-muted);
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.capas-count-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .badge-base-ok {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 0.72rem;
+  font-weight: 700;
   background: #dcfce7;
-  color: #166534;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
   padding: 2px 7px;
   border-radius: 6px;
-  font-weight: 700;
 }
 
 .capas-tags {
@@ -254,22 +313,202 @@
   gap: 6px;
   max-height: 120px;
   overflow-y: auto;
-  padding-top: 4px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.capas-tags::-webkit-scrollbar {
+  width: 4px;
+}
+
+.capas-tags::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
 }
 
 .capa-tag {
-  font-size: 0.74rem;
-  background: var(--bg-main);
-  border: 1px solid var(--card-border);
-  color: var(--text-muted);
+  font-size: 0.72rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
   padding: 3px 8px;
-  border-radius: 5px;
+  border-radius: 6px;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.capa-tag:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .capa-tag.base {
-  background: rgba(2, 132, 199, 0.08);
-  border-color: rgba(2, 132, 199, 0.25);
-  color: #0284c7;
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
   font-weight: 600;
 }
+
+.capa-tag-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capa-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  transition: all 0.15s;
+}
+
+.capa-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.capas-empty-note {
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  border-radius: 8px;
+  padding: 16px 12px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+/* FOOTER DE ACCIONES */
+.carta-card-footer {
+  padding: 10px 18px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-left,
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-toggle-default {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-toggle-default:hover {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.btn-toggle-default.active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+  font-weight: 700;
+}
+
+.btn-toggle-default.active:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.btn-edit-carta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0284c7;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-edit-carta:hover {
+  background: #f0f9ff;
+  border-color: #38bdf8;
+}
+
+.btn-delete-carta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-delete-carta:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #ef4444;
+}
+
+/* Indicador de Empresa Activa */
+.cartas-empresa-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #0369a1;
+}
+
+/* Insignias de Carta Predeterminada */
+.badge-default-carta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+

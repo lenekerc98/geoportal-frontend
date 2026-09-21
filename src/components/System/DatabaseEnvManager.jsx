@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Server, RefreshCw, CheckCircle2, AlertTriangle, ShieldCheck, ArrowRightLeft, Layers, Info } from 'lucide-react';
+import { Database, Server, RefreshCw, CheckCircle2, AlertTriangle, ShieldCheck, ArrowRightLeft, Layers, Info, Trash2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { showSuccess, showError } from '../../utils/swal';
 import Swal from 'sweetalert2';
+import MassivePurgeModal from './MassivePurgeModal';
 
 export default function DatabaseEnvManager() {
   const [currentEnv, setCurrentEnv] = useState(localStorage.getItem('catastro_db_env') || 'prod');
   const [dbInfo, setDbInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
 
   const fetchDbInfo = async () => {
     setLoading(true);
@@ -32,6 +34,10 @@ export default function DatabaseEnvManager() {
 
   useEffect(() => {
     fetchDbInfo();
+
+    const handlePurged = () => fetchDbInfo();
+    window.addEventListener('catastro_data_purged', handlePurged);
+    return () => window.removeEventListener('catastro_data_purged', handlePurged);
   }, [currentEnv]);
 
   const handleToggleEnv = async (targetEnv) => {
@@ -371,10 +377,59 @@ export default function DatabaseEnvManager() {
         </button>
       </div>
 
+      {/* Sección Limpieza Masiva / Purga */}
+      <div style={{
+        marginTop: '15px',
+        background: 'rgba(239, 68, 68, 0.05)',
+        borderRadius: '8px',
+        padding: '18px 20px',
+        border: '1px solid rgba(239, 68, 68, 0.25)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '15px'
+      }}>
+        <div style={{ maxWidth: '600px' }}>
+          <h4 style={{ margin: '0 0 5px 0', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
+            <Trash2 size={16} /> Limpieza Masiva de Predios y Posesionarios
+          </h4>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Permite vaciar de forma selectiva o total los predios, geometrías y posesionarios en la base de datos activa (<strong>{currentEnv === 'test' ? 'catastro-db-test' : 'catastro-db'}</strong>).
+          </p>
+        </div>
+
+        <button
+          onClick={() => setShowPurgeModal(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: '6px',
+            border: '1px solid #ef4444',
+            background: '#ef4444',
+            color: 'white',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '0.85rem',
+            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)'
+          }}
+        >
+          <Trash2 size={16} /> Abrir Limpieza Masiva
+        </button>
+      </div>
+
       {/* Host AWS info */}
       <div style={{ marginTop: '15px', textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
         Instancia AWS RDS: <code>{dbInfo?.host || 'catastro-db.c09cqw60mwqw.us-east-1.rds.amazonaws.com'}</code>
       </div>
+
+      <MassivePurgeModal
+        isOpen={showPurgeModal}
+        onClose={() => setShowPurgeModal(false)}
+        onPurged={() => fetchDbInfo()}
+      />
     </div>
   );
 }

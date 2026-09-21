@@ -1118,36 +1118,92 @@ export default function Geoportal() {
   useEffect(() => {
     if (location.state?.selectPredioId) {
       setSelectedPredioId(location.state.selectPredioId);
-      // Opcional: Podríamos hacer zoom si tuviéramos acceso fácil a la capa aquí,
-      // pero seleccionar el ID ya lo resalta y abre sus detalles.
     }
   }, [location.state]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchCodigo = params.get('codigo');
+    const searchPredioId = params.get('predio_id');
+
+    if (!searchCodigo && !searchPredioId) return;
+
+    setShowPredios(true);
+
+    const zoomToFeature = (feature) => {
+      if (!feature || !map) return;
+      try {
+        const tempLayer = L.geoJSON(feature);
+        const bounds = tempLayer.getBounds();
+        if (bounds && bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [80, 80], maxZoom: 19 });
+        }
+      } catch (err) {
+        console.error("Error al enfocar predio:", err);
+      }
+    };
+
+    // 1. Si ya se cargó prediosData en memoria, buscarlo directamente
+    if (prediosData?.features?.length > 0) {
+      const match = prediosData.features.find(f => {
+        const c1 = String(f.properties?.cod_catastral || f.properties?.codigo || '').trim().toLowerCase();
+        const c2 = String(searchCodigo || '').trim().toLowerCase();
+        return (searchCodigo && c1 === c2) || (searchPredioId && f.properties?.id === Number(searchPredioId));
+      });
+
+      if (match) {
+        setSelectedPredioId(match.properties.id);
+        zoomToFeature(match);
+        return;
+      }
+    }
+
+    // 2. Si aún no está en features (o prediosData no cargó o está en otra empresa), consultar por código
+    if (searchCodigo) {
+      const token = localStorage.getItem('catastro_token');
+      fetch(`${API_URL}/api/gis/predios/detalle/${encodeURIComponent(searchCodigo.trim())}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(det => {
+          if (det && det.predio) {
+            setSelectedPredioId(det.predio.id);
+            if (det.predio.geom_geojson) {
+              const geom = typeof det.predio.geom_geojson === 'string'
+                ? JSON.parse(det.predio.geom_geojson)
+                : det.predio.geom_geojson;
+              zoomToFeature({ type: 'Feature', geometry: geom, properties: det.predio });
+            }
+          }
+        })
+        .catch(console.error);
+    }
+  }, [location.search, prediosData, map]);
+
   const activePredioLayerRef = useRef(null);
   const prediosGeoJsonRef = useRef(null);
 
   useEffect(() => {
-    if (selectedPredioId && map && prediosGeoJsonRef.current) {
-      const layers = prediosGeoJsonRef.current.getLayers();
-      const targetLayer = layers.find(l => l.feature?.properties?.id === selectedPredioId);
+    if (selectedPredioId && map) {
+      if (prediosGeoJsonRef.current && prediosGeoJsonRef.current.getLayers) {
+        const layers = prediosGeoJsonRef.current.getLayers();
+        const targetLayer = layers.find(l => l.feature?.properties?.id === selectedPredioId);
 
-      if (targetLayer) {
-        // Reset previously selected layer style
-        if (activePredioLayerRef.current && activePredioLayerRef.current !== targetLayer) {
-          // Si estaba en searchResults deberíamos mantener el estilo de búsqueda, pero por simplicidad volvemos al default
-          activePredioLayerRef.current.setStyle({ color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 });
-        }
+        if (targetLayer) {
+          if (activePredioLayerRef.current && activePredioLayerRef.current !== targetLayer) {
+            activePredioLayerRef.current.setStyle({ color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 });
+          }
 
-        // Apply selected style
-        targetLayer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.4 });
-        activePredioLayerRef.current = targetLayer;
+          targetLayer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.4 });
+          activePredioLayerRef.current = targetLayer;
 
-        if (targetLayer.getBounds) {
-          map.fitBounds(targetLayer.getBounds(), { padding: [100, 100], maxZoom: 19 });
-        }
+          if (targetLayer.openPopup) {
+            targetLayer.openPopup();
+          }
 
-        // Open the popup automatically
-        if (targetLayer.openPopup) {
-          targetLayer.openPopup();
+          if (targetLayer.getBounds && targetLayer.getBounds().isValid()) {
+            map.fitBounds(targetLayer.getBounds(), { padding: [80, 80], maxZoom: 19 });
+          }
         }
       }
     }
@@ -1752,16 +1808,21 @@ export default function Geoportal() {
 
   const zoomToFeature = (feature) => {
     if (map && feature && feature.geometry) {
-      const layer = L.geoJSON(feature);
-      const bounds = layer.getBounds();
+      const tempGroup = L.geoJSON(feature);
+      const bounds = tempGroup.getBounds();
       if (bounds.isValid()) {
         map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 1.5 });
       }
 
-      // Resaltar el predio al hacer zoom desde la lista
-      const featId = feature.properties ? (feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral) : null;
+      // Resaltar el elemento al hacer zoom desde la lista o tabla
+      const p = feature.properties || {};
+      const featId = p.id ?? feature.id ?? p.OBJECTID ?? p.objectid ?? p.ObjectId ?? p.gid ?? p.fid ?? p.FID ?? p.cod_catastral ?? p.COD_CATASTRAL ?? p.clave_cata ?? p.CLAVE_CATA ?? p.codigo ?? p.CODIGO;
       if (featId) {
         setSelectedPredioId(featId);
+      }
+      if (feature._layer) {
+        if (feature._layer.fire) feature._layer.fire('click');
+        if (feature._layer.openPopup) feature._layer.openPopup();
       }
     }
   };
@@ -3777,40 +3838,57 @@ export default function Geoportal() {
         {/* VECTOR: Capas Adicionales (Genéricas) */}
         {capasAdicionales.map(capa => {
           if (activeCapasAdicionales[capa.tabla_db] && geoJsonCacheAdicionales[capa.tabla_db]) {
+            const getFeatId = (f, l) => {
+              if (!f) return l?._leaflet_id;
+              const p = f.properties || {};
+              return p.id ?? f.id ?? p.OBJECTID ?? p.objectid ?? p.ObjectId ?? p.gid ?? p.fid ?? p.FID ?? p.cod_catastral ?? p.COD_CATASTRAL ?? p.clave_cata ?? p.CLAVE_CATA ?? p.codigo ?? p.CODIGO ?? l?._leaflet_id;
+            };
+
             return (
               <GeoJSON
                 key={capa.tabla_db}
                 data={geoJsonCacheAdicionales[capa.tabla_db]}
                 style={(feature) => {
-                  const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
-                  const isSelected = featId && selectedPredioId === featId;
+                  const featId = getFeatId(feature);
+                  const isSelected = featId && String(selectedPredioId) === String(featId);
                   return {
                     color: isSelected ? '#00ffff' : '#a855f7', // Cyan if selected, else Purple
-                    weight: isSelected ? 4 : 2,
+                    weight: isSelected ? 4.5 : 2,
                     fillColor: isSelected ? '#00ffff' : '#a855f7',
                     fillOpacity: isSelected ? 0.6 : 0.3
                   };
                 }}
                 pointToLayer={(feature, latlng) => {
-                  const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
-                  const isSelected = featId && selectedPredioId === featId;
+                  const featId = getFeatId(feature);
+                  const isSelected = featId && String(selectedPredioId) === String(featId);
                   return L.circleMarker(latlng, {
-                    radius: isSelected ? 7 : 5,
+                    radius: isSelected ? 8 : 5,
                     fillColor: isSelected ? "#00ffff" : "#a855f7",
                     color: "#ffffff",
-                    weight: 1,
+                    weight: 1.5,
                     opacity: 1,
-                    fillOpacity: 0.8
+                    fillOpacity: 0.85
                   });
                 }}
                 onEachFeature={(feature, layer) => {
+                  layer._originalColor = '#a855f7';
+                  try {
+                    Object.defineProperty(feature, '_layer', { value: layer, writable: true, configurable: true });
+                  } catch (e) {
+                    feature._layer = layer;
+                  }
+
                   if (feature.properties) {
-                    let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 200px; overflow-y: auto;">
+                    let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 220px; overflow-y: auto;">
                       <h4 style="margin:0 0 8px 0; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">${capa.nombre_capa}</h4>`;
 
                     Object.entries(feature.properties).forEach(([key, value]) => {
-                      if (key !== 'id' && value !== null && value !== '') {
-                        popupContent += `<p style="margin:0 0 4px 0; font-size: 12px;"><b>${key}:</b> ${value}</p>`;
+                      if (key !== 'id' && value !== null && value !== undefined && value !== '') {
+                        let displayVal = String(value).trim();
+                        if (displayVal.includes('1899') || displayVal.includes('1900') || displayVal === 'Invalid Date') {
+                          displayVal = 'No registrada';
+                        }
+                        popupContent += `<p style="margin:0 0 4px 0; font-size: 12px;"><b>${key}:</b> ${displayVal}</p>`;
                       }
                     });
 
@@ -3818,21 +3896,30 @@ export default function Geoportal() {
                     layer.bindPopup(popupContent);
                   }
 
-                  layer.on('click', () => {
-                    const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
-                    if (featId) {
-                      setSelectedPredioId(prev => {
-                        if (prev === featId) {
-                          layer.setStyle({ color: '#a855f7', weight: 2, fillColor: '#a855f7', fillOpacity: 0.3 });
-                          if (activePredioLayerRef.current === layer) activePredioLayerRef.current = null;
-                          return null;
-                        } else {
-                          layer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.6 });
-                          activePredioLayerRef.current = layer;
-                          return featId;
-                        }
-                      });
+                  const handleHighlight = () => {
+                    const featId = getFeatId(feature, layer);
+                    if (activePredioLayerRef.current && activePredioLayerRef.current !== layer) {
+                      try {
+                        const prevColor = activePredioLayerRef.current._originalColor || '#a855f7';
+                        activePredioLayerRef.current.setStyle({ color: prevColor, weight: 2, fillColor: prevColor, fillOpacity: 0.3 });
+                      } catch (e) {}
                     }
+                    layer.setStyle({ color: '#00ffff', weight: 4.5, fillColor: '#00ffff', fillOpacity: 0.6 });
+                    if (layer.bringToFront) layer.bringToFront();
+                    activePredioLayerRef.current = layer;
+                    setSelectedPredioId(featId);
+                  };
+
+                  layer.on('click', handleHighlight);
+                  layer.on('popupopen', handleHighlight);
+
+                  layer.on('popupclose', () => {
+                    try {
+                      layer.setStyle({ color: '#a855f7', weight: 2, fillColor: '#a855f7', fillOpacity: 0.3 });
+                      if (activePredioLayerRef.current === layer) {
+                        activePredioLayerRef.current = null;
+                      }
+                    } catch (e) {}
                   });
 
                   layer.on('contextmenu', (e) => {
@@ -3854,48 +3941,87 @@ export default function Geoportal() {
         {/* VECTOR: Capas Temporales (Local) */}
         {temporalLayers.map(capa => {
           if (activeTemporalLayers[capa.id] && capa.geojson) {
+            const baseColor = capa.color || '#3b82f6';
+            const getFeatId = (f, l) => {
+              if (!f) return l?._leaflet_id;
+              const p = f.properties || {};
+              return p.id ?? f.id ?? p.OBJECTID ?? p.objectid ?? p.ObjectId ?? p.gid ?? p.fid ?? p.FID ?? p.cod_catastral ?? p.COD_CATASTRAL ?? p.clave_cata ?? p.CLAVE_CATA ?? p.codigo ?? p.CODIGO ?? l?._leaflet_id;
+            };
+
             return (
               <GeoJSON
                 key={capa.id}
                 data={capa.geojson}
                 style={(feature) => {
-                  const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
-                  const isSelected = featId && selectedPredioId === featId;
+                  const featId = getFeatId(feature);
+                  const isSelected = featId && String(selectedPredioId) === String(featId);
                   return {
-                    color: isSelected ? '#00ffff' : capa.color,
-                    weight: isSelected ? 4 : 2,
-                    fillColor: isSelected ? '#00ffff' : capa.color,
+                    color: isSelected ? '#00ffff' : baseColor,
+                    weight: isSelected ? 4.5 : 2,
+                    fillColor: isSelected ? '#00ffff' : baseColor,
                     fillOpacity: isSelected ? 0.6 : 0.3
                   };
                 }}
+                pointToLayer={(feature, latlng) => {
+                  const featId = getFeatId(feature);
+                  const isSelected = featId && String(selectedPredioId) === String(featId);
+                  return L.circleMarker(latlng, {
+                    radius: isSelected ? 8 : 5,
+                    fillColor: isSelected ? "#00ffff" : baseColor,
+                    color: "#ffffff",
+                    weight: 1.5,
+                    opacity: 1,
+                    fillOpacity: 0.85
+                  });
+                }}
                 onEachFeature={(feature, layer) => {
+                  layer._originalColor = baseColor;
+                  try {
+                    Object.defineProperty(feature, '_layer', { value: layer, writable: true, configurable: true });
+                  } catch (e) {
+                    feature._layer = layer;
+                  }
+
                   if (feature.properties) {
-                    let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 200px; overflow-y: auto;">
+                    let popupContent = `<div style="font-family: Inter, sans-serif; max-height: 220px; overflow-y: auto;">
                       <h4 style="margin:0 0 8px 0; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">${capa.name}</h4>`;
                     Object.entries(feature.properties).forEach(([key, value]) => {
-                      if (key !== 'id' && value !== null && value !== '') {
-                        popupContent += `<p style="margin:0 0 4px 0; font-size: 12px;"><b>${key}:</b> ${value}</p>`;
+                      if (key !== 'id' && value !== null && value !== undefined && value !== '') {
+                        let displayVal = String(value).trim();
+                        if (displayVal.includes('1899') || displayVal.includes('1900') || displayVal === 'Invalid Date') {
+                          displayVal = 'No registrada';
+                        }
+                        popupContent += `<p style="margin:0 0 4px 0; font-size: 12px;"><b>${key}:</b> ${displayVal}</p>`;
                       }
                     });
                     popupContent += `</div>`;
                     layer.bindPopup(popupContent);
                   }
 
-                  layer.on('click', () => {
-                    const featId = feature.properties.id || feature.id || feature.properties.gid || feature.properties.fid || feature.properties.cod_catastral;
-                    if (featId) {
-                      setSelectedPredioId(prev => {
-                        if (prev === featId) {
-                          layer.setStyle({ color: capa.color, weight: 2, fillColor: capa.color, fillOpacity: 0.3 });
-                          if (activePredioLayerRef.current === layer) activePredioLayerRef.current = null;
-                          return null;
-                        } else {
-                          layer.setStyle({ color: '#00ffff', weight: 4, fillColor: '#00ffff', fillOpacity: 0.6 });
-                          activePredioLayerRef.current = layer;
-                          return featId;
-                        }
-                      });
+                  const handleHighlight = () => {
+                    const featId = getFeatId(feature, layer);
+                    if (activePredioLayerRef.current && activePredioLayerRef.current !== layer) {
+                      try {
+                        const prevColor = activePredioLayerRef.current._originalColor || '#3b82f6';
+                        activePredioLayerRef.current.setStyle({ color: prevColor, weight: 2, fillColor: prevColor, fillOpacity: 0.3 });
+                      } catch (e) {}
                     }
+                    layer.setStyle({ color: '#00ffff', weight: 4.5, fillColor: '#00ffff', fillOpacity: 0.6 });
+                    if (layer.bringToFront) layer.bringToFront();
+                    activePredioLayerRef.current = layer;
+                    setSelectedPredioId(featId);
+                  };
+
+                  layer.on('click', handleHighlight);
+                  layer.on('popupopen', handleHighlight);
+
+                  layer.on('popupclose', () => {
+                    try {
+                      layer.setStyle({ color: baseColor, weight: 2, fillColor: baseColor, fillOpacity: 0.3 });
+                      if (activePredioLayerRef.current === layer) {
+                        activePredioLayerRef.current = null;
+                      }
+                    } catch (e) {}
                   });
                 }}
               />
@@ -4037,9 +4163,10 @@ export default function Geoportal() {
             setHiddenFeatureIds={setHiddenFeatureIds}
             selectedId={activeTableData === 'predios' ? selectedPredioId : null}
             onRowClick={(feature) => {
-              if (activeTableData === 'predios') {
-                setSelectedPredioId(feature.properties.id);
-              }
+              const p = feature.properties || {};
+              const featId = p.id ?? feature.id ?? p.OBJECTID ?? p.objectid ?? p.ObjectId ?? p.gid ?? p.fid ?? p.FID ?? p.cod_catastral ?? p.COD_CATASTRAL;
+              if (featId) setSelectedPredioId(featId);
+              zoomToFeature(feature);
             }}
             onRowContextMenu={(e, feature) => {
               setFeatureContextMenu({

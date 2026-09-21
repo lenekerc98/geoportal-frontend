@@ -10,45 +10,62 @@ import proj4 from 'proj4';
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
 export default function PredioForm({ onSubmit, onCancel, initialData, onStartDrawing }) {
-  const formatInitialCoords = (geoJsonStr) => {
-    if (!geoJsonStr) return '';
+  const formatInitialCoords = (rawVal) => {
+    if (!rawVal) return '';
+
+    // Si ya es un texto plano de coordenadas (ej: "599202.0 9796078.0\n..."), mantenerlo
+    if (typeof rawVal === 'string' && !rawVal.trim().startsWith('{') && !rawVal.trim().startsWith('[')) {
+      return rawVal;
+    }
+
     try {
-      if (typeof geoJsonStr === 'object') geoJsonStr = JSON.stringify(geoJsonStr);
-      const parsed = JSON.parse(geoJsonStr);
-      if (parsed.type === 'Polygon' && parsed.coordinates && parsed.coordinates[0]) {
-        return parsed.coordinates[0].map(coord => {
-          if (Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90) {
-            const utm = proj4('EPSG:4326', 'EPSG:32717', [coord[0], coord[1]]);
+      let parsed = rawVal;
+      if (typeof rawVal === 'string') {
+        parsed = JSON.parse(rawVal);
+      }
+      if (parsed && parsed.geometry) {
+        parsed = parsed.geometry;
+      }
+
+      let rings = null;
+      if (parsed && parsed.type === 'Polygon' && parsed.coordinates && parsed.coordinates[0]) {
+        rings = parsed.coordinates[0];
+      } else if (parsed && parsed.type === 'MultiPolygon' && parsed.coordinates && parsed.coordinates[0] && parsed.coordinates[0][0]) {
+        rings = parsed.coordinates[0][0];
+      }
+
+      if (rings && Array.isArray(rings)) {
+        return rings.map(coord => {
+          if (!Array.isArray(coord) || coord.length < 2) return '';
+          const c0 = parseFloat(coord[0]);
+          const c1 = parseFloat(coord[1]);
+          if (isNaN(c0) || isNaN(c1)) return '';
+
+          // Si son grados WGS84 (Lng, Lat), proyectar a UTM 17S (X Este, Y Norte)
+          if (Math.abs(c0) <= 180 && Math.abs(c1) <= 90) {
+            const utm = proj4('EPSG:4326', 'EPSG:32717', [c0, c1]);
             return `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}`;
           }
-          return `${coord[0]} ${coord[1]}`;
-        }).join('\n');
-      } else if (parsed.type === 'MultiPolygon' && parsed.coordinates && parsed.coordinates[0] && parsed.coordinates[0][0]) {
-        return parsed.coordinates[0][0].map(coord => {
-          if (Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90) {
-            const utm = proj4('EPSG:4326', 'EPSG:32717', [coord[0], coord[1]]);
-            return `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}`;
-          }
-          return `${coord[0]} ${coord[1]}`;
-        }).join('\n');
+          return `${c0.toFixed(2)} ${c1.toFixed(2)}`;
+        }).filter(Boolean).join('\n');
       }
     } catch (e) {
-      return geoJsonStr;
+      console.error("Error al formatear coordenadas iniciales:", e);
     }
-    return geoJsonStr;
+    return typeof rawVal === 'string' ? rawVal : '';
   };
 
   const [formData, setFormData] = useState({
     posesionario_id: initialData?.posesionario_id || '',
     cod_catastral: initialData?.cod_catastral || '',
-    geom_geojson: initialData?.geom_text || (typeof initialData?.geom_geojson === 'string' ? initialData.geom_geojson : formatInitialCoords(initialData?.geom_geojson)) || '',
+    geom_geojson: formatInitialCoords(initialData?.geom_text || initialData?.geom_geojson || initialData?.geometry) || '',
   });
   const [colindantes, setColindantes] = useState([]);
   const [rumbosCustom, setRumbosCustom] = useState([]);
 
   useEffect(() => {
     if (initialData) {
-      const coords = initialData.geom_text || (typeof initialData.geom_geojson === 'string' ? initialData.geom_geojson : formatInitialCoords(initialData.geom_geojson)) || '';
+      const coords = formatInitialCoords(initialData.geom_text || initialData.geom_geojson || initialData.geometry) || '';
       setFormData(prev => ({
         ...prev,
         posesionario_id: initialData.posesionario_id !== undefined ? initialData.posesionario_id : prev.posesionario_id,

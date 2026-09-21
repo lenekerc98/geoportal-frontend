@@ -120,6 +120,7 @@ export default function App() {
           <Route element={<SidebarLayout />}>
             <Route path="/geoportal" element={<Geoportal />} />
             <Route path="/dashboard" element={<AnalyticsDashboard />} />
+            <Route path="/predios" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
             <Route path="/reporteria" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
             <Route path="/cartas-topograficas" element={<CartasTopograficas />} />
             <Route path="/usuarios" element={<Users />} />

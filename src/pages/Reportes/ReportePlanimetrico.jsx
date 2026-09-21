@@ -297,36 +297,51 @@ export default function ReportePlanimetrico() {
   const fetchCadArchivos = useCallback(async () => {
     try {
       const token = localStorage.getItem('catastro_token');
-      const res = await fetch(`${API_URL}/api/gis/cad-archivos`, {
+      const empIdParam = activeEmpresa?.id ? `?empresa_id=${activeEmpresa.id}` : '';
+      const res = await fetch(`${API_URL}/api/gis/cad-archivos${empIdParam}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json)) {
           setCadArchivosList(json);
-          if (json.length > 0 && !selectedCadFile) {
+          const empDef = activeEmpresa?.parametros?.carta_predeterminada;
+          const defItem = (empDef ? json.find(a => a.nombre_archivo?.toLowerCase() === empDef.toLowerCase()) : null) || json.find(a => a.es_predeterminada);
+          if (defItem) {
+            setSelectedCadFile(defItem.nombre_archivo);
+          } else if (json.length > 0 && !selectedCadFile) {
             setSelectedCadFile(json[0].nombre_archivo);
           }
         }
       }
     } catch (e) { }
-  }, [selectedCadFile]);
+  }, [activeEmpresa?.id, activeEmpresa?.parametros?.carta_predeterminada, selectedCadFile]);
 
-  const fetchCadGeoJson = useCallback(async (archivo) => {
+  const fetchCadGeoJson = useCallback(async (archivo, centerPoint) => {
     if (!archivo) return;
-    if (cadGeoJsonCache.has(archivo)) {
-      setCadGeoJson(cadGeoJsonCache.get(archivo));
+    let bboxQuery = '';
+    if (centerPoint && centerPoint[0] && centerPoint[1]) {
+      const pad = 0.06; // ~6.5 km buffer covers the 1:50000 minimap box perfectly
+      const minLng = (centerPoint[1] - pad).toFixed(6);
+      const minLat = (centerPoint[0] - pad).toFixed(6);
+      const maxLng = (centerPoint[1] + pad).toFixed(6);
+      const maxLat = (centerPoint[0] + pad).toFixed(6);
+      bboxQuery = `&bbox=${minLng},${minLat},${maxLng},${maxLat}`;
+    }
+    const cacheKey = `${archivo}_${bboxQuery}`;
+    if (cadGeoJsonCache.has(cacheKey)) {
+      setCadGeoJson(cadGeoJsonCache.get(cacheKey));
       return;
     }
     try {
       setIsLoadingCad(true);
       const token = localStorage.getItem('catastro_token');
-      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}&simplify=1.5`, {
+      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}&simplify=1.5${bboxQuery}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const json = await res.json();
-        cadGeoJsonCache.set(archivo, json);
+        cadGeoJsonCache.set(cacheKey, json);
         setCadGeoJson(json);
       }
     } catch (e) {
@@ -342,10 +357,10 @@ export default function ReportePlanimetrico() {
   }, [fetchCartasCatalog, fetchCadArchivos]);
 
   useEffect(() => {
-    if (fondoMinimapa === 'cad' && selectedCadFile) {
-      fetchCadGeoJson(selectedCadFile);
+    if (fondoMinimapa === 'cad' && selectedCadFile && center && center[0]) {
+      fetchCadGeoJson(selectedCadFile, center);
     }
-  }, [fondoMinimapa, selectedCadFile, fetchCadGeoJson]);
+  }, [fondoMinimapa, selectedCadFile, center, fetchCadGeoJson]);
 
   useEffect(() => {
     document.body.style.overflow = 'auto';
@@ -452,6 +467,20 @@ export default function ReportePlanimetrico() {
   // Auto-seleccionar archivo CAD cuando cargue la lista o cambie la carta detectada
   useEffect(() => {
     if (cadArchivosList.length > 0) {
+      // 1. Prioridad: carta predeterminada de la empresa activa
+      const empDef = activeEmpresa?.parametros?.carta_predeterminada;
+      const defMatch = (empDef ? cadArchivosList.find(a => a.nombre_archivo?.toLowerCase() === empDef.toLowerCase()) : null) || cadArchivosList.find(a => a.es_predeterminada);
+      if (defMatch) {
+        setSelectedCadFile(defMatch.nombre_archivo);
+        if (!nombreCarta && !codigoCarta) {
+          if (defMatch.nombre) setNombreCarta(defMatch.nombre);
+          if (defMatch.codigo) setCodigoCarta(defMatch.codigo);
+          if (defMatch.cuadricula) setNombreCuadricula(defMatch.cuadricula);
+        }
+        return;
+      }
+
+      // 2. Coincidencia por nombre o código del predio
       const nomClean = (nombreCarta || '').trim().toUpperCase();
       const codClean = (codigoCarta || '').trim().toUpperCase();
       const matchCad = cadArchivosList.find(a =>
@@ -466,7 +495,7 @@ export default function ReportePlanimetrico() {
         setSelectedCadFile(cadArchivosList[0].nombre_archivo);
       }
     }
-  }, [cadArchivosList, nombreCarta, codigoCarta]);
+  }, [cadArchivosList, nombreCarta, codigoCarta, activeEmpresa?.parametros?.carta_predeterminada]);
 
   const predio = data?.predio || {};
   const vertices = data?.vertices || [];
@@ -883,11 +912,15 @@ export default function ReportePlanimetrico() {
                   style={{ marginTop: '6px' }}
                   title="Seleccionar Carta CAD de Fondo"
                 >
-                  {cadArchivosList.map(a => (
-                    <option key={a.nombre_archivo} value={a.nombre_archivo}>
-                      {a.nombre_archivo} ({a.total_elementos || 0} ent.)
-                    </option>
-                  ))}
+                  {cadArchivosList.map(a => {
+                    const empDef = activeEmpresa?.parametros?.carta_predeterminada;
+                    const isDef = Boolean(a.es_predeterminada || (empDef && a.nombre_archivo?.toLowerCase() === empDef.toLowerCase()));
+                    return (
+                      <option key={a.nombre_archivo} value={a.nombre_archivo}>
+                        {isDef ? '⭐ ' : ''}{a.nombre || a.nombre_archivo} ({a.total_elementos || 0} ent.){isDef ? ' [PREDETERMINADA]' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               )}
 

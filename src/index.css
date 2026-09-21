@@ -585,3 +585,9 @@ body {
         margin-left: 0 !important;
       }
     }
+
+/* SweetAlert2 Global Z-Index: Ensure all confirm dialogs and alerts appear in front of all application modals */
+.swal2-container {
+  z-index: 100000 !important;
+}
+

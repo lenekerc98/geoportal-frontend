@@ -1,18 +1,38 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileSpreadsheet, UploadCloud, Trash2, Edit2, X, Check, Eye, Map, Layers, RefreshCw, Loader2, CheckCircle2, FileText, Search, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
+import {
+  FileSpreadsheet,
+  UploadCloud,
+  Trash2,
+  Edit2,
+  X,
+  Check,
+  Eye,
+  Map,
+  Layers,
+  RefreshCw,
+  Loader2,
+  CheckCircle2,
+  FileText,
+  Search,
+  ShieldAlert,
+  Star,
+  Building2
+} from 'lucide-react';
 import { API_URL } from '../../services/api';
-import { showSuccess, showError } from '../../utils/swal';
+import { confirmDelete, showSuccess, showError } from '../../utils/swal';
+import { AppContext } from '../../context/AppContext';
 import CadUploaderModal from '../../components/MapViewer/CadUploaderModal';
 import './CartasTopograficas.css';
 
 export default function CartasTopograficas() {
+  const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
   const [archivosCad, setArchivosCad] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showUploader, setShowUploader] = useState(false);
-  const [selectedArchivo, setSelectedArchivo] = useState(null);
   const [editingCarta, setEditingCarta] = useState(null); // { nombre_archivo, codigo, nombre, cuadricula, escala }
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savingDefault, setSavingDefault] = useState(null);
   const [hasAccess, setHasAccess] = useState(true);
   const authToken = localStorage.getItem('catastro_token');
 
@@ -48,7 +68,8 @@ export default function CartasTopograficas() {
   const fetchArchivos = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/api/gis/cad-archivos`, {
+      const empIdParam = activeEmpresa?.id ? `?empresa_id=${activeEmpresa.id}` : '';
+      const res = await fetch(`${API_URL}/api/gis/cad-archivos${empIdParam}`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (res.ok) {
@@ -60,16 +81,66 @@ export default function CartasTopograficas() {
     } finally {
       setLoading(false);
     }
-  }, [authToken]);
+  }, [authToken, activeEmpresa?.id]);
 
   useEffect(() => {
     fetchArchivos();
   }, [fetchArchivos]);
 
-  const handleDelete = async (nombreArchivo) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la carta "${nombreArchivo}" y todas sus geometrías asociadas?`)) {
+  // Establecer o desmarcar carta predeterminada para la empresa activa
+  const handleToggleDefault = async (archivo, setAsDefault) => {
+    if (!activeEmpresa) {
+      showError('Selecciona una empresa activa para asociar la carta predeterminada.');
       return;
     }
+
+    try {
+      setSavingDefault(archivo.nombre_archivo);
+      const res = await fetch(`${API_URL}/api/gis/cad-archivos/predeterminada`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          empresa_id: activeEmpresa.id,
+          nombre_archivo: setAsDefault ? archivo.nombre_archivo : null
+        })
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        // Sincronizar en AppContext para que el reporte planimétrico lo detecte de inmediato
+        const updatedEmpresa = {
+          ...activeEmpresa,
+          parametros: result.parametros
+        };
+        setGlobalEmpresa(updatedEmpresa);
+        showSuccess(
+          setAsDefault
+            ? `Carta "${archivo.nombre || archivo.nombre_archivo}" fijada como predeterminada para ${activeEmpresa.nombre}.`
+            : `Se quitó la carta predeterminada de ${activeEmpresa.nombre}.`
+        );
+        fetchArchivos();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showError(err.detail || 'No se pudo configurar la carta predeterminada.');
+      }
+    } catch (e) {
+      showError('Error de conexión al guardar carta predeterminada.');
+    } finally {
+      setSavingDefault(null);
+    }
+  };
+
+  // Eliminar la carta CAD completa
+  const handleDelete = async (nombreArchivo) => {
+    const confirmed = await confirmDelete(
+      `¿Eliminar la carta "${nombreArchivo}"?`,
+      'Se eliminarán permanentemente todas las entidades, capas vectoriales y registros asociados de la base de datos.'
+    );
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`${API_URL}/api/gis/cad-archivos/${encodeURIComponent(nombreArchivo)}`, {
         method: 'DELETE',
@@ -77,17 +148,50 @@ export default function CartasTopograficas() {
       });
       if (res.ok) {
         showSuccess(`Carta "${nombreArchivo}" eliminada correctamente.`);
+        // Si estaba asignada como predeterminada, actualizar empresa local
+        if (activeEmpresa?.parametros?.carta_predeterminada?.toLowerCase() === nombreArchivo.toLowerCase()) {
+          const newParams = { ...activeEmpresa.parametros };
+          delete newParams.carta_predeterminada;
+          setGlobalEmpresa({ ...activeEmpresa, parametros: newParams });
+        }
         fetchArchivos();
       } else {
-        showError('No se pudo eliminar la carta.');
+        const err = await res.json().catch(() => ({}));
+        showError(err.detail || 'No se pudo eliminar la carta.');
       }
     } catch (e) {
       showError('Error de conexión al eliminar la carta.');
     }
   };
 
+  // Eliminar una capa específica dentro del archivo CAD
+  const handleDeleteCapa = async (e, nombreArchivo, capa) => {
+    e.stopPropagation();
+    const confirmed = await confirmDelete(
+      `¿Eliminar la capa "${capa}"?`,
+      `Se borrarán todos los elementos geométricos de la capa "${capa}" pertenecientes al archivo "${nombreArchivo}".`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/gis/cad-archivos/${encodeURIComponent(nombreArchivo)}/capas/${encodeURIComponent(capa)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        showSuccess(`Capa "${capa}" eliminada correctamente.`);
+        fetchArchivos();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showError(err.detail || 'No se pudo eliminar la capa.');
+      }
+    } catch (e) {
+      showError('Error de conexión al eliminar la capa.');
+    }
+  };
+
   const handleOpenEdit = (archivo) => {
-    const baseName = archivo.nombre_archivo.replace(/\.[^/.]+$/, '');
+    const baseName = (archivo.nombre_archivo || '').replace(/\.[^/.]+$/, '');
     const codMatch = baseName.match(/^([A-Za-z0-9]+-[A-Za-z0-9]+)/i);
     const defCod = codMatch ? codMatch[1].toUpperCase() : 'NIV-D3';
     let cleanName = baseName.replace(/^[A-Za-z0-9]+-[A-Za-z0-9]+/i, '').replace(/[-_]/g, ' ').trim().toUpperCase();
@@ -119,7 +223,7 @@ export default function CartasTopograficas() {
         setEditingCarta(null);
         fetchArchivos();
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         showError(err.detail || 'No se pudieron actualizar los datos.');
       }
     } catch (e) {
@@ -165,7 +269,7 @@ export default function CartasTopograficas() {
         <div>
           <h1 className="cartas-title">Cartas Topográficas y CAD</h1>
           <p className="cartas-subtitle">
-            Gestión y almacenamiento de planos cartográficos (.dxf), cuadrículas UTM y datos marginales para reportes planimétricos.
+            Gestión y almacenamiento de planos cartográficos (.dxf), cuadrículas UTM y asignación de carta predeterminada para reportes planimétricos.
           </p>
         </div>
 
@@ -190,14 +294,23 @@ export default function CartasTopograficas() {
       </div>
 
       <div className="cartas-toolbar">
-        <div className="cartas-search">
-          <Search size={18} color="#94a3b8" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre de carta, archivo o capa..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap', flexGrow: 1 }}>
+          <div className="cartas-search">
+            <Search size={18} color="#94a3b8" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre de carta, archivo o capa..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="cartas-empresa-indicator">
+            <Building2 size={16} />
+            <span>
+              Empresa activa: <b>{activeEmpresa?.nombre || 'General / Todas'}</b>
+            </span>
+          </div>
         </div>
 
         <div className="cartas-stats">
@@ -230,73 +343,147 @@ export default function CartasTopograficas() {
             const capas = archivo.capas || [];
             const defaultLayers = ['VALORCUADRICULAR', 'INFORMACIONMARGI', 'VALORGEOGRAFICO', 'CUADRICULAUTM', 'PROYECCION'];
             const hasDefaults = capas.filter(c => defaultLayers.includes(c.toUpperCase())).length;
-            const displayName = archivo.nombre || archivo.nombre_archivo.replace(/\.[^/.]+$/, '').toUpperCase();
+            const displayName = archivo.nombre || (archivo.nombre_archivo || '').replace(/\.[^/.]+$/, '').toUpperCase();
+
+            // Determinar si es la predeterminada para la empresa activa
+            const empDefCarta = activeEmpresa?.parametros?.carta_predeterminada;
+            const isDefault = Boolean(
+              archivo.es_predeterminada ||
+              (empDefCarta && archivo.nombre_archivo && archivo.nombre_archivo.toLowerCase() === empDefCarta.toLowerCase())
+            );
 
             return (
-              <div key={archivo.nombre_archivo} className="carta-card">
+              <div
+                key={archivo.nombre_archivo}
+                className={`carta-card ${isDefault ? 'is-default' : ''}`}
+              >
+                {/* CABECERA DE LA CARTA */}
                 <div className="carta-card-header">
-                  <div className="carta-icon-box">
-                    <FileSpreadsheet size={24} color="var(--accent-color)" />
-                  </div>
-                  <div className="carta-info">
-                    <h3 title={displayName} style={{ color: '#0f172a', fontWeight: 'bold' }}>{displayName}</h3>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
-                      <span className="carta-badge" style={{ background: '#e0f2fe', color: '#0369a1', fontWeight: 'bold' }}>
-                        {archivo.codigo || 'CAD'}
-                      </span>
-                      {archivo.cuadricula && (
-                        <span className="carta-badge" style={{ background: '#f1f5f9', color: '#475569' }}>
-                          Cuad: {archivo.cuadricula}
-                        </span>
-                      )}
-                      <span className="carta-badge">{archivo.total_elementos || 0} entidades</span>
+                  <div className="carta-header-top">
+                    <div className="carta-icon-box">
+                      <FileSpreadsheet size={22} color="#0284c7" />
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivo.nombre_archivo}>
-                      Archivo: {archivo.nombre_archivo}
+                    <div className="carta-title-group">
+                      <div className="carta-title-row">
+                        <h3 className="carta-card-title" title={displayName}>
+                          {displayName}
+                        </h3>
+                        {isDefault && (
+                          <span className="badge-default-carta" title={`Carta predeterminada para ${activeEmpresa?.nombre || 'la empresa activa'}`}>
+                            <Star size={11} fill="#d97706" color="#b45309" /> PREDETERMINADA
+                          </span>
+                        )}
+                      </div>
+                      <div className="carta-filename-row" title={archivo.nombre_archivo}>
+                        <FileText size={12} color="#94a3b8" />
+                        <span>{archivo.nombre_archivo}</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {/* METADATOS Y BADGES */}
+                  <div className="carta-meta-row">
+                    <span className="carta-badge badge-code" title="Código de carta">
+                      {archivo.codigo || 'CAD'}
+                    </span>
+                    {archivo.cuadricula && (
+                      <span className="carta-badge badge-cuad" title={`Cuadrícula: ${archivo.cuadricula}`}>
+                        <b>Cuad:</b> {archivo.cuadricula}
+                      </span>
+                    )}
+                    <span className="carta-badge badge-entidades" title="Entidades vectoriales">
+                      <b>{Number(archivo.total_elementos || 0).toLocaleString()}</b> entidades
+                    </span>
+                  </div>
+                </div>
+
+                {/* CUERPO: CAPAS DETECTADAS */}
+                <div className="carta-card-body">
+                  <div className="capas-summary">
+                    <span className="capas-count-text">
+                      <Layers size={13} color="#64748b" />
+                      <b>{capas.length}</b> {capas.length === 1 ? 'capa detectada' : 'capas detectadas'}
+                    </span>
+                    {hasDefaults > 0 && (
+                      <span className="badge-base-ok" title="Capas base topográficas estándar reconocidas">
+                        <CheckCircle2 size={12} /> {hasDefaults} capas base
+                      </span>
+                    )}
+                  </div>
+
+                  {capas.length > 0 ? (
+                    <div className="capas-tags">
+                      {capas.map(capa => {
+                        const isDef = defaultLayers.includes(capa.toUpperCase());
+                        return (
+                          <span key={capa} className={`capa-tag ${isDef ? 'base' : ''}`} title={capa}>
+                            <span className="capa-tag-name">{capa}</span>
+                            <button
+                              type="button"
+                              className="capa-delete-btn"
+                              onClick={(e) => handleDeleteCapa(e, archivo.nombre_archivo, capa)}
+                              title={`Eliminar únicamente la capa "${capa}"`}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="capas-empty-note">
+                      <span>Sin capas vectoriales detectadas</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* FOOTER DE ACCIONES */}
+                <div className="carta-card-footer">
+                  <div className="footer-left">
+                    {isDefault ? (
+                      <button
+                        type="button"
+                        className="btn-toggle-default active"
+                        onClick={() => handleToggleDefault(archivo, false)}
+                        disabled={savingDefault === archivo.nombre_archivo}
+                        title={`Quitar como predeterminada de ${activeEmpresa?.nombre || 'la empresa'}`}
+                      >
+                        {savingDefault === archivo.nombre_archivo ? <Loader2 size={13} className="spin" /> : <Star size={13} fill="#d97706" color="#d97706" />}
+                        <span>Predeterminada</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-toggle-default"
+                        onClick={() => handleToggleDefault(archivo, true)}
+                        disabled={savingDefault === archivo.nombre_archivo}
+                        title={`Fijar como predeterminada para ${activeEmpresa?.nombre || 'la empresa activa'}`}
+                      >
+                        {savingDefault === archivo.nombre_archivo ? <Loader2 size={13} className="spin" /> : <Star size={13} />}
+                        <span>Predeterminada</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="footer-right">
                     <button
                       type="button"
                       className="btn-edit-carta"
                       onClick={() => handleOpenEdit(archivo)}
-                      style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}
-                      title="Editar nombre y código de la carta"
+                      title="Editar metadatos de la carta"
                     >
-                      <Edit2 size={14} /> Editar
+                      <Edit2 size={13} />
+                      <span>Editar</span>
                     </button>
 
                     <button
                       type="button"
                       className="btn-delete-carta"
                       onClick={() => handleDelete(archivo.nombre_archivo)}
-                      title="Eliminar carta de la base de datos"
+                      title="Eliminar carta y todas sus entidades de la base de datos"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
-                  </div>
-                </div>
-
-                <div className="carta-card-body">
-                  <div className="capas-summary">
-                    <span><b>{capas.length}</b> capas detectadas</span>
-                    {hasDefaults > 0 && (
-                      <span className="badge-base-ok">
-                        <CheckCircle2 size={12} /> {hasDefaults} capas base
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="capas-tags">
-                    {capas.map(capa => {
-                      const isDef = defaultLayers.includes(capa.toUpperCase());
-                      return (
-                        <span key={capa} className={`capa-tag ${isDef ? 'base' : ''}`}>
-                          {capa}
-                        </span>
-                      );
-                    })}
                   </div>
                 </div>
               </div>
