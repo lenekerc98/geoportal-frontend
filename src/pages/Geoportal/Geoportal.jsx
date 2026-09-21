@@ -1789,7 +1789,7 @@ export default function Geoportal() {
   const handleDeleteCapaAdicional = async (tabla_db) => {
     if (!window.confirm("¿Estás seguro de eliminar esta capa? Esta acción no se puede deshacer.")) return;
     try {
-      const res = await fetch(`${API_URL}/gis/capa-adicional/${tabla_db}`, {
+      const res = await fetch(`${API_URL}/api/gis/capa-adicional/${tabla_db}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
