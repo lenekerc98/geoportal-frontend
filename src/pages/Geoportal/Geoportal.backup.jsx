@@ -1778,7 +1778,7 @@ export default function Geoportal() {
 
   const onDragOver = (e) => {
     e.preventDefault();
-    if (showShapefileUploader || showCadUploader || showReportModal || isAddingPredio || editingPredio) {
+    if (showShapefileUploader || showReportModal || isAddingPredio || editingPredio) {
       return;
     }
     setIsDragging(true);
@@ -1793,7 +1793,7 @@ export default function Geoportal() {
     e.preventDefault();
     setIsDragging(false);
 
-    if (showShapefileUploader || showCadUploader || showReportModal || isAddingPredio || editingPredio) {
+    if (showShapefileUploader || showReportModal || isAddingPredio || editingPredio) {
       return;
     }
 

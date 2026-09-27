@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl, GeoJSON } from 'react-leaflet';
 import L from 'leaflet';
 import proj4 from 'proj4';
@@ -12,6 +12,8 @@ import { getOfflinePredioById } from '../../services/offlineDB';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import { escapeHtml } from '../../utils/sanitize';
+import PlanimetricoSheet from './PlanimetricoSheet';
+import BatchPrintModal from './BatchPrintModal';
 import './ReportePlanimetrico.css';
 
 // Caché en memoria para evitar re-descargas pesadas de capas CAD GeoJSON
@@ -279,6 +281,16 @@ export default function ReportePlanimetrico() {
   const [pointSize, setPointSize] = useState(6);
   const [textSize, setTextSize] = useState(10);
 
+  const [searchParams] = useSearchParams();
+  const autoBatch = searchParams.get('batch') === 'true';
+
+  // Estados de Impresión Masiva (Batch Print)
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: '' });
+  const [batchDataList, setBatchDataList] = useState([]);
+
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
   const fetchCartasCatalog = useCallback(async () => {
@@ -356,11 +368,6 @@ export default function ReportePlanimetrico() {
     fetchCadArchivos();
   }, [fetchCartasCatalog, fetchCadArchivos]);
 
-  useEffect(() => {
-    if (fondoMinimapa === 'cad' && selectedCadFile && center && center[0]) {
-      fetchCadGeoJson(selectedCadFile, center);
-    }
-  }, [fondoMinimapa, selectedCadFile, center, fetchCadGeoJson]);
 
   useEffect(() => {
     document.body.style.overflow = 'auto';
@@ -620,6 +627,12 @@ export default function ReportePlanimetrico() {
   }, [polygonCoords]);
   const center = centerInfo.center;
 
+  useEffect(() => {
+    if (fondoMinimapa === 'cad' && selectedCadFile && center && center[0]) {
+      fetchCadGeoJson(selectedCadFile, center);
+    }
+  }, [fondoMinimapa, selectedCadFile, center, fetchCadGeoJson]);
+
   // Calcular centroides y linderos
   const linderosConInfo = linderos.map((l, index) => {
     let midPoint = [0, 0];
@@ -722,6 +735,62 @@ export default function ReportePlanimetrico() {
     }
   };
 
+  useEffect(() => {
+    if (autoBatch && allPredios.length > 0) {
+      setShowBatchModal(true);
+    }
+  }, [autoBatch, allPredios.length]);
+
+  const handleStartBatch = async (fromIdx, toIdx) => {
+    try {
+      setBatchLoading(true);
+      const token = localStorage.getItem('catastro_token');
+      const targetList = allPredios.slice(fromIdx - 1, toIdx);
+      const results = [];
+
+      for (let i = 0; i < targetList.length; i++) {
+        const item = targetList[i];
+        setBatchProgress({
+          current: i + 1,
+          total: targetList.length,
+          message: `Cargando predio ${i + 1} de ${targetList.length}: ${item.codigo || item.nombre_posesionario || ''}`
+        });
+
+        try {
+          const res = await fetch(`${API_URL}/api/gis/predios/detalle/${encodeURIComponent(item.codigo)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const json = await res.json();
+            results.push(json);
+          }
+        } catch (err) {
+          console.error(`Error cargando predio ${item.codigo}:`, err);
+        }
+      }
+
+      if (results.length === 0) {
+        showError('No se pudo cargar ningún predio para el lote de impresión');
+        setBatchLoading(false);
+        return;
+      }
+
+      setBatchDataList(results);
+      setBatchLoading(false);
+      setShowBatchModal(false);
+      setIsBatchPrinting(true);
+      setReportZoom(1);
+
+      setTimeout(() => {
+        window.print();
+      }, 1000);
+    } catch (e) {
+      console.error('Error en lote de impresión:', e);
+      showError('Error al preparar el lote de impresión');
+      setBatchLoading(false);
+    }
+  };
+
   return (
     <div className="report-wrapper" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -770,7 +839,7 @@ export default function ReportePlanimetrico() {
           </button>
         </div>
 
-        {/* Derecha: Botón de Herramientas y Botón Imprimir */}
+        {/* Derecha: Botón de Herramientas y Botones Imprimir */}
         <div className="rh-right">
           <button
             type="button"
@@ -786,10 +855,36 @@ export default function ReportePlanimetrico() {
             className="rh-btn-print"
             onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }}
             disabled={!data}
-            title="Imprimir plano en PDF"
+            title="Imprimir plano actual en PDF"
           >
             <Printer size={16} />
             <span>Imprimir PDF</span>
+          </button>
+          <button
+            type="button"
+            className="rh-btn-print-all"
+            onClick={() => setShowBatchModal(true)}
+            disabled={allPredios.length === 0}
+            title="Imprimir todos los reportes del catálogo en lote"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 14px',
+              background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '13px',
+              boxShadow: '0 2px 5px rgba(16, 185, 129, 0.25)',
+              transition: 'all 0.2s',
+              marginLeft: '4px'
+            }}
+          >
+            <Printer size={16} />
+            <span>Imprimir Todos ({allPredios.length})</span>
           </button>
         </div>
       </header>
@@ -1073,493 +1168,108 @@ export default function ReportePlanimetrico() {
             </div>
           )}
 
-          <div className="report-pages-container" style={{ zoom: reportZoom }}>
-            <div className="print-page">
-              <div className="report-border">
-
-                {/* HEADER OFICIAL CON LOGO GAD Y NOMBRE DE EMPRESA */}
-                <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '10px 0', borderBottom: '2px solid black', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {/* LOGO A LA IZQUIERDA */}
-                  {(activeEmpresa?.logo_url || activeEmpresa?.logo) && (
-                    <img
-                      src={((activeEmpresa.logo_url || activeEmpresa.logo).startsWith('http') ? (activeEmpresa.logo_url || activeEmpresa.logo) : `${API_URL}${activeEmpresa.logo_url || activeEmpresa.logo}`)}
-                      alt="Logo Empresa"
-                      style={{ position: 'absolute', top: '50%', left: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                  )}
-
-                  <div className="report-header-text" style={{ display: 'inline-block', textAlign: 'center', padding: '0 90px' }}>
-                    <div style={{ fontSize: '15px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
-                      {activeEmpresa?.nombre || 'GOBIERNO AUTÓNOMO DESCENTRALIZADO MUNICIPAL DEL CANTÓN URDANETA'}
+          {isBatchPrinting ? (
+            <div className="report-pages-container" style={{ zoom: reportZoom }}>
+              <div className="no-print" style={{
+                background: '#059669',
+                color: 'white',
+                padding: '14px 20px',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Printer size={22} />
+                  <div>
+                    <strong style={{ fontSize: '1rem' }}>Lote de {batchDataList.length} reportes planimétricos preparado para impresión</strong>
+                    <div style={{ fontSize: '0.82rem', opacity: 0.9, marginTop: '2px' }}>
+                      Total de páginas a imprimir: {batchDataList.length * 2} páginas (A4 Horizontal). Puedes imprimir directamente o guardar en PDF.
                     </div>
-                    <h1 style={{ margin: '0', fontSize: '20px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                      LEVANTAMIENTO PLANIMÉTRICO
-                    </h1>
                   </div>
-
-                  {/* BANDERA A LA DERECHA */}
-                  {activeEmpresa?.bandera_url && (
-                    <img
-                      src={(activeEmpresa.bandera_url.startsWith('http') ? activeEmpresa.bandera_url : `${API_URL}${activeEmpresa.bandera_url}`)}
-                      alt="Bandera Empresa"
-                      style={{ position: 'absolute', top: '50%', right: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                  )}
                 </div>
-
-                <div className="report-body" style={{ display: 'flex', flex: 1 }}>
-                  {/* COLUMNA IZQUIERDA: Mapa + Escala Gráfica + Footer Datos */}
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid black' }}>
-
-                    {/* Mapa */}
-                    <div className="report-map-container" style={{ flex: 1, position: 'relative', padding: '30px 25px 20px 30px', backgroundColor: 'white', overflow: 'hidden', borderRight: 'none' }}>
-                      <div style={{ position: 'relative', width: '100%', height: '100%', border: '2px solid black', backgroundColor: 'white', zIndex: 0 }}>
-                        {/* Botón flotante para previsualización interactiva */}
-                        <button
-                          type="button"
-                          className="no-print"
-                          onClick={() => { setModalLayerType('blanco'); setPreviewModal({ isOpen: true, type: 'plano' }); }}
-                          style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 999, background: '#0284c7', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}
-                          title="Abrir ventana emergente interactiva de este plano"
-                        >
-                          <Maximize2 size={13} /> Previsualizar
-                        </button>
-
-                        {polygonCoords.length > 0 && (
-                          <MapContainer preferCanvas={true} center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
-                            <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
-                            <UtmGrid setMapGridLabels={setMapGridLabels} />
-
-                            <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2, fillColor: 'transparent' }} />
-
-                            {vertices.map(v => {
-                              let lat = 0, lng = 0;
-                              if (v.geom_wkt) {
-                                try {
-                                  const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
-                                  lng = parseFloat(parts[0]);
-                                  lat = parseFloat(parts[1]);
-                                } catch (e) { }
-                              }
-                              if (!lat || !lng) return null;
-                              return (
-                                <React.Fragment key={v.id}>
-                                  <Marker position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label', pointSize, textSize, lat, lng, center[0], center[1])} />
-                                </React.Fragment>
-                              );
-                            })}
-
-                            <Marker position={center} icon={L.divIcon({
-                              className: 'center-predio-info',
-                              html: `<div style="position: absolute; transform: translate(-50%, -50%) rotate(${textAngleOffset}deg); text-align: center; font-size: 8px; line-height: 1.3; font-weight: bold; color: black; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff, 0px 0px 4px #fff; white-space: nowrap;">
-                        <div>POSESIONARIO: ${predio?.nombre_posesionario || 'SIN NOMBRE'}</div>
-                        <div>C.C.: ${predio?.cedula || 'S/D'} | CÓDIGO: ${predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
-                        <div>ÁREA: ${predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
-                      </div>`,
-                              iconSize: [0, 0],
-                              iconAnchor: [0, 0]
-                            })} />
-
-                            {(() => {
-                              // Agrupar linderos contiguos por nombre de colindante
-                              const contiguousGroups = [];
-                              let currGroup = null;
-                              linderos.forEach((l, idx) => {
-                                const cName = (l.colindante || '').trim();
-                                if (cName === '') {
-                                  currGroup = null;
-                                  return;
-                                }
-                                if (currGroup && currGroup.name === cName) {
-                                  currGroup.indices.push(idx);
-                                } else {
-                                  currGroup = { name: cName, indices: [idx] };
-                                  contiguousGroups.push(currGroup);
-                                }
-                              });
-
-                              // Seleccionar el índice central geométrico para cada grupo contiguo
-                              const centerIndices = new Set();
-                              contiguousGroups.forEach(group => {
-                                const midIndex = group.indices[Math.floor(group.indices.length / 2)];
-                                centerIndices.add(midIndex);
-                              });
-
-                              return linderos.map((l, i) => {
-                                try {
-                                  const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
-                                  const points = coordsStr.split(',').map(p => {
-                                    const [lng, lat] = p.trim().split(' ');
-                                    return [parseFloat(lat), parseFloat(lng)];
-                                  });
-                                  if (points.length >= 2) {
-                                    const midLat = (points[0][0] + points[1][0]) / 2;
-                                    const midLng = (points[0][1] + points[1][1]) / 2;
-                                    const medida = `${l.longitud.toFixed(1)}m`;
-
-                                    // Solo pasar el nombre del colindante si este es el segmento central del grupo
-                                    const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
-
-                                    return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindanteToRender, medida, points[0], points[1], center[0], center[1])} />;
-                                  }
-                                } catch (e) { }
-                                return null;
-                              });
-                            })()}
-
-
-                            <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, textAlign: 'center' }}>
-                              <div style={{ width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '30px solid white', filter: 'drop-shadow(0px 0px 1px black)', margin: '0 auto' }}></div>
-                              <div style={{ fontWeight: 'bold', fontSize: '14px', marginTop: '5px', color: 'white', textShadow: '1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000' }}>N</div>
-                            </div>
-                          </MapContainer>
-                        )}
-                      </div>
-
-                      {mapGridLabels.top.map((lbl, i) => (
-                        <div key={`t-${i}`} style={{ position: 'absolute', top: '10px', left: `${lbl.val + 30}px`, transform: 'translateX(-50%)', fontSize: '10px', fontWeight: 'bold' }}>{lbl.text}</div>
-                      ))}
-                      {mapGridLabels.left.map((lbl, i) => (
-                        <div key={`l-${i}`} style={{ position: 'absolute', left: '-15px', top: `${lbl.val + 30}px`, transform: 'translateY(-50%) rotate(-90deg)', fontSize: '10px', fontWeight: 'bold', width: '60px', textAlign: 'center' }}>{lbl.text}</div>
-                      ))}
-                    </div>
-
-                    {/* Escala Gráfica debajo del mapa */}
-                    <div style={{ padding: '0 25px 15px 25px', display: 'flex', alignItems: 'center' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 'bold', marginRight: '15px' }}>ESCALA GRÁFICA:</div>
-                      <div style={{ position: 'relative', width: `${Math.min(graphicScale.totalWidthPx || 300, 350)}px`, height: '8px', display: 'flex', border: '1px solid black' }}>
-                        {graphicScale.ticks?.map((tick, i) => (
-                          <div key={i} style={{ position: 'absolute', left: `${(i / (graphicScale.ticks.length - 1)) * 100}%`, top: '10px', transform: 'translateX(-50%)', fontSize: '8px', fontWeight: 'bold' }}>
-                            {tick}
-                          </div>
-                        ))}
-                        {graphicScale.ticks?.slice(0, -1).map((_, i) => (
-                          <div key={i} style={{ flex: 1, backgroundColor: i % 2 === 0 ? 'black' : 'white', borderRight: i < graphicScale.ticks.length - 2 ? '1px solid black' : 'none' }}></div>
-                        ))}
-                        <div style={{ position: 'absolute', right: '-35px', top: '10px', fontSize: '8px', fontWeight: 'bold' }}>
-                          Metros
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer Boxes */}
-                    <div style={{ display: 'flex', borderTop: '1px solid black', height: '48px' }}>
-                      <div className="footer-box" style={{ flex: 1 }}>
-                        <div className="box-title">FECHA:</div>
-                        <div className="box-content" style={{ textAlign: 'center' }}>{currentDate}</div>
-                      </div>
-                      <div className="footer-box" style={{ flex: 1 }}>
-                        <div className="box-title">ÁREA:</div>
-                        <div className="box-content" style={{ textAlign: 'center' }}>{predio?.area_ha ? predio.area_ha.toFixed(4) : '0.0000'} Ha</div>
-                      </div>
-                      <div className="footer-box" style={{ flex: 1 }}>
-                        <div className="box-title">ESCALA:</div>
-                        <div className="box-content" style={{ textAlign: 'center' }}>{scale === 'custom' ? customScale : calculatedScale}</div>
-                      </div>
-                      <div className="footer-box" style={{ flex: 1.5, borderRight: 'none' }}>
-                        <div className="box-title">COORDENADAS PLANAS:</div>
-                        <div className="box-content" style={{ fontSize: '7.5px', lineHeight: '1.2', fontWeight: 'bold', paddingTop: '2px', textAlign: 'center' }}>
-                          SISTEMA DE COORDENADAS: WGS 1984 UTM ZONE 17S<br />
-                          PROYECCIÓN: TRANSVERSE MERCATOR<br />
-                          DATUM: WGS 1984
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* COLUMNA DERECHA: Sidebar */}
-                  <div className="report-sidebar">
-                    <div className="sidebar-box">
-                      <div className="minimap-box" style={{ height: '235px', position: 'relative', overflow: 'hidden', padding: '16px 8px 6px 28px', backgroundColor: 'white' }}>
-                        <div style={{ position: 'relative', width: '100%', height: '100%', border: '1px solid black', backgroundColor: 'white' }}>
-                          {/* Botón flotante para previsualización interactiva de carta CAD */}
-                          <button
-                            type="button"
-                            className="no-print"
-                            onClick={() => { setModalLayerType(fondoMinimapa); setPreviewModal({ isOpen: true, type: 'minimapa' }); }}
-                            style={{ position: 'absolute', top: '4px', right: '4px', zIndex: 999, background: '#0284c7', color: 'white', border: 'none', padding: '3px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}
-                            title="Abrir ventana emergente interactiva de la carta CAD"
-                          >
-                            <Maximize2 size={10} /> Previsualizar
-                          </button>
-
-                          <MapContainer preferCanvas={true} center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
-                            {fondoMinimapa === 'osm' && (
-                              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-                            )}
-
-                            {fondoMinimapa === 'satelital' && (
-                              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
-                            )}
-
-                            {fondoMinimapa === 'cad' && cadGeoJson && (
-                              <GeoJSON
-                                key={'minimap_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
-                                data={cadGeoJson}
-                                style={(feature) => {
-                                  const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
-                                  if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.6, opacity: 0.6 };
-                                  if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.2, opacity: 0.85 };
-                                  if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.0, opacity: 0.85 };
-                                  if (capa.includes('CURVA') || capa.includes('NIVEL') || capa.includes('ACCIDENTE')) return { color: '#ca8a04', weight: 0.6, opacity: 0.75 };
-                                  return { color: '#475569', weight: 0.7, opacity: 0.7 };
-                                }}
-                                pointToLayer={(feature, latlng) => {
-                                  const textVal = feature?.properties?.texto || feature?.properties?.text;
-                                  if (textVal && String(textVal).trim()) {
-                                    return L.marker(latlng, {
-                                      icon: L.divIcon({
-                                        className: 'cad-text-label',
-                                        html: `<div style="font-size: 6px; font-weight: bold; color: #1e293b; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
-                                        iconSize: [0, 0]
-                                      })
-                                    });
-                                  }
-                                  return null;
-                                }}
-                              />
-                            )}
-
-                            <UtmGrid setMapGridLabels={setMinimapGridLabels} isMinimap={true} />
-                            <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2.5, fillColor: '#ea580c', fillOpacity: 0.85 }} />
-                          </MapContainer>
-                        </div>
-
-                        {/* Coordenadas UTM Referenciales en Bordes del Minimapa */}
-                        {minimapGridLabels.top.map((lbl, i) => (
-                          <div key={`mt-${i}`} style={{ position: 'absolute', top: '2px', left: `${lbl.val + 28}px`, transform: 'translateX(-50%)', fontSize: '6.5px', fontWeight: 'bold', color: '#0f172a' }}>
-                            {lbl.text}
-                          </div>
-                        ))}
-                        {minimapGridLabels.left.map((lbl, i) => (
-                          <div key={`ml-${i}`} style={{ position: 'absolute', left: '-14px', top: `${lbl.val + 16}px`, transform: 'translateY(-50%) rotate(-90deg)', fontSize: '6.5px', fontWeight: 'bold', color: '#0f172a', width: '55px', textAlign: 'center' }}>
-                            {lbl.text}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="box-content-center" style={{ fontSize: '8.5px', borderTop: '1px solid black', padding: '4px 5px', lineHeight: '1.3' }}>
-                        <div style={{ fontWeight: 'bold' }}>UBICACIÓN:</div>
-                        <div>CARTA TOPOGRÁFICA: {displayCarta || '_________________'}</div>
-                        <div style={{ marginTop: '1px' }}>ESCALA 1:50000</div>
-                        <div>CÓDIGO: {displayCuadricula || 'ZONA 17S'}</div>
-                      </div>
-                    </div>
-
-                    <div className="sidebar-box">
-                      <div className="box-title">POSESIONARIO:</div>
-                      <div className="box-content">
-                        {predio?.nombre_posesionario || 'SIN NOMBRE'}<br />
-                        C.C.: {predio?.cedula || 'S/D'}
-                      </div>
-                    </div>
-                    <div className="sidebar-box">
-                      <div className="box-title">Codigo Catastral</div>
-                      <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                        {predio?.codigo || predio?.cod_catastral || 'S/D'}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', width: '100%', borderBottom: '1px solid black' }}>
-                      <div style={{ flex: 1, borderRight: '1px solid black', display: 'flex', flexDirection: 'column', minHeight: '35px' }}>
-                        <div className="box-title" style={{ borderBottom: 'none' }}>PROVINCIA:</div>
-                        <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {dpaProvincia}
-                        </div>
-                      </div>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '35px' }}>
-                        <div className="box-title" style={{ borderBottom: 'none' }}>CANTÓN:</div>
-                        <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {dpaCanton}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="sidebar-box">
-                      <div className="box-title">PARROQUIA:</div>
-                      <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        {dpaParroquia}
-                      </div>
-                    </div>
-
-                    <div className="sidebar-box">
-                      <div className="box-title">SECTOR:</div>
-                      <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        {dpaSector}
-                      </div>
-                    </div>
-
-                    <div className="sidebar-box">
-                      <div className="box-title">NOMBRE DEL PREDIO:</div>
-                      <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        {predio?.nombre_predio || 'SIN NOMBRE'}
-                      </div>
-                    </div>
-
-                    <div className="sidebar-box" style={{ flex: 1, borderBottom: 'none' }}>
-                      <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-                        <div style={{ flex: 1, borderRight: '1px solid black', padding: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
-                          <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>RESP. TÉCNICO:</div>
-                          <div style={{ textAlign: 'center', marginBottom: '2px' }}>
-                            <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
-                            <div style={{ fontSize: '7px', fontWeight: 'bold', minHeight: '10px' }}>
-                              {activeEmpresa?.nombre_director || ' '}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ flex: 1, padding: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
-                          <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>REVISADO Y APROBADO POR:</div>
-                          <div style={{ textAlign: 'center', marginBottom: '2px' }}>
-                            <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
-                            <div style={{ fontSize: '7px', fontWeight: 'bold', minHeight: '10px', color: 'transparent', userSelect: 'none' }}>
-                              .
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }}
+                    style={{
+                      background: 'white',
+                      color: '#059669',
+                      border: 'none',
+                      padding: '8px 18px',
+                      borderRadius: '6px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <Printer size={16} /> Imprimir Lote
+                  </button>
+                  <button
+                    onClick={() => { setIsBatchPrinting(false); setBatchDataList([]); }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      color: 'white',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      padding: '8px 14px',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Volver a Vista Individual
+                  </button>
                 </div>
               </div>
+
+              {batchDataList.map((item, idx) => (
+                <PlanimetricoSheet
+                  key={item.predio?.id || item.predio?.cod_catastral || idx}
+                  data={item}
+                  activeEmpresa={activeEmpresa}
+                  scale={scale}
+                  customScale={customScale}
+                  pointSize={pointSize}
+                  textSize={textSize}
+                  textAngleOffset={item.predio?.angulo_texto || textAngleOffset}
+                  fondoMinimapa={fondoMinimapa}
+                  selectedCadFile={selectedCadFile}
+                  cadGeoJson={cadGeoJson}
+                  codigoCarta={item.predio?.codigo_carta || codigoCarta}
+                  nombreCarta={item.predio?.nombre_carta || nombreCarta}
+                  nombreCuadricula={item.predio?.cuadricula_carta || nombreCuadricula}
+                  MapScaleUpdater={MapScaleUpdater}
+                  UtmGrid={UtmGrid}
+                />
+              ))}
             </div>
-
-            {/* PÁGINA 2: TABLAS DE LINDEROS */}
-            <div className="print-page">
-              <div className="report-inner-border">
-                <div className="page2-body">
-                  {/* LADO IZQUIERDO: TABLA VERTICES */}
-                  <div className="page2-col-left">
-                    <div className="page2-title">INFORME DE LINDERACIÓN</div>
-                    <div className="dpa-grid" style={{ border: '1px solid black', marginBottom: '10px' }}>
-                      <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>PROVINCIA:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaProvincia}</div></div>
-                      <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>CANTÓN:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaCanton}</div></div>
-                      <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>PARROQUIA:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaParroquia}</div></div>
-                      <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>SECTOR:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaSector}</div></div>
-                    </div>
-
-                    <div style={{ display: 'flex', border: '1px solid black', marginBottom: '10px' }}>
-                      <div style={{ flex: 1, padding: '4px', borderRight: '1px solid black' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '9px' }}>NOMBRES DEL POSESIONARIO</div>
-                        <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '5px' }}>{predio.nombre_posesionario || 'SIN NOMBRE'}<br />C.C.: {predio.cedula || 'S/D'}</div>
-                      </div>
-                      <div style={{ flex: .5, padding: '2px', borderRight: '1px solid black' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '9px' }}>NOMBRE DEL PREDIO</div>
-                        <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '5px' }}>{predio?.nombre_predio || predio?.nombre || 'SIN NOMBRE'}</div>
-                      </div>
-                      <div style={{ flex: .5, padding: '2px' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '9px' }}>CÓDIGO CATASTRAL</div>
-                        <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '5px' }}>{predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
-                      </div>
-                    </div>
-
-                    <table className="report-table">
-                      <thead>
-                        <tr>
-                          <th rowSpan="2">PUNTOS</th>
-                          <th colSpan="2">COORDENADAS PLANAS<br />UTM W.G.S.-84</th>
-                          <th rowSpan="2">VERTICE<br />DESDE-HASTA</th>
-                          <th rowSpan="2">DISTANCIA (m)</th>
-                          <th rowSpan="2">RUMBO</th>
-                          <th rowSpan="2">COLINDANTES</th>
-                        </tr>
-                        <tr>
-                          <th>X</th>
-                          <th>Y</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {vertices.map((v, i) => {
-                          const l = linderosConInfo[i] || linderos[i] || {};
-                          const currentCode = v.codigo || `P${String(i + 1).padStart(2, '0')}`;
-                          const nextCode = (i < vertices.length - 1)
-                            ? (vertices[i + 1]?.codigo || `P${String(i + 2).padStart(2, '0')}`)
-                            : (vertices[0]?.codigo || 'P01');
-                          const desdeHasta = (l.tramo && l.tramo !== '-') ? l.tramo : `${currentCode} - ${nextCode}`;
-
-                          return (
-                            <tr key={v.id || i}>
-                              <td>{currentCode}</td>
-                              <td>{v.coord_x ? v.coord_x.toFixed(1) : '-'}</td>
-                              <td>{v.coord_y ? v.coord_y.toFixed(1) : '-'}</td>
-                              <td>{desdeHasta}</td>
-                              <td>{l.longitud ? l.longitud.toFixed(1) : '-'}</td>
-                              <td>{l.rumbo || '-'}</td>
-                              <td style={{ fontSize: '8px' }}>{l.colindante || '-'}</td>
-                            </tr>
-                          );
-                        })}
-                        {/* Filas vacías de relleno si hay pocos vértices */}
-                        {vertices.length < 22 && Array.from({ length: 22 - vertices.length }).map((_, i) => (
-                          <tr key={`empty-${i}`}>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* LADO DERECHO: DESCRIPCION ORIENTACION */}
-                  <div className="page2-col-right" style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div className="page2-title">DESCRIPCIÓN DE LINDEROS</div>
-                    <div className="desc-box">
-                      <div className="desc-box-title">COLINDANTE NORTE</div>
-                      <div className="desc-box-content">
-                        {linderosNorte.length > 0 ? linderosNorte.map((l, i) => <div style={{ marginBottom: '2px' }} key={i}>{renderLinderoText(l)}</div>) : 'Sin datos.'}
-                      </div>
-                    </div>
-                    <div className="desc-box">
-                      <div className="desc-box-title">COLINDANTE SUR</div>
-                      <div className="desc-box-content">
-                        {linderosSur.length > 0 ? linderosSur.map((l, i) => <div style={{ marginBottom: '2px' }} key={i}>{renderLinderoText(l)}</div>) : 'Sin datos.'}
-                      </div>
-                    </div>
-                    <div className="desc-box">
-                      <div className="desc-box-title">COLINDANTE ESTE</div>
-                      <div className="desc-box-content">
-                        {linderosEste.length > 0 ? linderosEste.map((l, i) => <div style={{ marginBottom: '2px' }} key={i}>{renderLinderoText(l)}</div>) : 'Sin datos.'}
-                      </div>
-                    </div>
-                    <div className="desc-box">
-                      <div className="desc-box-title">COLINDANTE OESTE</div>
-                      <div className="desc-box-content">
-                        {linderosOeste.length > 0 ? linderosOeste.map((l, i) => <div style={{ marginBottom: '2px' }} key={i}>{renderLinderoText(l)}</div>) : 'Sin datos.'}
-                      </div>
-                    </div>
-
-                    <div style={{ flex: 1 }}></div>
-
-                    <div className="firmas-grid">
-                      <div className="firma-box">
-                        <div className="firma-box-title">RESPONSABILIDAD TÉCNICA</div>
-                        <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center', height: '35px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                          <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
-                          <div style={{ fontSize: '8px', fontWeight: 'bold' }}>{activeEmpresa?.nombre_director || ' '}</div>
-                          <div style={{ fontSize: '8px' }}>Director(a) de Catastro</div>
-                        </div>
-                      </div>
-                      <div className="firma-box" style={{ borderLeft: 'none' }}>
-                        <div className="firma-box-title">REVISADO Y APROBADO POR:</div>
-                        <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center', height: '35px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                          <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
-                          {/* Textos ocultos para igualar la altura de la caja izquierda y alinear la línea */}
-                          <div style={{ fontSize: '8px', fontWeight: 'bold', color: 'transparent', userSelect: 'none' }}>.</div>
-                          <div style={{ fontSize: '8px', color: 'transparent', userSelect: 'none' }}>.</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          ) : (
+            <div className="report-pages-container" style={{ zoom: reportZoom }}>
+              <PlanimetricoSheet
+                data={data}
+                activeEmpresa={activeEmpresa}
+                scale={scale}
+                customScale={customScale}
+                pointSize={pointSize}
+                textSize={textSize}
+                textAngleOffset={textAngleOffset}
+                fondoMinimapa={fondoMinimapa}
+                selectedCadFile={selectedCadFile}
+                cadGeoJson={cadGeoJson}
+                codigoCarta={codigoCarta}
+                nombreCarta={nombreCarta}
+                nombreCuadricula={nombreCuadricula}
+                onPrevisualizarPlano={() => { setModalLayerType('blanco'); setPreviewModal({ isOpen: true, type: 'plano' }); }}
+                onPrevisualizarMinimapa={() => { setModalLayerType(fondoMinimapa); setPreviewModal({ isOpen: true, type: 'minimapa' }); }}
+                MapScaleUpdater={MapScaleUpdater}
+                UtmGrid={UtmGrid}
+              />
             </div>
-          </div>
+          )}
 
           {/* VENTANA EMERGENTE DE PREVISUALIZACIÓN INTERACTIVA */}
           {previewModal.isOpen && (
@@ -1705,6 +1415,16 @@ export default function ReportePlanimetrico() {
           )}
         </>
       )}
+
+      {/* MODAL DE IMPRESIÓN MASIVA */}
+      <BatchPrintModal
+        isOpen={showBatchModal}
+        onClose={() => setShowBatchModal(false)}
+        allPredios={allPredios}
+        onStartBatch={handleStartBatch}
+        loading={batchLoading}
+        progress={batchProgress}
+      />
     </div>
   );
 }

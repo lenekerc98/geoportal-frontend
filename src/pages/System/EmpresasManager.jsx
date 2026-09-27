@@ -172,56 +172,154 @@ export default function EmpresasManager() {
   if (loading && empresas.length === 0) return <div style={{padding:'20px', color:'white'}}><Loader2 className="spin" /> Cargando empresas...</div>;
 
   return (
-    <div className="system-logs-container" style={{ padding: '20px', color: 'var(--text-main)', minHeight: '100vh', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2><Building2 style={{ verticalAlign: 'middle', marginRight: '10px' }}/> Gestión de Empresas</h2>
-        <button onClick={() => openModal()} className="btn-dynamic" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+    <div style={{ padding: '25px 35px', color: 'var(--text-main)', minHeight: '100vh', overflowY: 'auto', boxSizing: 'border-box' }}>
+      <header className="glass-panel" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '25px', padding: '20px', gap: '15px' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Building2 size={24} color="var(--primary)" /> Gestión de Empresas
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            Administra las entidades, municipios y empresas registradas en el sistema
+          </p>
+        </div>
+        <button onClick={() => openModal()} className="btn-dynamic" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Plus size={18} /> Nueva Empresa
         </button>
-      </div>
+      </header>
 
-      {error && <div style={{ color: '#ff4444', marginBottom: '15px' }}>{error}</div>}
+      {error && (
+        <div style={{ color: '#ef4444', marginBottom: '15px', padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+          {error}
+        </div>
+      )}
 
-      <div className="logs-table-container glass-panel">
-        <table className="logs-table">
+      <div className="table-container glass-panel" style={{ overflowX: 'auto', borderRadius: '16px' }}>
+        <table className="custom-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>RUC</th>
-              <th>Contacto</th>
-              <th>Ubicación</th>
-              <th>Proyecto</th>
-              <th style={{ textAlign: 'right' }}>Acciones</th>
+              <th style={{ width: '60px', textAlign: 'center' }}>ID</th>
+              <th style={{ minWidth: '220px' }}>Empresa / GAD</th>
+              <th style={{ minWidth: '130px' }}>RUC</th>
+              <th style={{ minWidth: '180px' }}>Contacto</th>
+              <th style={{ minWidth: '150px' }}>Ubicación</th>
+              <th style={{ minWidth: '180px' }}>Proyectos Asignados</th>
+              <th style={{ width: '100px', textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {empresas.map(emp => (
               <tr key={emp.id}>
-                <td data-label="ID">{emp.id}</td>
-                <td data-label="Nombre" style={{ fontWeight: 'bold' }}>{emp.nombre}</td>
-                <td data-label="RUC">{emp.ruc || '-'}</td>
-                <td data-label="Contacto">
-                  <div style={{ fontSize: '0.8rem' }}>{emp.correo || '-'}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.telefono || '-'}</div>
+                <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  <span style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px' }}>#{emp.id}</span>
                 </td>
-                <td data-label="Ubicación">
-                  <div>{emp.canton || '-'}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'gray' }}>{emp.sector || '-'}</div>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {emp.logo_url ? (
+                      <img 
+                        src={emp.logo_url} 
+                        alt="" 
+                        style={{ width: '36px', height: '36px', objectFit: 'contain', background: 'white', borderRadius: '6px', padding: '2px', border: '1px solid var(--card-border)' }} 
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                        <Building2 size={20} />
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>{emp.nombre}</div>
+                      {emp.bandera_url && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Bandera registrada</span>
+                      )}
+                    </div>
+                  </div>
                 </td>
-                <td data-label="Proyecto">
-                  {emp.proyectos_ids && emp.proyectos_ids.length > 0 
-                    ? emp.proyectos_ids.map(id => proyectos.find(p => p.id === id)?.nombre || id).join(', ') 
-                    : '-'}
+                <td>
+                  <span style={{ fontFamily: 'monospace', fontSize: '0.88rem', letterSpacing: '0.04em', background: 'rgba(0,0,0,0.15)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
+                    {emp.ruc || '—'}
+                  </span>
                 </td>
-                <td data-label="Acciones" style={{ textAlign: 'right' }}>
-                  <button onClick={() => openModal(emp)} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
-                    <Edit2 size={14} />
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                      {emp.correo ? (
+                        <a href={`mailto:${emp.correo}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{emp.correo}</a>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </div>
+                    {emp.telefono && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Tel: {emp.telefono}</div>
+                    )}
+                  </div>
+                </td>
+                <td>
+                  <div>
+                    <div style={{ fontWeight: '500', fontSize: '0.88rem' }}>{emp.canton || '—'}</div>
+                    {(emp.provincia || emp.sector) && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {[emp.provincia, emp.sector].filter(Boolean).join(' • ')}
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td>
+                  {emp.proyectos_ids && emp.proyectos_ids.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                      {emp.proyectos_ids.map(id => {
+                        const proj = proyectos.find(p => p.id === id);
+                        return (
+                          <span key={id} style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '3px 9px', 
+                            borderRadius: '12px', 
+                            background: 'rgba(56, 189, 248, 0.12)', 
+                            color: 'var(--accent-color)', 
+                            border: '1px solid rgba(56, 189, 248, 0.25)',
+                            fontWeight: '600'
+                          }}>
+                            {proj ? proj.nombre : `Proyecto ${id}`}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>—</span>
+                  )}
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <button 
+                    onClick={() => openModal(emp)} 
+                    title="Editar Empresa"
+                    style={{ 
+                      background: 'rgba(255, 255, 255, 0.05)', 
+                      border: '1px solid var(--card-border)', 
+                      color: 'var(--text-main)', 
+                      padding: '6px 12px', 
+                      cursor: 'pointer', 
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '0.82rem',
+                      fontWeight: '600',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--card-border)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                  >
+                    <Edit2 size={13} /> Editar
                   </button>
                 </td>
               </tr>
             ))}
-            {empresas.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center' }}>No hay empresas registradas</td></tr>}
+            {empresas.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  No hay empresas registradas
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

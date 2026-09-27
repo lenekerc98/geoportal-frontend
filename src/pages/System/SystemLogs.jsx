@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, CheckCircle, Search, AlertTriangle, Info, Clock, User } from 'lucide-react';
+import { ShieldAlert, CheckCircle, Search, AlertTriangle, Info, Clock, User, MailCheck, MailX } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import './SystemLogs.css';
 
@@ -98,6 +98,7 @@ export default function SystemLogs() {
                 <th>Tipo</th>
                 <th>Acción</th>
                 <th>Descripción</th>
+                <th>Correo</th>
                 <th>Usuario</th>
                 <th>Fecha y Hora</th>
               </tr>
@@ -115,6 +116,19 @@ export default function SystemLogs() {
                     <span className="badge">{log.accion}</span>
                   </td>
                   <td className="log-desc">{log.descripcion}</td>
+                  <td className="log-email">
+                    {log.correo_enviado === true ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                        <MailCheck size={14} /> Enviado
+                      </span>
+                    ) : log.correo_enviado === false ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#ef4444', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                        <MailX size={14} /> No enviado
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', paddingLeft: '8px' }}>—</span>
+                    )}
+                  </td>
                   <td className="log-user">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <User size={14} /> {log.username}

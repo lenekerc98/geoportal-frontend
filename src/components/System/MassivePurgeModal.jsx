@@ -98,8 +98,8 @@ export default function MassivePurgeModal({ isOpen, onClose, onPurged }) {
           <p><strong>Empresa objetivo:</strong> ${empresaNombre}</p>
           <p><strong>Elementos a borrar:</strong></p>
           <ul>
-            ${eliminarPredios ? '<li><strong>Predios:</strong> ' + (stats?.predios || 0) + ' registros (con ' + (stats?.vertices || 0) + ' vértices y ' + (stats?.linderos || 0) + ' linderos)</li>' : ''}
-            ${eliminarPosesionarios ? '<li><strong>Posesionarios:</strong> ' + (stats?.posesionarios || 0) + ' fichas catastrales y códigos asociados</li>' : ''}
+            ${eliminarPredios ? '<li><strong>Predios y Códigos:</strong> ' + (stats?.predios || 0) + ' predios, ' + (stats?.codigos_catastrales || 0) + ' códigos catastrales (con ' + (stats?.vertices || 0) + ' vértices y ' + (stats?.linderos || 0) + ' linderos). <em>Conserva los posesionarios.</em></li>' : ''}
+            ${eliminarPosesionarios ? '<li><strong>Posesionarios:</strong> ' + (stats?.posesionarios || 0) + ' fichas de personas en el padrón</li>' : ''}
           </ul>
         </div>
       `,
@@ -343,10 +343,10 @@ export default function MassivePurgeModal({ isOpen, onClose, onPurged }) {
                 {eliminarPredios ? <CheckSquare size={20} color="#ef4444" /> : <Square size={20} color="var(--text-muted)" />}
                 <div>
                   <div style={{ fontWeight: 'bold', fontSize: '0.88rem', color: eliminarPredios ? '#dc2626' : 'inherit' }}>
-                    Eliminar todos los Predios
+                    Eliminar todos los Predios y Códigos Catastrales
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Elimina polígonos, vértices topológicos, linderos y su historial cartográfico.
+                    Elimina polígonos, códigos catastrales, vértices topológicos y linderos. (Conserva intacto el registro de posesionarios/personas).
                   </div>
                 </div>
               </div>
@@ -370,7 +370,7 @@ export default function MassivePurgeModal({ isOpen, onClose, onPurged }) {
                     Eliminar todos los Posesionarios
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Elimina fichas de propietarios, cédulas registradas y sus códigos catastrales.
+                    Elimina las fichas de personas/posesionarios del catálogo general.
                   </div>
                 </div>
               </div>

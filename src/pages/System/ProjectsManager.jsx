@@ -105,51 +105,143 @@ export default function ProjectsManager() {
   if (loading && proyectos.length === 0) return <div style={{padding:'20px', color:'white'}}><Loader2 className="spin" /> Cargando proyectos...</div>;
 
   return (
-    <div className="system-logs-container" style={{ padding: '20px', color: 'var(--text-main)', minHeight: '100vh', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2><FolderGit2 style={{ verticalAlign: 'middle', marginRight: '10px' }}/> Gestión de Proyectos</h2>
-        <button onClick={() => openModal()} className="btn-dynamic" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+    <div style={{ padding: '25px 35px', color: 'var(--text-main)', minHeight: '100vh', overflowY: 'auto', boxSizing: 'border-box' }}>
+      <header className="glass-panel" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '25px', padding: '20px', gap: '15px' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <FolderGit2 size={24} color="var(--primary)" /> Gestión de Proyectos
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            Administra los proyectos cartográficos y catastrales del sistema
+          </p>
+        </div>
+        <button onClick={() => openModal()} className="btn-dynamic" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Plus size={18} /> Nuevo Proyecto
         </button>
-      </div>
+      </header>
 
-      {error && <div style={{ color: '#ff4444', marginBottom: '15px' }}>{error}</div>}
+      {error && (
+        <div style={{ color: '#ef4444', marginBottom: '15px', padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+          {error}
+        </div>
+      )}
 
-      <div className="logs-table-container glass-panel">
-        <table className="logs-table">
+      <div className="table-container glass-panel" style={{ overflowX: 'auto', borderRadius: '16px' }}>
+        <table className="custom-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Descripción</th>
-              <th>Empresas</th>
-              <th>Fecha Creación</th>
-              <th>Acciones</th>
+              <th style={{ width: '60px', textAlign: 'center' }}>ID</th>
+              <th style={{ minWidth: '200px' }}>Nombre del Proyecto</th>
+              <th style={{ minWidth: '220px' }}>Descripción</th>
+              <th style={{ minWidth: '200px' }}>Empresas Asociadas</th>
+              <th style={{ minWidth: '180px' }}>Fecha Creación</th>
+              <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {proyectos.map(proj => (
               <tr key={proj.id}>
-                <td>{proj.id}</td>
-                <td style={{ fontWeight: 'bold' }}>{proj.nombre}</td>
-                <td>{proj.descripcion || '-'}</td>
-                <td>
-                  {proj.empresas_ids && proj.empresas_ids.length > 0
-                    ? proj.empresas_ids.map(id => empresas.find(e => e.id === id)?.nombre || id).join(', ')
-                    : '-'}
+                <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  <span style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px' }}>#{proj.id}</span>
                 </td>
-                <td><Calendar size={14} style={{marginRight:5, verticalAlign:'middle', color:'gray'}}/> {new Date(proj.fecha_creacion).toLocaleString()}</td>
                 <td>
-                  <button onClick={() => openModal(proj)} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', padding: '5px', cursor: 'pointer', marginRight: '5px', borderRadius: '3px' }}>
-                    <Edit2 size={14} />
-                  </button>
-                  <button onClick={() => handleDelete(proj.id)} style={{ background: 'rgba(255,50,50,0.2)', border: '1px solid #ff4444', color: '#ff4444', padding: '5px', cursor: 'pointer', borderRadius: '3px' }}>
-                    <Trash2 size={14} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                      <FolderGit2 size={16} />
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>{proj.nombre}</span>
+                  </div>
+                </td>
+                <td>
+                  <span style={{ color: proj.descripcion ? 'var(--text-main)' : 'var(--text-muted)', fontSize: '0.88rem' }}>
+                    {proj.descripcion || '—'}
+                  </span>
+                </td>
+                <td>
+                  {proj.empresas_ids && proj.empresas_ids.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                      {proj.empresas_ids.map(id => {
+                        const emp = empresas.find(e => e.id === id);
+                        return (
+                          <span key={id} style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '3px 9px', 
+                            borderRadius: '12px', 
+                            background: 'rgba(16, 185, 129, 0.12)', 
+                            color: '#10b981', 
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            fontWeight: '600'
+                          }}>
+                            {emp ? emp.nombre : `Empresa ${id}`}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>—</span>
+                  )}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    <Calendar size={14} color="var(--accent-color)" />
+                    <span>{new Date(proj.fecha_creacion).toLocaleString()}</span>
+                  </div>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <button 
+                      onClick={() => openModal(proj)} 
+                      title="Editar Proyecto"
+                      style={{ 
+                        background: 'rgba(255, 255, 255, 0.05)', 
+                        border: '1px solid var(--card-border)', 
+                        color: 'var(--text-main)', 
+                        padding: '6px 10px', 
+                        cursor: 'pointer', 
+                        borderRadius: '6px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '0.8rem',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--card-border)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(proj.id)} 
+                      title="Eliminar Proyecto"
+                      style={{ 
+                        background: 'rgba(239, 68, 68, 0.1)', 
+                        border: '1px solid rgba(239, 68, 68, 0.3)', 
+                        color: '#ef4444', 
+                        padding: '6px 10px', 
+                        cursor: 'pointer', 
+                        borderRadius: '6px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '0.8rem',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#ffffff'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.color = '#ef4444'; }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {proyectos.length === 0 && <tr><td colSpan="5" style={{ textAlign: 'center' }}>No hay proyectos registrados</td></tr>}
+            {proyectos.length === 0 && (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  No hay proyectos registrados
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

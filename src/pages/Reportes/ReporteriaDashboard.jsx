@@ -50,7 +50,6 @@ const ReporteriaDashboard = () => {
   // Edit modals state
   const [editingPredio, setEditingPredio] = useState(null);
   const [linderosPredio, setLinderosPredio] = useState(null);
-  const [activeDropdownCodigo, setActiveDropdownCodigo] = useState(null);
 
   const actualItemsPerPage = itemsPerPage === 'todos' ? data.length : itemsPerPage;
 
@@ -72,17 +71,6 @@ const ReporteriaDashboard = () => {
     window.addEventListener('catastro_data_purged', handlePurged);
     return () => window.removeEventListener('catastro_data_purged', handlePurged);
   }, []);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleDocumentClick = () => {
-      if (activeDropdownCodigo) {
-        setActiveDropdownCodigo(null);
-      }
-    };
-    document.addEventListener('click', handleDocumentClick);
-    return () => document.removeEventListener('click', handleDocumentClick);
-  }, [activeDropdownCodigo]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -147,7 +135,6 @@ const ReporteriaDashboard = () => {
   };
 
   const handleGenerarReporte = (codigo, tipo) => {
-    setActiveDropdownCodigo(null);
     if (!codigo) return;
     if (tipo === 'planimetrico') {
       navigate(`/reporte/planimetrico/codigo/${codigo}`);
@@ -340,6 +327,36 @@ const ReporteriaDashboard = () => {
                 <Download size={16} />
                 Exportar Excel
               </button>
+
+              <button 
+                className="btn-print-all"
+                onClick={() => {
+                  if (filteredData.length === 0) {
+                    showError('No hay predios registrados para imprimir');
+                    return;
+                  }
+                  const firstCode = filteredData[0]?.codigo;
+                  navigate(`/reporte/planimetrico/codigo/${encodeURIComponent(firstCode)}?batch=true`);
+                }}
+                title="Imprimir todos los reportes planimétricos del catálogo en lote"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 15px',
+                  borderRadius: '6px',
+                  border: '1px solid #10b981',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  color: '#059669',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '0.88rem',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Printer size={16} />
+                Imprimir Todos los Reportes
+              </button>
             </div>
           </div>
         </div>
@@ -403,42 +420,15 @@ const ReporteriaDashboard = () => {
                             <MapPin size={15} />
                           </button>
 
-                          {/* 4. Imprimir Reportes Dropdown */}
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              type="button"
-                              className="btn-act btn-act-report"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveDropdownCodigo(activeDropdownCodigo === item.codigo ? null : item.codigo);
-                              }}
-                              title="Generar reportes oficiales"
-                            >
-                              <Printer size={15} />
-                              <ChevronDown size={12} style={{ marginLeft: 3 }} />
-                            </button>
-
-                            {activeDropdownCodigo === item.codigo && (
-                              <div className="report-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  className="report-dropdown-item"
-                                  onClick={() => handleGenerarReporte(item.codigo, 'planimetrico')}
-                                >
-                                  <FileText size={15} color="#2563eb" />
-                                  <span>Levantamiento Planimétrico</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="report-dropdown-item"
-                                  onClick={() => handleGenerarReporte(item.codigo, 'linderacion')}
-                                >
-                                  <FileCheck size={15} color="#8b5cf6" />
-                                  <span>Acta de Linderación</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          {/* 4. Imprimir Reporte */}
+                          <button
+                            type="button"
+                            className="btn-act btn-act-report"
+                            onClick={() => handleGenerarReporte(item.codigo, 'planimetrico')}
+                            title="Generar Levantamiento Planimétrico"
+                          >
+                            <Printer size={15} />
+                          </button>
 
                           {/* 5. Eliminar Predio */}
                           <button

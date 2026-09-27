@@ -75,7 +75,8 @@ export default function SandboxBanner() {
       boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
       zIndex: 1000,
       position: 'relative',
-      borderBottom: '1px solid rgba(255,255,255,0.2)'
+      borderBottom: '1px solid rgba(255,255,255,0.2)',
+      flexShrink: 0
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span style={{

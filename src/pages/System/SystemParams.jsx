@@ -9,7 +9,15 @@ import DatabaseEnvManager from '../../components/System/DatabaseEnvManager';
 import './SystemParams.css';
 
 export default function SystemParams() {
-  const [activeTab, setActiveTab] = useState('empresa');
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('catastro_params_tab') || 'empresa';
+  });
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    sessionStorage.setItem('catastro_params_tab', tab);
+  };
+
   const [logoFile, setLogoFile] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
@@ -102,26 +110,26 @@ export default function SystemParams() {
       <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', borderBottom: '1px solid var(--card-border)' }}>
 
         <button 
-          onClick={() => setActiveTab('empresa')}
+          onClick={() => handleTabChange('empresa')}
           style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'empresa' ? '2px solid var(--primary)' : '2px solid transparent', color: activeTab === 'empresa' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold' }}
         >
           Configuración de Empresa
         </button>
         <button 
-          onClick={() => setActiveTab('proyectos')}
+          onClick={() => handleTabChange('proyectos')}
           style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'proyectos' ? '2px solid var(--primary)' : '2px solid transparent', color: activeTab === 'proyectos' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold' }}
         >
           Gestión de Proyectos
         </button>
         <button 
-          onClick={() => setActiveTab('smtp')}
+          onClick={() => handleTabChange('smtp')}
           style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'smtp' ? '2px solid var(--primary)' : '2px solid transparent', color: activeTab === 'smtp' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           <Mail size={16} /> Alertas de Sistema
         </button>
         {isSuperAdmin && (
           <button 
-            onClick={() => setActiveTab('database')}
+            onClick={() => handleTabChange('database')}
             style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: activeTab === 'database' ? '2px solid #d97706' : '2px solid transparent', color: activeTab === 'database' ? '#d97706' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Database size={16} /> Base de Datos (AWS)

@@ -429,7 +429,7 @@ export default function SidebarLayout() {
         </div>
       </aside>
 
-      <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
+      <main className={`main-content ${collapsed ? 'collapsed' : ''} ${location.pathname.startsWith('/geoportal') ? 'no-scroll' : ''}`}>
         <SandboxBanner />
         <Outlet />
       </main>

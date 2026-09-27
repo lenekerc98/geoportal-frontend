@@ -330,8 +330,21 @@ body {
 /* Map Container */
 .map-container {
   width: 100%;
-  height: 100dvh;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
   z-index: 1;
+}
+
+.app-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Global Sidebar Styles */
@@ -408,6 +421,12 @@ body {
   transition: margin-left 0.3s ease;
   position: relative;
   background-color: var(--bg-main);
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content.no-scroll {
+  overflow: hidden;
 }
 
 .main-content.collapsed {
