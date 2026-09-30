@@ -22,6 +22,15 @@ export default function Users() {
   const [editingRolePermissions, setEditingRolePermissions] = useState({});
   const [savingRole, setSavingRole] = useState(null);
   const [selectedRoleId, setSelectedRoleId] = useState(null);
+  
+  // State for Role Creation Modal
+  const [isCreatingRole, setIsCreatingRole] = useState(false);
+  const [roleFormData, setRoleFormData] = useState({
+    nombre: '',
+    descripcion: '',
+    permisos: {}
+  });
+  const [isSubmittingRole, setIsSubmittingRole] = useState(false);
 
   const availablePermissions = [
     { key: 'geoportal', label: 'Visor Geoportal / Mapa Interactivo', desc: 'Permite acceder al geoportal y navegar los mapas.' },
@@ -196,6 +205,90 @@ export default function Users() {
     }
   };
 
+  const isSystemRole = (role) => {
+    if (!role) return true;
+    if ([1, 2, 3].includes(Number(role.id_rol))) return true;
+    const name = (role.nombre || '').toLowerCase();
+    return ['superadmin', 'superadministrador', 'admin', 'administrador', 'usuario'].includes(name);
+  };
+
+  const handleOpenCreateRole = () => {
+    const defaultPerms = {};
+    availablePermissions.forEach(p => {
+      defaultPerms[p.key] = p.key === 'geoportal';
+    });
+    setRoleFormData({
+      nombre: '',
+      descripcion: '',
+      permisos: defaultPerms
+    });
+    setIsCreatingRole(true);
+  };
+
+  const handleCreateRole = async (e) => {
+    e.preventDefault();
+    if (!roleFormData.nombre.trim()) {
+      showError('Validación', 'El nombre del rol es requerido');
+      return;
+    }
+
+    setIsSubmittingRole(true);
+    try {
+      const res = await fetch(`${API_URL}/api/roles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          nombre: roleFormData.nombre.trim(),
+          descripcion: roleFormData.descripcion.trim(),
+          permisos: roleFormData.permisos
+        })
+      });
+
+      if (res.ok) {
+        const newRole = await res.json();
+        showSuccess('Rol Creado', `El rol "${newRole.nombre}" ha sido creado con éxito.`);
+        setIsCreatingRole(false);
+        await fetchData();
+        setSelectedRoleId(newRole.id_rol);
+      } else {
+        const err = await res.json();
+        showError('Error', err.detail || 'No se pudo crear el rol');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Error', 'Ocurrió un error al crear el rol');
+    } finally {
+      setIsSubmittingRole(false);
+    }
+  };
+
+  const handleDeleteRole = async (roleId, roleName) => {
+    const isConfirmed = await confirmDelete(`¿Estás seguro de eliminar el rol "${getRoleDisplayName(roleName)}"? Esta acción no se puede deshacer.`);
+    if (!isConfirmed) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/roles/${roleId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+
+      if (res.ok) {
+        showSuccess('Rol Eliminado', `El rol "${roleName}" fue eliminado correctamente.`);
+        await fetchData();
+        setSelectedRoleId(roles[0]?.id_rol || 1);
+      } else {
+        const err = await res.json();
+        showError('Error', err.detail || 'No se pudo eliminar el rol');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Error', 'Error al eliminar el rol');
+    }
+  };
+
   const getRoleDisplayName = (name) => {
     if (!name) return '';
     const lower = name.toLowerCase();
@@ -233,7 +326,7 @@ export default function Users() {
     } else {
       return (
         <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
-          {roleObj?.nombre || 'Usuario General'}
+          {getRoleDisplayName(roleObj?.nombre) || 'Usuario General'}
         </span>
       );
     }
@@ -317,6 +410,24 @@ export default function Users() {
               }}
             >
               <Plus size={18} /> Nuevo Usuario
+            </button>
+          )}
+
+          {activeTab === 'roles' && (
+            <button 
+              onClick={handleOpenCreateRole}
+              className="btn-dynamic"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                borderRadius: '10px',
+                fontWeight: '600',
+                fontSize: '13px'
+              }}
+            >
+              <Plus size={18} /> Nuevo Rol
             </button>
           )}
         </div>
@@ -498,14 +609,14 @@ export default function Users() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1', maxWidth: '340px', minWidth: '220px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1', maxWidth: '420px', minWidth: '220px' }}>
               <select
                 id="role-select"
                 value={selectedRoleId || (roles[0]?.id_rol || '')}
                 onChange={(e) => setSelectedRoleId(Number(e.target.value))}
                 className="input-dynamic"
                 style={{
-                  width: '100%',
+                  flex: '1',
                   padding: '10px 14px',
                   fontWeight: '600',
                   fontSize: '14px',
@@ -520,6 +631,23 @@ export default function Users() {
                   </option>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={handleOpenCreateRole}
+                className="btn-dynamic"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 16px',
+                  fontSize: '13px',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Crear un nuevo perfil de rol"
+              >
+                <Plus size={16} /> Crear Rol
+              </button>
             </div>
           </div>
 
@@ -555,10 +683,34 @@ export default function Users() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '8px', background: 'var(--bg-main, rgba(0,0,0,0.03))', border: '1px solid var(--card-border)', color: 'var(--text-main)', fontWeight: '600' }}>
                       <b>{activePermsCount}</b> de {availablePermissions.length} herramientas activas
                     </span>
+
+                    {!isSystemRole(activeRole) && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRole(activeRole.id_rol, activeRole.nombre)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          color: 'var(--danger)',
+                          cursor: 'pointer',
+                          fontWeight: '600',
+                          fontSize: '12px',
+                          transition: 'all 0.2s ease'
+                        }}
+                        title="Eliminar este rol personalizado"
+                      >
+                        <Trash2 size={14} /> Eliminar Rol
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -640,6 +792,178 @@ export default function Users() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Modal para Crear Nuevo Rol */}
+      {isCreatingRole && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          padding: '20px'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '640px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '28px',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            border: '1px solid var(--card-border)',
+            background: 'var(--card-bg, #1e293b)'
+          }}>
+            {/* Header del Modal */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--card-border)', paddingBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)' }}>
+                  <Shield size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '19px', fontWeight: '700', color: 'var(--text-main)' }}>Crear Nuevo Rol</h3>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: 'var(--text-muted)' }}>Configura los accesos y herramientas iniciales del perfil</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreatingRole(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', borderRadius: '8px' }}
+                title="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Formulario */}
+            <form onSubmit={handleCreateRole} style={{ display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto', paddingRight: '4px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
+                  Nombre del Rol <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Catastrador, Inspector, Visualizador..."
+                  value={roleFormData.nombre}
+                  onChange={e => setRoleFormData({ ...roleFormData, nombre: e.target.value })}
+                  className="input-dynamic"
+                  style={{ width: '100%', padding: '10px 14px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
+                  Descripción del Perfil
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Acceso exclusivo para consulta y actualización de predios"
+                  value={roleFormData.descripcion}
+                  onChange={e => setRoleFormData({ ...roleFormData, descripcion: e.target.value })}
+                  className="input-dynamic"
+                  style={{ width: '100%', padding: '10px 14px' }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sliders size={15} /> Asignar Permisos Iniciales:
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOn = {};
+                        availablePermissions.forEach(p => { allOn[p.key] = true; });
+                        setRoleFormData(prev => ({ ...prev, permisos: allOn }));
+                      }}
+                      style={{ padding: '4px 10px', fontSize: '11px', fontWeight: '600', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-main)' }}
+                    >
+                      Marcar Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOff = {};
+                        availablePermissions.forEach(p => { allOff[p.key] = false; });
+                        setRoleFormData(prev => ({ ...prev, permisos: allOff }));
+                      }}
+                      style={{ padding: '4px 10px', fontSize: '11px', fontWeight: '600', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}
+                    >
+                      Desmarcar Todos
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {availablePermissions.map(p => {
+                    const isChecked = !!roleFormData.permisos[p.key];
+                    return (
+                      <label
+                        key={p.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255,255,255,0.02)',
+                          border: `1px solid ${isChecked ? 'rgba(59, 130, 246, 0.35)' : 'var(--card-border)'}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => setRoleFormData(prev => ({
+                            ...prev,
+                            permisos: { ...prev.permisos, [p.key]: e.target.checked }
+                          }))}
+                          style={{ marginTop: '2px', accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: '600', display: 'block', color: isChecked ? 'var(--accent-color)' : 'var(--text-main)' }}>
+                            {p.label}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid var(--card-border)', paddingTop: '16px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingRole(false)}
+                  style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--card-border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRole}
+                  className="btn-dynamic"
+                  style={{ padding: '9px 22px', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  {isSubmittingRole ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+                  {isSubmittingRole ? 'Creando...' : 'Crear Rol'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

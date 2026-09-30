@@ -26,6 +26,7 @@
 [data-theme="light"] {
   --bg-main: #f1f5f9;
   --bg-panel: rgba(255, 255, 255, 0.9);
+  --card-bg: #ffffff;
   --text-main: #0f172a;
   --text-muted: #475569;
   --primary-glow: rgba(56, 189, 248, 0.05);

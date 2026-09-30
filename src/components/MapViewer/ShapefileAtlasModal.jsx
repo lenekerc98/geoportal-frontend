@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useContext } from 'react';
 import { 
   X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
   Save, Check, AlertCircle, Loader2, Sparkles, Database,
-  Layers, MapPin, Compass
+  Layers, MapPin, Compass, Trash2
 } from 'lucide-react';
 import { MapContainer, TileLayer, Polygon, CircleMarker, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -25,8 +25,28 @@ function MapBoundsUpdater({ coords }) {
   return null;
 }
 
-// Helper: Crear icono del vértice con su número (V1, V2, ...)
-const createVertexLabelIcon = (num, ptLat, ptLng, centerLat, centerLng) => {
+// Helper: Función para calcular rumbo sexagesimal estándar catastral
+const calcularRumboTopografico = (x1, y1, x2, y2) => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return "N 00° 00' 00\" E";
+  const ns = dy >= 0 ? 'N' : 'S';
+  const ew = dx >= 0 ? 'E' : 'W';
+  const anguloRad = Math.atan2(Math.abs(dx), Math.abs(dy));
+  const anguloDeg = (anguloRad * 180) / Math.PI;
+  let d = Math.floor(anguloDeg);
+  let m = Math.floor((anguloDeg - d) * 60);
+  let s = Math.round((anguloDeg - d - m / 60) * 3600);
+  if (s === 60) { s = 0; m += 1; }
+  if (m === 60) { m = 0; d += 1; }
+  const dStr = String(d).padStart(2, '0');
+  const mStr = String(m).padStart(2, '0');
+  const sStr = String(s).padStart(2, '0');
+  return `${ns} ${dStr}° ${mStr}' ${sStr}" ${ew}`;
+};
+
+// Helper: Crear icono del vértice con su etiqueta (P01, P02, ...)
+const createVertexLabelIcon = (label, ptLat, ptLng, centerLat, centerLng) => {
   const dy = ptLat - centerLat;
   const dx = ptLng - centerLng;
   const angle = Math.atan2(dy, dx);
@@ -39,7 +59,7 @@ const createVertexLabelIcon = (num, ptLat, ptLng, centerLat, centerLng) => {
     html: `
       <div style="position: relative; width: 14px; height: 14px; background: #0284c7; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.6);">
         <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) translate(${offX.toFixed(1)}px, ${offY.toFixed(1)}px); font-size: 11px; font-weight: 800; color: #ffffff; background: #0f172a; border: 1.5px solid #38bdf8; padding: 1px 6px; border-radius: 5px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.5); pointer-events: none;">
-          V${num}
+          ${label}
         </span>
       </div>
     `,
@@ -48,13 +68,38 @@ const createVertexLabelIcon = (num, ptLat, ptLng, centerLat, centerLng) => {
   });
 };
 
-// Helper: Crear cota de distancia en el medio de cada tramo
-const createDistanceLabelIcon = (medida) => {
+// Helper: Crear cota de distancia en el medio de cada tramo orientada paralelamente al lindero
+const createDistanceLabelIcon = (medida, p1, p2, centerLat, centerLng) => {
+  let angle = 0;
+  let offMx = 0;
+  let offMy = 0;
+
+  if (p1 && p2) {
+    // Ángulo en coordenadas de pantalla Leaflet (sigue la inclinación exacta de la línea)
+    angle = Math.atan2(-(p2[0] - p1[0]), (p2[1] - p1[1])) * (180 / Math.PI);
+    // Mantener la rotación legible entre -90° y 90° (nunca de cabeza)
+    if (angle > 90 || angle < -90) angle += 180;
+
+    // Desplazar perpendicularmente hacia afuera del centro del polígono para no tapar la línea
+    const midLat = (p1[0] + p2[0]) / 2;
+    const midLng = (p1[1] + p2[1]) / 2;
+    const dy = midLat - (centerLat ?? midLat);
+    const dx = midLng - (centerLng ?? midLng);
+    const outAngle = Math.atan2(-dy, dx);
+
+    const offsetMedida = 10;
+    offMx = Math.cos(outAngle) * offsetMedida;
+    offMy = Math.sin(outAngle) * offsetMedida;
+  }
+
+  const num = parseFloat(medida);
+  const text = !isNaN(num) ? `${num.toFixed(1)}m` : String(medida);
+
   return L.divIcon({
-    className: 'atlas-dist-badge',
+    className: 'atlas-lindero-rotated',
     html: `
-      <div style="font-size: 10px; font-weight: 700; color: #0f172a; background: rgba(255, 255, 255, 0.95); border: 1px solid #94a3b8; padding: 1px 5px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -50%); box-shadow: 0 1px 4px rgba(0,0,0,0.3); pointer-events: none;">
-        ${medida} m
+      <div style="position: absolute; transform: translate(-50%, -50%) translate(${offMx.toFixed(1)}px, ${offMy.toFixed(1)}px) rotate(${angle.toFixed(1)}deg); white-space: nowrap; font-family: 'Inter', -apple-system, sans-serif; font-size: 10px; font-weight: bold; color: #1e293b; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff, 1px -1px 0 #fff, -1px -1px 0 #fff; pointer-events: none; user-select: none;">
+        ${text}
       </div>
     `,
     iconSize: [0, 0],
@@ -66,6 +111,8 @@ export default function ShapefileAtlasModal({
   geoJsonData, 
   onClose, 
   onSavedPredio, 
+  onCancelAll,
+  initialIndex = 0,
   fileName = "Shapefile" 
 }) {
   const { activeEmpresa, activeProyecto, user } = useContext(AppContext);
@@ -160,40 +207,105 @@ export default function ShapefileAtlasModal({
 
         const isUtm = Math.abs(closedRing[0][0]) > 180 || Math.abs(closedRing[0][1]) > 90;
 
-        let utmCoords = [];
-        let latLngs = [];
-
+        let rawUtm = [];
         if (isUtm) {
-          utmCoords = closedRing;
-          latLngs = closedRing.map(pt => utmToLatLng(pt[0], pt[1]));
+          rawUtm = closedRing;
         } else {
-          latLngs = closedRing.map(pt => [pt[1], pt[0]]);
-          utmCoords = closedRing.map(pt => latToUtm(pt[1], pt[0]));
+          rawUtm = closedRing.map(pt => latToUtm(pt[1], pt[0]));
         }
+
+        // Extraer vértices únicos sin duplicados consecutivos
+        let uniqueUtm = [];
+        const nRaw = rawUtm.length - 1;
+        for (let i = 0; i < nRaw; i++) {
+          const pt = rawUtm[i];
+          if (uniqueUtm.length === 0) {
+            uniqueUtm.push(pt);
+          } else {
+            const prev = uniqueUtm[uniqueUtm.length - 1];
+            if (Math.abs(pt[0] - prev[0]) > 1e-4 || Math.abs(pt[1] - prev[1]) > 1e-4) {
+              uniqueUtm.push(pt);
+            }
+          }
+        }
+        if (uniqueUtm.length > 2) {
+          const firstPt = uniqueUtm[0];
+          const lastPt = uniqueUtm[uniqueUtm.length - 1];
+          if (Math.abs(firstPt[0] - lastPt[0]) < 1e-4 && Math.abs(firstPt[1] - lastPt[1]) < 1e-4) {
+            uniqueUtm.pop();
+          }
+        }
+        if (uniqueUtm.length < 3) return;
+
+        // Validar orientación horaria (Clockwise)
+        let signedArea = 0;
+        const nPts = uniqueUtm.length;
+        for (let i = 0; i < nPts; i++) {
+          const p1 = uniqueUtm[i];
+          const p2 = uniqueUtm[(i + 1) % nPts];
+          signedArea += (p1[0] * p2[1]) - (p2[0] * p1[1]);
+        }
+        signedArea = signedArea / 2.0;
+
+        // Si es antihorario (> 0), invertir para asegurar sentido horario ("de izquierda a derecha" por el norte)
+        if (signedArea > 0) {
+          uniqueUtm.reverse();
+        }
+
+        // Encontrar P01: el punto con mayor coordenada Y (más al norte; menor X en empate)
+        let maxNorthIdx = 0;
+        for (let i = 1; i < uniqueUtm.length; i++) {
+          const curY = uniqueUtm[i][1];
+          const maxY = uniqueUtm[maxNorthIdx][1];
+          if (curY > maxY + 1e-4) {
+            maxNorthIdx = i;
+          } else if (Math.abs(curY - maxY) <= 1e-4) {
+            if (uniqueUtm[i][0] < uniqueUtm[maxNorthIdx][0]) {
+              maxNorthIdx = i;
+            }
+          }
+        }
+
+        // Rotar secuencia para iniciar en P01
+        if (maxNorthIdx > 0) {
+          uniqueUtm = uniqueUtm.slice(maxNorthIdx).concat(uniqueUtm.slice(0, maxNorthIdx));
+        }
+
+        const closedUtm = [...uniqueUtm, uniqueUtm[0]];
+        const closedLatLngs = closedUtm.map(pt => utmToLatLng(pt[0], pt[1]));
 
         let area = 0;
         let perimetro = 0;
-        const nPoints = utmCoords.length - 1;
+        const nPoints = uniqueUtm.length;
         const midPoints = [];
+        const vertexLabels = [];
         let latSum = 0;
         let lngSum = 0;
 
         for (let i = 0; i < nPoints; i++) {
-          area += (utmCoords[i][0] * utmCoords[i+1][1]) - (utmCoords[i+1][0] * utmCoords[i][1]);
-          const dx = utmCoords[i+1][0] - utmCoords[i][0];
-          const dy = utmCoords[i+1][1] - utmCoords[i][1];
-          const dist = Math.sqrt(dx*dx + dy*dy);
+          const p1 = closedUtm[i];
+          const p2 = closedUtm[i + 1];
+          area += (p1[0] * p2[1]) - (p2[0] * p1[1]);
+          const dx = p2[0] - p1[0];
+          const dy = p2[1] - p1[1];
+          const dist = Math.sqrt(dx * dx + dy * dy);
           perimetro += dist;
 
-          latSum += latLngs[i][0];
-          lngSum += latLngs[i][1];
+          latSum += closedLatLngs[i][0];
+          lngSum += closedLatLngs[i][1];
 
-          const midLat = (latLngs[i][0] + latLngs[i + 1][0]) / 2;
-          const midLng = (latLngs[i][1] + latLngs[i + 1][1]) / 2;
+          const p1LatLng = closedLatLngs[i];
+          const p2LatLng = closedLatLngs[i + 1];
+          const midLat = (p1LatLng[0] + p2LatLng[0]) / 2;
+          const midLng = (p1LatLng[1] + p2LatLng[1]) / 2;
           midPoints.push({
             center: [midLat, midLng],
-            distancia: dist.toFixed(2)
+            p1: p1LatLng,
+            p2: p2LatLng,
+            distancia: dist.toFixed(1)
           });
+
+          vertexLabels.push(`P${String(i + 1).padStart(2, '0')}`);
         }
         const areaM2 = Math.abs(area) / 2.0;
         const centerLat = latSum / (nPoints || 1);
@@ -203,8 +315,9 @@ export default function ShapefileAtlasModal({
           id: `${idx}-${rIdx}`,
           featureIndex: idx,
           ringIndex: rIdx,
-          latLngs,
-          utmCoords,
+          latLngs: closedLatLngs,
+          utmCoords: closedUtm,
+          vertexLabels,
           centerLat,
           centerLng,
           midPoints,
@@ -220,10 +333,16 @@ export default function ShapefileAtlasModal({
     return results;
   }, [geoJsonData]);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);
   const [drafts, setDrafts] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isBatchSaving, setIsBatchSaving] = useState(false);
+
+  useEffect(() => {
+    if (typeof initialIndex === 'number' && initialIndex >= 0 && initialIndex < normalizedFeatures.length) {
+      setCurrentIndex(initialIndex);
+    }
+  }, [initialIndex, normalizedFeatures.length]);
 
   // Inicializar borradores
   useEffect(() => {
@@ -243,29 +362,19 @@ export default function ShapefileAtlasModal({
       });
 
       const linderos = [];
-      const n = feat.utmCoords.length - 1;
+      const n = (feat.vertexLabels || []).length;
       for (let i = 0; i < n; i++) {
         const x1 = feat.utmCoords[i][0];
         const y1 = feat.utmCoords[i][1];
         const x2 = feat.utmCoords[i + 1][0];
         const y2 = feat.utmCoords[i + 1][1];
         const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2).toFixed(2);
-        
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-        let rumbo = '-';
-        if (dx !== 0 || dy !== 0) {
-          const ang = Math.atan2(Math.abs(dx), Math.abs(dy)) * (180 / Math.PI);
-          const g = Math.floor(ang);
-          const m = Math.floor((ang - g) * 60);
-          const s = ((ang - g - m / 60) * 3600).toFixed(1);
-          const ns = dy >= 0 ? 'N' : 'S';
-          const ew = dx >= 0 ? 'E' : 'W';
-          rumbo = `${ns} ${g}°${m}'${s}" ${ew}`;
-        }
+        const rumbo = calcularRumboTopografico(x1, y1, x2, y2);
+        const vStart = feat.vertexLabels[i];
+        const vEnd = feat.vertexLabels[(i + 1) % n];
 
         linderos.push({
-          tramo: `V${i + 1} - V${i + 2}`,
+          tramo: `${vStart} - ${vEnd}`,
           distancia: dist,
           rumbo,
           colindante: ''
@@ -461,19 +570,24 @@ export default function ShapefileAtlasModal({
         }
       }));
 
-      Swal.fire({
-        title: '¡Guardado!',
-        text: `Predio con Clave ${cod} registrado exitosamente en la BD.`,
-        icon: 'success',
-        timer: 1800,
-        showConfirmButton: false
-      });
+      const savedInfo = {
+        id: savedData.id,
+        cod_catastral: cod,
+        nombre_posesionario: currentDraft.nombre_posesionario || '',
+        latLngs: currentFeature.latLngs || [],
+        positions: currentFeature.latLngs || [],
+        center: [currentFeature.centerLat, currentFeature.centerLng],
+        utmCoords: currentFeature.utmCoords || [],
+        featureIndex: currentIndex,
+        totalFeatures: normalizedFeatures.length
+      };
 
-      if (onSavedPredio) onSavedPredio(savedData);
-
-      if (currentIndex < normalizedFeatures.length - 1) {
-        setCurrentIndex(currentIndex + 1);
+      if (onSavedPredio) {
+        onSavedPredio(savedInfo);
       }
+
+      // Cerrar inmediatamente el Asistente Atlas para mostrar el predio incorporado en el mapa
+      onClose();
     } catch (err) {
       console.error(err);
       Swal.fire('Error', err.message, 'error');
@@ -565,21 +679,111 @@ export default function ShapefileAtlasModal({
     }
 
     setIsBatchSaving(false);
-    Swal.fire('Proceso Completado', `Se guardaron ${successCount} de ${readyIndices.length} predios en la base de datos.`, 'success');
-    if (onSavedPredio) onSavedPredio();
+    if (onSavedPredio) {
+      const firstSavedIdx = readyIndices[0];
+      const feat = firstSavedIdx !== undefined ? normalizedFeatures[parseInt(firstSavedIdx)] : null;
+      onSavedPredio({
+        batch: true,
+        count: successCount,
+        latLngs: feat?.latLngs || [],
+        positions: feat?.latLngs || []
+      });
+    }
+    onClose();
+  };
+
+  const handleCloseModal = (force = false) => {
+    if (force || currentDraft?.status === 'saved') {
+      const savedInfo = {
+        id: currentDraft?.savedPredioId,
+        cod_catastral: (currentDraft?.cod_catastral || '').replace(/\s/g, ''),
+        nombre_posesionario: currentDraft?.nombre_posesionario || '',
+        latLngs: currentFeature?.latLngs || [],
+        positions: currentFeature?.latLngs || [],
+        center: currentFeature ? [currentFeature.centerLat, currentFeature.centerLng] : null,
+        utmCoords: currentFeature?.utmCoords || [],
+        featureIndex: currentIndex,
+        totalFeatures: normalizedFeatures.length
+      };
+      if (onSavedPredio) {
+        onSavedPredio(savedInfo);
+      }
+    }
+    onClose();
   };
 
   const totalPolygons = normalizedFeatures.length;
   const savedCount = Object.values(drafts).filter(d => d.status === 'saved').length;
   const codStr = (currentDraft.cod_catastral || '').padEnd(19, ' ');
 
+  useEffect(() => {
+    if (totalPolygons === 0) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [totalPolygons, onClose]);
+
   if (totalPolygons === 0) {
     return (
-      <div className="atlas-modal-overlay">
-        <div className="atlas-modal-container" style={{ maxHeight: '250px', textAlign: 'center', padding: '30px' }}>
-          <h3>No se detectaron polígonos válidos en el archivo</h3>
-          <p style={{ color: 'var(--text-muted)' }}>Asegúrate de que el Shapefile contenga polígonos o polilíneas de al menos 3 vértices.</p>
-          <button className="atlas-btn-close" style={{ marginTop: '20px' }} onClick={onClose}>Cerrar</button>
+      <div 
+        style={{
+          position: 'fixed',
+          top: '25px',
+          right: '25px',
+          zIndex: 10001,
+          pointerEvents: 'none',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          maxWidth: '390px',
+          width: 'calc(100vw - 50px)'
+        }}
+      >
+        <div 
+          style={{
+            pointerEvents: 'auto',
+            background: '#ffffff',
+            color: '#0f172a',
+            border: '1px solid #fee2e2',
+            borderLeft: '4px solid #ef4444',
+            borderRadius: '10px',
+            padding: '12px 16px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px'
+          }}
+        >
+          <div style={{ color: '#ef4444', marginTop: '2px', flexShrink: 0 }}>
+            <AlertCircle size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>
+              No se detectaron polígonos válidos
+            </div>
+            <div style={{ fontSize: '12px', color: '#475569', marginTop: '3px', lineHeight: '1.4' }}>
+              El archivo no contiene geometrías tipo polígono o polilíneas de al menos 3 vértices.
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: '4px',
+              transition: 'all 0.2s',
+              marginLeft: '4px'
+            }}
+            title="Cerrar notificación"
+          >
+            <X size={16} />
+          </button>
         </div>
       </div>
     );
@@ -655,7 +859,7 @@ export default function ShapefileAtlasModal({
             </button>
           </div>
 
-          <button className="atlas-nav-btn" onClick={onClose} title="Cerrar Atlas">
+          <button className="atlas-nav-btn" onClick={() => handleCloseModal()} title="Cerrar Atlas">
             <X size={20} />
           </button>
         </div>
@@ -764,13 +968,13 @@ export default function ShapefileAtlasModal({
                 }} 
               />
 
-              {/* Marcadores de vértices V1, V2... con etiquetas de texto visibles */}
+              {/* Marcadores de vértices P01, P02... con etiquetas de texto visibles */}
               {(currentFeature?.latLngs || []).slice(0, -1).map((pt, vIdx) => (
                 <Marker
                   key={`v-${vIdx}`}
                   position={pt}
                   icon={createVertexLabelIcon(
-                    vIdx + 1, 
+                    currentFeature?.vertexLabels?.[vIdx] || `P${String(vIdx + 1).padStart(2, '0')}`, 
                     pt[0], 
                     pt[1], 
                     currentFeature?.centerLat || pt[0], 
@@ -784,7 +988,13 @@ export default function ShapefileAtlasModal({
                 <Marker 
                   key={`dist-${mIdx}`}
                   position={mp.center}
-                  icon={createDistanceLabelIcon(mp.distancia)}
+                  icon={createDistanceLabelIcon(
+                    mp.distancia,
+                    mp.p1,
+                    mp.p2,
+                    currentFeature?.centerLat,
+                    currentFeature?.centerLng
+                  )}
                 />
               ))}
             </MapContainer>
@@ -1040,17 +1250,28 @@ export default function ShapefileAtlasModal({
           </div>
 
           <div className="atlas-actions-right">
-            <button className="atlas-btn-close" onClick={onClose}>
+            {onCancelAll && (
+              <button 
+                className="atlas-btn-cancel-all" 
+                onClick={onCancelAll}
+                title="Descartar este shapefile y quitar polígonos del mapa"
+              >
+                <Trash2 size={16} /> Descartar Shapefile
+              </button>
+            )}
+
+            <button className="atlas-btn-close" onClick={() => handleCloseModal()} title="Cerrar ventana pero mantener polígonos en el mapa">
               Cerrar
             </button>
 
             <button 
-              className="atlas-btn-save" 
-              onClick={handleSaveCurrent}
-              disabled={isSaving || currentDraft.status === 'saved'}
+              className={`atlas-btn-save ${currentDraft.status === 'saved' ? 'atlas-btn-saved' : ''}`} 
+              onClick={currentDraft.status === 'saved' ? () => handleCloseModal(true) : handleSaveCurrent}
+              disabled={isSaving}
+              title={currentDraft.status === 'saved' ? 'Cerrar y enfocar el predio exportado en el mapa principal' : 'Incorporar a Capa Principal'}
             >
-              {isSaving ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
-              {currentDraft.status === 'saved' ? 'Incorporado a Predios Principales ✓' : 'Incorporar a Capa Principal'}
+              {isSaving ? <Loader2 className="spin" size={16} /> : currentDraft.status === 'saved' ? <Check size={16} /> : <Save size={16} />}
+              {currentDraft.status === 'saved' ? '✓ Incorporado — Ver en el Mapa' : 'Incorporar a Capa Principal'}
             </button>
 
             {totalPolygons > 1 && (

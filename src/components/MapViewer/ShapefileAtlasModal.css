@@ -321,6 +321,18 @@
   cursor: not-allowed;
 }
 
+.atlas-btn-save.atlas-btn-saved {
+  background: #10b981;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+.atlas-btn-save.atlas-btn-saved:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
 .atlas-btn-batch {
   background: #10b981;
   color: #fff;
@@ -433,3 +445,34 @@
   font-size: 0.85rem;
   user-select: none;
 }
+
+/* Botón Descartar / Cancelar Shapefile Temporal */
+.atlas-btn-cancel-all {
+  padding: 8px 14px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.atlas-btn-cancel-all:hover {
+  background: #fecaca;
+  color: #b91c1c;
+  border-color: #f87171;
+}
+
+/* Quitar fondo blanco y borde cuadrado por defecto de Leaflet div-icon */
+.atlas-lindero-rotated,
+.atlas-dist-badge,
+.atlas-vertex-marker-node {
+  background: transparent !important;
+  border: none !important;
+}
+

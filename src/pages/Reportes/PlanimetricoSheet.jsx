@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { MapContainer, Polygon, Marker, GeoJSON, TileLayer } from 'react-leaflet';
+import { MapContainer, Polygon, Marker, GeoJSON, TileLayer, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import { Maximize2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { escapeHtml } from '../../utils/sanitize';
+import { normalizeVerticesAndLinderos } from '../../utils/geometryUtils';
 
 // Helper: Crear icono de texto Leaflet para vértices
 const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, lng = 0, centerLat = 0, centerLng = 0) => {
@@ -101,8 +102,9 @@ export default function PlanimetricoSheet({
   const [graphicScale, setGraphicScale] = useState({ totalWidthPx: 300, ticks: [0, 20, 40, 60, 80, 100] });
 
   const predio = data?.predio || {};
-  const vertices = data?.vertices || [];
-  const linderos = data?.linderos || [];
+  const { vertices, linderos } = useMemo(() => {
+    return normalizeVerticesAndLinderos(data?.vertices, data?.linderos);
+  }, [data?.vertices, data?.linderos]);
 
   const polygonCoords = useMemo(() => {
     const coords = [];
@@ -420,6 +422,14 @@ export default function PlanimetricoSheet({
                         <GeoJSON
                           key={'minimap_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
                           data={cadGeoJson}
+                          filter={(feature) => {
+                            // Descartar geometrías Point / MultiPoint que causan los marcadores azules de ubicación
+                            if (feature?.geometry?.type === 'Point' || feature?.geometry?.type === 'MultiPoint') {
+                              const textVal = feature?.properties?.texto || feature?.properties?.text;
+                              return Boolean(textVal && String(textVal).trim());
+                            }
+                            return true;
+                          }}
                           style={(feature) => {
                             const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
                             if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.6, opacity: 0.6 };
@@ -428,11 +438,60 @@ export default function PlanimetricoSheet({
                             if (capa.includes('CURVA') || capa.includes('NIVEL') || capa.includes('ACCIDENTE')) return { color: '#ca8a04', weight: 0.6, opacity: 0.75 };
                             return { color: '#475569', weight: 0.7, opacity: 0.7 };
                           }}
+                          pointToLayer={(feature, latlng) => {
+                            const textVal = feature?.properties?.texto || feature?.properties?.text;
+                            if (textVal && String(textVal).trim()) {
+                              return L.marker(latlng, {
+                                icon: L.divIcon({
+                                  className: 'cad-text-label',
+                                  html: `<div style="font-size: 7px; font-weight: bold; color: #475569; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
+                                  iconSize: [0, 0]
+                                })
+                              });
+                            }
+                            return L.circleMarker(latlng, { radius: 0, opacity: 0, fillOpacity: 0 });
+                          }}
                         />
                       )}
 
                       {UtmGrid && <UtmGrid setMapGridLabels={setMinimapGridLabels} isMinimap={true} />}
-                      <Polygon positions={polygonCoords} pathOptions={{ color: 'black', weight: 2.5, fillColor: '#ea580c', fillOpacity: 0.85 }} />
+                      
+                      {/* Polígono del predio destacado */}
+                      <Polygon positions={polygonCoords} pathOptions={{ color: '#b91c1c', weight: 2.5, fillColor: '#ef4444', fillOpacity: 0.95 }} />
+
+                      {/* Círculo envolvente para ubicar el predio en la carta general */}
+                      <CircleMarker 
+                        center={center} 
+                        radius={22} 
+                        pathOptions={{ 
+                          color: '#dc2626', 
+                          weight: 2.2, 
+                          dashArray: '5, 4', 
+                          fillColor: '#ef4444', 
+                          fillOpacity: 0.1 
+                        }} 
+                      />
+
+                      {/* Código catastral destacado en el minimapa */}
+                      <Marker 
+                        position={center} 
+                        icon={L.divIcon({
+                          className: 'minimap-predio-tag',
+                          html: `<div style="
+                            font-size: 8px; 
+                            font-weight: 800; 
+                            color: #991b1b; 
+                            background: rgba(255, 255, 255, 0.95); 
+                            padding: 1px 5px; 
+                            border: 1.5px solid #dc2626; 
+                            border-radius: 4px; 
+                            white-space: nowrap; 
+                            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+                            transform: translate(-50%, -150%);
+                          ">${predio?.codigo || predio?.cod_catastral || 'PREDIO'}</div>`,
+                          iconSize: [0, 0]
+                        })} 
+                      />
                     </MapContainer>
                   </div>
 

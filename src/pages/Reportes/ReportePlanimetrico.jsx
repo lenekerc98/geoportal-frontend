@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Polyline, useMap, LayersControl, ScaleControl, GeoJSON, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import proj4 from 'proj4';
 
@@ -13,6 +13,7 @@ import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import { escapeHtml } from '../../utils/sanitize';
 import PlanimetricoSheet from './PlanimetricoSheet';
+import { normalizeVerticesAndLinderos } from '../../utils/geometryUtils';
 import BatchPrintModal from './BatchPrintModal';
 import './ReportePlanimetrico.css';
 
@@ -505,8 +506,9 @@ export default function ReportePlanimetrico() {
   }, [cadArchivosList, nombreCarta, codigoCarta, activeEmpresa?.parametros?.carta_predeterminada]);
 
   const predio = data?.predio || {};
-  const vertices = data?.vertices || [];
-  const linderos = data?.linderos || [];
+  const { vertices, linderos } = useMemo(() => {
+    return normalizeVerticesAndLinderos(data?.vertices, data?.linderos);
+  }, [data?.vertices, data?.linderos]);
 
   const displayCarta = useMemo(() => {
     // Si nombreCarta existe, mostrar solo ese nombre limpio (ej: CATARAMA o JUAN MONTALVO)
@@ -1366,6 +1368,13 @@ export default function ReportePlanimetrico() {
                       <GeoJSON
                         key={'modal_cad_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
                         data={cadGeoJson}
+                        filter={(feature) => {
+                          if (feature?.geometry?.type === 'Point' || feature?.geometry?.type === 'MultiPoint') {
+                            const textVal = feature?.properties?.texto || feature?.properties?.text;
+                            return Boolean(textVal && String(textVal).trim());
+                          }
+                          return true;
+                        }}
                         style={(feature) => {
                           const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
                           if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.8, opacity: 0.6 };
@@ -1385,16 +1394,60 @@ export default function ReportePlanimetrico() {
                               })
                             });
                           }
-                          return null;
+                          return L.circleMarker(latlng, { radius: 0, opacity: 0, fillOpacity: 0 });
                         }}
                       />
                     )}
 
                     <UtmGrid isMinimap={previewModal.type === 'minimapa'} />
-                    <Polygon positions={polygonCoords} pathOptions={{ color: '#0f172a', weight: 3, fillColor: '#f97316', fillOpacity: 0.35 }} />
+                    <Polygon 
+                      positions={polygonCoords} 
+                      pathOptions={{ 
+                        color: previewModal.type === 'minimapa' ? '#b91c1c' : '#0f172a', 
+                        weight: 3, 
+                        fillColor: previewModal.type === 'minimapa' ? '#ef4444' : '#f97316', 
+                        fillOpacity: previewModal.type === 'minimapa' ? 0.9 : 0.35 
+                      }} 
+                    />
 
-                    {/* Vértices del Predio */}
-                    {vertices.map(v => {
+                    {/* Resaltado con círculo y etiqueta de código catastral en el mapa de ubicación */}
+                    {previewModal.type === 'minimapa' && (
+                      <>
+                        <CircleMarker 
+                          center={center} 
+                          radius={30} 
+                          pathOptions={{ 
+                            color: '#dc2626', 
+                            weight: 2.5, 
+                            dashArray: '5, 4', 
+                            fillColor: '#ef4444', 
+                            fillOpacity: 0.12 
+                          }} 
+                        />
+                        <Marker 
+                          position={center} 
+                          icon={L.divIcon({
+                            className: 'minimap-predio-tag-modal',
+                            html: `<div style="
+                              font-size: 10px; 
+                              font-weight: 800; 
+                              color: #991b1b; 
+                              background: rgba(255, 255, 255, 0.95); 
+                              padding: 2px 8px; 
+                              border: 1.5px solid #dc2626; 
+                              border-radius: 4px; 
+                              white-space: nowrap; 
+                              box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+                              transform: translate(-50%, -150%);
+                            ">${predio?.codigo || predio?.cod_catastral || 'PREDIO'}</div>`,
+                            iconSize: [0, 0]
+                          })} 
+                        />
+                      </>
+                    )}
+
+                    {/* Vértices del Predio solo en plano principal */}
+                    {previewModal.type === 'plano' && vertices.map(v => {
                       let lat = 0, lng = 0;
                       if (v.geom_wkt) {
                         try {

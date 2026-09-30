@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import Draggable from 'react-draggable';
 //, useEffect, useRef, useContext } from 'react';
-import { X, Save, Loader2, Check, MousePointer2, Upload, FileDown, Building2, Printer } from 'lucide-react';
+import { X, Save, Loader2, Check, MousePointer2, Upload, FileDown, Building2, Printer, MapPin } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 import * as XLSX from 'xlsx';
@@ -308,6 +308,66 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     XLSX.writeFile(wb, "Plantilla_Coordenadas.xlsx");
   };
 
+  const handleCaptureCurrentGPSPoint = () => {
+    if (!navigator.geolocation) {
+      alert("Tu dispositivo o navegador no soporta geolocalización.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const utm = proj4('EPSG:4326', 'EPSG:32717', [longitude, latitude]);
+        const xStr = utm[0].toFixed(2);
+        const yStr = utm[1].toFixed(2);
+        
+        const current = formData.geom_geojson ? formData.geom_geojson.trim() : '';
+        const newLine = `${xStr} ${yStr}`;
+        const updated = current ? `${current}\n${newLine}` : newLine;
+        
+        setFormData(prev => ({ ...prev, geom_geojson: updated }));
+        alert(`Punto GPS capturado: X=${xStr}, Y=${yStr} (Precisión ±${accuracy.toFixed(1)}m)`);
+      },
+      (err) => {
+        alert("Error al capturar ubicación GPS: " + (err.message || "Permiso denegado"));
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const handleGenerateAtCurrentGPS = () => {
+    if (!navigator.geolocation) {
+      alert("Tu dispositivo o navegador no soporta geolocalización.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const utm = proj4('EPSG:4326', 'EPSG:32717', [longitude, latitude]);
+        const half = 10; // 20m x 20m polígono (400 m2)
+        const utmX = utm[0];
+        const utmY = utm[1];
+        
+        // P01: NO, P02: NE, P03: SE, P04: SO, P01: Cierre
+        const coords = [
+          [utmX - half, utmY + half],
+          [utmX + half, utmY + half],
+          [utmX + half, utmY - half],
+          [utmX - half, utmY - half],
+          [utmX - half, utmY + half]
+        ];
+        
+        const coordsText = coords.map(c => `${c[0].toFixed(2)} ${c[1].toFixed(2)}`).join('\n');
+        setFormData(prev => ({ ...prev, geom_geojson: coordsText }));
+        setInputMode('table');
+        alert(`Predio base de 20x20m (400 m²) generado en tu posición GPS actual (Precisión ±${accuracy.toFixed(1)}m).`);
+      },
+      (err) => {
+        alert("Error al capturar ubicación GPS: " + (err.message || "Permiso denegado"));
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -322,27 +382,26 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       try {
         if (!navigator.onLine) throw new Error("offline");
         
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
         const token = localStorage.getItem('catastro_token');
         const res = await fetch(`${API_URL}/api/gis/posesionarios`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ cedula, nombre: nombrePosesionario })
+          body: JSON.stringify({ cedula, nombre: nombrePosesionario }),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           finalPosesionarioId = data.id;
         } else {
-          alert('Error al registrar nuevo posesionario.');
-          return;
+          // Si falla en línea, no bloquear al usuario en campo: guardar como temporal
+          finalPosesionarioId = null;
         }
       } catch (err) {
-        if (err.message === "offline" || !navigator.onLine) {
-          // Si estamos offline, no bloqueamos. Se guardará como temporal.
-          finalPosesionarioId = null;
-        } else {
-          alert('Error al registrar posesionario.');
-          return;
-        }
+        // Red no disponible o lenta (timeout), no bloquear al usuario en el campo!
+        finalPosesionarioId = null;
       }
     }
 
@@ -616,15 +675,25 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                     </button>
                   </div>
                 </div>
-                {!(initialData && initialData.id) && onStartDrawing && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    onClick={onStartDrawing}
-                    style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--primary-glow)', color: 'var(--accent-color)', border: '1px solid var(--accent-color)', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
+                    onClick={handleGenerateAtCurrentGPS}
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
+                    title="Generar predio de 20x20m centrado en mi coordenada GPS actual"
                   >
-                    <MousePointer2 size={16} /> Dibujar en el Mapa
+                    <MapPin size={15} /> Generar en mi punto GPS
                   </button>
-                )}
+                  {!(initialData && initialData.id) && onStartDrawing && (
+                    <button
+                      type="button"
+                      onClick={onStartDrawing}
+                      style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--primary-glow)', color: 'var(--accent-color)', border: '1px solid var(--accent-color)', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      <MousePointer2 size={16} /> Dibujar en el Mapa
+                    </button>
+                  )}
+                </div>
               </div>
 
               {inputMode === 'text' ? (
@@ -707,12 +776,21 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                       </table>
                     </div>
                   </div>
-                  <div className="table-footer">
+                  <div className="table-footer" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button type="button" onClick={() => {
                       const current = formData.geom_geojson ? formData.geom_geojson : '';
                       setFormData({ ...formData, geom_geojson: current + (current.endsWith('\n') || !current ? '' : '\n') + ' ' });
                     }} className="btn-add-vertex">
                       + Añadir Vértice
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCaptureCurrentGPSPoint}
+                      className="btn-add-vertex"
+                      style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderColor: '#10b981', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+                      title="Obtener la coordenada actual del GPS del teléfono y agregarla a la tabla"
+                    >
+                      <MapPin size={14} /> + Capturar mi Punto GPS
                     </button>
                   </div>
                 </div>

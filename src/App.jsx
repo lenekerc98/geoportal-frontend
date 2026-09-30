@@ -71,6 +71,16 @@ export default function App() {
       if (event.reason) {
         errorMsg = event.reason.stack || event.reason.message || String(event.reason);
       }
+      // Ignorar errores normales de red u offline para no bloquear la app en campo
+      const isNetworkError = errorMsg.includes('Failed to fetch') || 
+                             errorMsg.includes('NetworkError') || 
+                             errorMsg.includes('Load failed') || 
+                             errorMsg.includes('aborted') || 
+                             !navigator.onLine;
+      if (isNetworkError) {
+        console.warn("Ignorando error de red no crítico:", errorMsg);
+        return;
+      }
       localStorage.setItem('catastro_fatal_error', errorMsg);
       setFatalError(errorMsg);
       reportErrorToBackend(errorMsg);

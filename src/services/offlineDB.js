@@ -36,3 +36,8 @@ export const getOfflinePredioById = async (offlineId) => {
   const db = await initDB();
   return db.get(STORE_NAME, offlineId);
 };
+
+export const getOfflinePrediosCount = async () => {
+  const db = await initDB();
+  return db.count(STORE_NAME);
+};

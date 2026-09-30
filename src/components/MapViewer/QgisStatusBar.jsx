@@ -7,12 +7,16 @@ proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_de
 export default function QgisStatusBar({ map }) {
   const [coords, setCoords] = useState({ lat: 0, lng: 0 });
   const [utmCoords, setUtmCoords] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1000);
-  const [inputScale, setInputScale] = useState(1000);
+  const [scale, setScale] = useState('');
+  const [inputScale, setInputScale] = useState('');
 
   useEffect(() => {
     if (!map) return;
     
+    if (map.options) {
+      map.options.zoomSnap = 0;
+    }
+
     const onMouseMove = (e) => {
       setCoords(e.latlng);
       // Proyectar Lat/Lng a UTM 17S
@@ -21,17 +25,27 @@ export default function QgisStatusBar({ map }) {
     };
     
     const updateScale = () => {
-      const lat = map.getCenter().lat;
-      const zoom = map.getZoom();
-      const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
-      const currentScale = Math.round(mpp * 3779.529);
-      setScale(currentScale);
-      setInputScale(currentScale);
+      if (!map) return;
+      try {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        if (!center || zoom === undefined || isNaN(zoom)) return;
+        const mpp = (156543.03392 * Math.cos(center.lat * Math.PI / 180)) / Math.pow(2, zoom);
+        const currentScale = Math.round(mpp * 3779.529);
+        setScale(currentScale);
+        setInputScale(String(currentScale));
+      } catch (err) {
+        console.error("Error updating scale:", err);
+      }
     };
 
     map.on('mousemove', onMouseMove);
     map.on('zoomend', updateScale);
     map.on('moveend', updateScale);
+    
+    if (map.whenReady) {
+      map.whenReady(updateScale);
+    }
     updateScale();
     
     return () => {
@@ -41,11 +55,33 @@ export default function QgisStatusBar({ map }) {
     };
   }, [map]);
 
+  const handleScaleChange = (e) => {
+    // Permitir solo dígitos y limpiar ceros a la izquierda
+    let val = e.target.value.replace(/[^\d]/g, '');
+    if (val.length > 1 && val.startsWith('0')) {
+      val = val.replace(/^0+/, '');
+    }
+    setInputScale(val);
+  };
+
   const handleScaleSubmit = (e) => {
     if (e) e.preventDefault();
-    if (!map || !inputScale) return;
+    if (!map) return;
+    
+    let target = parseInt(inputScale, 10);
+    if (!target || target <= 0) {
+      if (scale) {
+        setInputScale(String(scale));
+      }
+      return;
+    }
+    
+    setInputScale(String(target));
+    if (map.options) {
+      map.options.zoomSnap = 0;
+    }
     const lat = map.getCenter().lat;
-    const mpp = inputScale / 3779.529;
+    const mpp = target / 3779.529;
     const targetZoom = Math.log2((156543.03392 * Math.cos(lat * Math.PI / 180)) / mpp);
     map.setZoom(targetZoom);
   };
@@ -62,13 +98,16 @@ export default function QgisStatusBar({ map }) {
         />
       </div>
       
-      <form onSubmit={handleScaleSubmit} className="qgis-status-item" style={{ margin: 0 }}>
+      <form onSubmit={handleScaleSubmit} className="qgis-status-item" style={{ margin: 0 }} autoComplete="off">
         <span>Escala 1:</span>
         <input 
           className="qgis-input scale-input" 
-          type="number"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
           value={inputScale}
-          onChange={(e) => setInputScale(Number(e.target.value))}
+          onChange={handleScaleChange}
+          onBlur={handleScaleSubmit}
           style={{ width: '100px' }}
         />
         <button type="submit" style={{ display: 'none' }}>Ir</button>
