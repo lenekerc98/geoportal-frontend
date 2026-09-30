@@ -1668,12 +1668,12 @@ export default function Geoportal() {
   useEffect(() => {
     if (!authToken || !showPredios) return;
     const intervalId = setInterval(() => {
-      if (!isDrawing && !editingPredio) {
+      if (!isDrawingPredio && !editingPredio) {
         fetchMapData();
       }
     }, 15000);
     return () => clearInterval(intervalId);
-  }, [authToken, showPredios, isDrawing, editingPredio, activeEmpresa?.id, activeProyecto?.id]);
+  }, [authToken, showPredios, isDrawingPredio, editingPredio, activeEmpresa?.id, activeProyecto?.id]);
 
   // Sincronizar estado inicial según configuración general/parámetro de empresa
   useEffect(() => {
