@@ -42,6 +42,32 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     }
   }, [isDrawing, map]);
 
+  // Tecla Enter para finalizar polígono cuando hay 3 o más vértices
+  React.useEffect(() => {
+    if (!isDrawing) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (drawPoints.length >= 3) {
+          onFinish(drawPoints);
+        } else {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Vértices insuficientes',
+            text: 'Debes añadir al menos 3 vértices antes de finalizar el predio.',
+            timer: 2000,
+            showConfirmButton: false,
+            background: '#131d33',
+            color: '#fff'
+          });
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDrawing, drawPoints, onFinish]);
+
   useMapEvents({
     click(e) {
       if (isDrawing) {

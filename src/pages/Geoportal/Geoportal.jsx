@@ -1664,6 +1664,17 @@ export default function Geoportal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPredios, prediosData, authToken]);
 
+  // Auto-recarga periódica de predios (cada 15s) para reflejar levantamientos móviles de campo sin recargar la página
+  useEffect(() => {
+    if (!authToken || !showPredios) return;
+    const intervalId = setInterval(() => {
+      if (!isDrawing && !editingPredio) {
+        fetchMapData();
+      }
+    }, 15000);
+    return () => clearInterval(intervalId);
+  }, [authToken, showPredios, isDrawing, editingPredio, activeEmpresa?.id, activeProyecto?.id]);
+
   // Sincronizar estado inicial según configuración general/parámetro de empresa
   useEffect(() => {
     if (activeEmpresa?.parametros?.capa_predios_activa !== undefined) {
@@ -3558,8 +3569,21 @@ export default function Geoportal() {
           <div className="dock-divider"></div>
 
           <button
-            onClick={() => { setIsAddingPredio(true); setIsMeasuring(false); }}
+            onClick={() => {
+              setIsAddingPredio(false);
+              setIsDrawingPredio(true);
+              setIsSnapped(false);
+              setDrawPoints([]);
+              setIsMeasuring(false);
+              setZoomMode(null);
+              setToastMsg({
+                type: 'info',
+                title: 'Dibujo de Predio Activo',
+                message: 'Haz clic en el mapa para marcar los vértices. Doble clic o Enter para finalizar.'
+              });
+            }}
             className={`dock-button agregar ${(isAddingPredio || isDrawingPredio) ? 'active' : ''}`}
+            title="Dibujar predio en el mapa (Doble clic o Enter para finalizar y abrir formulario)"
           >
             <Plus size={18} /> <span className="dock-button-text">Agregar Predio</span>
           </button>
