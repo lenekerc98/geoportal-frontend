@@ -252,19 +252,35 @@ export default function ShapefileAtlasModal({
           uniqueUtm.reverse();
         }
 
-        // Encontrar P01: el punto con mayor coordenada Y (más al norte; menor X en empate)
+        // Bounding box para normalizar y encontrar el vértice Nor-Oeste (NW)
+        // Convención: P01 es el que esté más al norte de izquierda a derecha (NW)
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        uniqueUtm.forEach(([x, y]) => {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        });
+        const spanX = (maxX - minX) || 1;
+        const spanY = (maxY - minY) || 1;
+
+        // Encontrar P01: punto más al Noroeste (maximiza normY - normX)
         let maxNorthIdx = 0;
-        for (let i = 1; i < uniqueUtm.length; i++) {
-          const curY = uniqueUtm[i][1];
-          const maxY = uniqueUtm[maxNorthIdx][1];
-          if (curY > maxY + 1e-4) {
-            maxNorthIdx = i;
-          } else if (Math.abs(curY - maxY) <= 1e-4) {
-            if (uniqueUtm[i][0] < uniqueUtm[maxNorthIdx][0]) {
-              maxNorthIdx = i;
+        let bestScore = -Infinity;
+        uniqueUtm.forEach(([x, y], idx) => {
+          const normX = (x - minX) / spanX;
+          const normY = (y - minY) / spanY;
+          const score = normY - normX;
+          if (score > bestScore + 1e-4) {
+            bestScore = score;
+            maxNorthIdx = idx;
+          } else if (Math.abs(score - bestScore) <= 1e-4) {
+            const [curBestX, curBestY] = uniqueUtm[maxNorthIdx];
+            if (y > curBestY || (Math.abs(y - curBestY) <= 1e-4 && x < curBestX)) {
+              maxNorthIdx = idx;
             }
           }
-        }
+        });
 
         // Rotar secuencia para iniciar en P01
         if (maxNorthIdx > 0) {

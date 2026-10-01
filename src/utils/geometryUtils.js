@@ -45,29 +45,45 @@ export function normalizeVerticesAndLinderos(rawVertices = [], rawLinderos = [])
   signedArea *= 0.5;
   const isClockwise = signedArea < 0;
 
-  // 2. Encontrar el vértice más al norte (máxima coordenada Y; si hay empate, el de menor X / más a la izquierda)
-  let northmostIdx = 0;
-  let maxY = coords[0].y;
-  let minX = coords[0].x;
-  for (let i = 1; i < n; i++) {
+  // 2. Bounding box para normalización y búsqueda del vértice Nor-Oeste (NW)
+  // Convención topográfica/catastral: El punto P01 es el que esté más al norte de izquierda a derecha (NW).
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
     const { x, y } = coords[i];
-    if (y > maxY + 1e-4) {
-      maxY = y;
-      minX = x;
-      northmostIdx = i;
-    } else if (Math.abs(y - maxY) <= 1e-4 && x < minX) {
-      minX = x;
-      northmostIdx = i;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const spanX = (maxX - minX) || 1;
+  const spanY = (maxY - minY) || 1;
+
+  // Encontrar el vértice más al Noroeste (más al norte de izquierda a derecha: maximiza normY - normX)
+  let nwIdx = 0;
+  let bestScore = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const { x, y } = coords[i];
+    const normX = (x - minX) / spanX;
+    const normY = (y - minY) / spanY;
+    const score = normY - normX;
+    if (score > bestScore + 1e-4) {
+      bestScore = score;
+      nwIdx = i;
+    } else if (Math.abs(score - bestScore) <= 1e-4) {
+      const best = coords[nwIdx];
+      if (y > best.y || (Math.abs(y - best.y) <= 1e-4 && x < best.x)) {
+        nwIdx = i;
+      }
     }
   }
 
-  // 3. Reordenar vértices y linderos iniciando en el vértice más al norte y en sentido horario
+  // 3. Reordenar vértices y linderos iniciando en el vértice Nor-Oeste (P01) y en sentido horario
   const orderedVerts = [];
   const orderedLins = [];
 
   if (isClockwise) {
     for (let i = 0; i < n; i++) {
-      const idx = (northmostIdx + i) % n;
+      const idx = (nwIdx + i) % n;
       orderedVerts.push({ ...rawVertices[idx] });
       if (rawLinderos[idx]) {
         orderedLins.push({ ...rawLinderos[idx] });
@@ -76,7 +92,7 @@ export function normalizeVerticesAndLinderos(rawVertices = [], rawLinderos = [])
   } else {
     // Si era antihorario, invertimos el recorrido para asegurar sentido horario
     for (let i = 0; i < n; i++) {
-      const idx = (northmostIdx - i + n) % n;
+      const idx = (nwIdx - i + n) % n;
       orderedVerts.push({ ...rawVertices[idx] });
       const linIdx = (idx - 1 + n) % n;
       if (rawLinderos[linIdx]) {
