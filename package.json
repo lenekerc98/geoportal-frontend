@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:movil": "npm --prefix ../movil run dev",
+    "build:movil": "npm --prefix ../movil run build",
+    "apk:movil": "npm --prefix ../movil run build:apk",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"

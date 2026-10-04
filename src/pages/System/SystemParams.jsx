@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Settings, Map, Layers, Plus, Building2, Save, Mail, Database } from 'lucide-react';
+import { Settings, Map, Smartphone, Layers, Plus, Building2, Save, Mail, Database } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
@@ -24,6 +24,7 @@ export default function SystemParams() {
   const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
   const [empresaConfig, setEmpresaConfig] = useState({ 
     modo_historico: 'automatico',
+    modo_subida_movil: 'manual',
     capa_predios_activa: true,
     logo_url: '',
     nombre_alcalde: '',
@@ -49,6 +50,7 @@ export default function SystemParams() {
     if (activeEmpresa) {
       setEmpresaConfig({
         modo_historico: activeEmpresa.parametros?.modo_historico || 'automatico',
+        modo_subida_movil: activeEmpresa.parametros?.modo_subida_movil || 'manual',
         capa_predios_activa: activeEmpresa.parametros?.capa_predios_activa !== undefined ? Boolean(activeEmpresa.parametros.capa_predios_activa) : true,
         logo_url: activeEmpresa.logo_url || '',
         nombre_alcalde: activeEmpresa.nombre_alcalde || '',
@@ -69,6 +71,7 @@ export default function SystemParams() {
           parametros: { 
             ...activeEmpresa.parametros, 
             modo_historico: empresaConfig.modo_historico,
+            modo_subida_movil: empresaConfig.modo_subida_movil || 'manual',
             capa_predios_activa: empresaConfig.capa_predios_activa
           },
           logo_url: empresaConfig.logo_url || null,

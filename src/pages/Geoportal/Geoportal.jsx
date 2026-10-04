@@ -4812,15 +4812,10 @@ export default function Geoportal() {
           <Polyline positions={[...measurePoints, mousePos]} color="#ef4444" weight={3} dashArray="5, 10" />
         )}
 
-        {/* Polígono temporal para dibujo */}
+        {/* Polígono temporal para dibujo hacia el cursor */}
         {isDrawingPredio && drawPoints.length > 0 && mousePos && (
-          <Polygon positions={[...drawPoints, mousePos]} color="var(--accent-color)" fillColor="var(--accent-color)" weight={3} fillOpacity={0.2} dashArray="5, 5" />
+          <Polyline positions={[drawPoints[drawPoints.length - 1], mousePos]} color="#0284c7" weight={2} dashArray="5, 5" />
         )}
-
-        {/* Marcadores de vértices al dibujar */}
-        {isDrawingPredio && drawPoints.map((pt, i) => (
-          <CircleMarker key={i} center={pt} radius={5} color="var(--accent-color)" fillColor="white" fillOpacity={1} weight={2} />
-        ))}
         {isDrawingPredio && mousePos && (
           isSnapped ? (
             <Marker
