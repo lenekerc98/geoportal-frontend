@@ -166,6 +166,32 @@ export default function SystemParams() {
                 </small>
               </div>
 
+              {/* Parámetro Oficial: Modo de Carga / Subida del Aplicativo Móvil */}
+              <div style={{ marginBottom: '20px', padding: '14px', background: 'var(--bg-lighter)', borderRadius: '8px', border: '1px solid var(--card-border)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--primary)' }}>
+                  <Smartphone size={18} /> Modo de Carga / Subida del Aplicativo Móvil
+                </label>
+                <select 
+                  value={empresaConfig.modo_subida_movil}
+                  onChange={(e) => setEmpresaConfig({...empresaConfig, modo_subida_movil: e.target.value})}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '600' }}
+                >
+                  <option value="manual">Modo Manual / Diferido (Offline en Teléfono ➔ Subida por Lotes)</option>
+                  <option value="automatica">Modo Automático / En Línea (Sube directamente al servidor al guardar)</option>
+                </select>
+                <div style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                  {empresaConfig.modo_subida_movil === 'manual' ? (
+                    <span>
+                      📦 <b>Modo Recomendado para Campo:</b> Los predios levantados se guardan primero en la memoria interna del teléfono (sin necesidad de cobertura o internet). Al regresar a la oficina con Wi-Fi, el brigadista abre la pestaña <b>Sincronización</b> y pulsa <b>"Sincronizar Todo Ahora"</b>.
+                    </span>
+                  ) : (
+                    <span>
+                      ⚡ <b>Modo Directo en Tiempo Real:</b> Cada vez que el brigadista presiona <b>"Guardar"</b> en la ficha del predio en el teléfono, el aplicativo realiza la subida inmediata por internet a la base de datos central de esta empresa.
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-lighter)', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
                   <input 
