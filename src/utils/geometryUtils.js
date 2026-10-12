@@ -2,6 +2,26 @@
  * Utilidades geométricas y cartográficas para levantamientos planimétricos y catastro.
  */
 
+// Helper: Función para calcular rumbo sexagesimal estándar catastral
+export function calcularRumboTopografico(x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return "N 00° 00' 00\" E";
+  const ns = dy >= 0 ? 'N' : 'S';
+  const ew = dx >= 0 ? 'E' : 'W';
+  const anguloRad = Math.atan2(Math.abs(dx), Math.abs(dy));
+  const anguloDeg = (anguloRad * 180) / Math.PI;
+  let d = Math.floor(anguloDeg);
+  let m = Math.floor((anguloDeg - d) * 60);
+  let s = Math.round((anguloDeg - d - m / 60) * 3600);
+  if (s === 60) { s = 0; m += 1; }
+  if (m === 60) { m = 0; d += 1; }
+  const dStr = String(d).padStart(2, '0');
+  const mStr = String(m).padStart(2, '0');
+  const sStr = String(s).padStart(2, '0');
+  return `${ns} ${dStr}° ${mStr}' ${sStr}" ${ew}`;
+}
+
 /**
  * Normaliza y reordena los vértices y linderos de un predio:
  * 1. El Punto 1 (P01 o V01) se asigna obligatoriamente al vértice que esté más a la izquierda (menor coordenada X).
@@ -16,10 +36,23 @@ export function normalizeVerticesAndLinderos(rawVertices = [], rawLinderos = [])
     return { vertices: rawVertices || [], linderos: rawLinderos || [] };
   }
 
-  const n = rawVertices.length;
+  // Ordenar naturalmente por código numérico para garantizar secuencia topológica
+  const sortedRawVertices = [...rawVertices].sort((a, b) => {
+    const numA = parseInt(String(a.codigo || '').replace(/\D/g, '')) || 0;
+    const numB = parseInt(String(b.codigo || '').replace(/\D/g, '')) || 0;
+    return numA - numB;
+  });
+
+  const sortedRawLinderos = [...rawLinderos].sort((a, b) => {
+    const numA = parseInt(String(a.tramo || '').replace(/^[^\d]*(\d+).*$/, '$1')) || (a.id || 0);
+    const numB = parseInt(String(b.tramo || '').replace(/^[^\d]*(\d+).*$/, '$1')) || (b.id || 0);
+    return numA - numB;
+  });
+
+  const n = sortedRawVertices.length;
 
   // Extraer coordenadas de cada vértice para análisis planar
-  const coords = rawVertices.map(v => {
+  const coords = sortedRawVertices.map(v => {
     let x = v.coord_x;
     let y = v.coord_y;
     if ((x === undefined || y === undefined || x === null || y === null) && v.geom_wkt) {
@@ -84,20 +117,18 @@ export function normalizeVerticesAndLinderos(rawVertices = [], rawLinderos = [])
   if (isClockwise) {
     for (let i = 0; i < n; i++) {
       const idx = (nwIdx + i) % n;
-      orderedVerts.push({ ...rawVertices[idx] });
-      if (rawLinderos[idx]) {
-        orderedLins.push({ ...rawLinderos[idx] });
-      }
+      orderedVerts.push({ ...sortedRawVertices[idx] });
+      const lin = sortedRawLinderos[idx] || {};
+      orderedLins.push({ ...lin });
     }
   } else {
     // Si era antihorario, invertimos el recorrido para asegurar sentido horario
     for (let i = 0; i < n; i++) {
       const idx = (nwIdx - i + n) % n;
-      orderedVerts.push({ ...rawVertices[idx] });
+      orderedVerts.push({ ...sortedRawVertices[idx] });
       const linIdx = (idx - 1 + n) % n;
-      if (rawLinderos[linIdx]) {
-        orderedLins.push({ ...rawLinderos[linIdx] });
-      }
+      const lin = sortedRawLinderos[linIdx] || {};
+      orderedLins.push({ ...lin });
     }
   }
 
@@ -109,13 +140,34 @@ export function normalizeVerticesAndLinderos(rawVertices = [], rawLinderos = [])
     orderedVerts[i].codigo = newCode;
   }
 
-  // 5. Ajustar los tramos correspondientes en los linderos
-  for (let i = 0; i < orderedLins.length; i++) {
+  // 5. Ajustar los tramos correspondientes en los linderos y garantizar cálculo de rumbo/distancia
+  for (let i = 0; i < orderedVerts.length; i++) {
     const currentCode = orderedVerts[i]?.codigo || `${prefix}${String(i + 1).padStart(2, '0')}`;
     const nextCode = (i < orderedVerts.length - 1)
       ? (orderedVerts[i + 1]?.codigo || `${prefix}${String(i + 2).padStart(2, '0')}`)
       : (orderedVerts[0]?.codigo || `${prefix}01`);
+    
+    if (!orderedLins[i]) {
+      orderedLins[i] = {};
+    }
     orderedLins[i].tramo = `${currentCode} - ${nextCode}`;
+
+    // Si falta longitud o rumbo, calcular geométricamente
+    const v1 = orderedVerts[i];
+    const v2 = orderedVerts[(i + 1) % orderedVerts.length];
+    const x1 = Number(v1?.coord_x) || 0;
+    const y1 = Number(v1?.coord_y) || 0;
+    const x2 = Number(v2?.coord_x) || 0;
+    const y2 = Number(v2?.coord_y) || 0;
+
+    if ((!orderedLins[i].longitud || Number(orderedLins[i].longitud) === 0) && (x1 !== 0 || y1 !== 0) && (x2 !== 0 || y2 !== 0)) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      orderedLins[i].longitud = Math.sqrt(dx * dx + dy * dy);
+    }
+    if ((!orderedLins[i].rumbo || orderedLins[i].rumbo === '-') && (x1 !== 0 || y1 !== 0) && (x2 !== 0 || y2 !== 0)) {
+      orderedLins[i].rumbo = calcularRumboTopografico(x1, y1, x2, y2);
+    }
   }
 
   return { vertices: orderedVerts, linderos: orderedLins };

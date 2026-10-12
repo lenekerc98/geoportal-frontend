@@ -84,21 +84,82 @@ const createRotatedTextIcon = (colindante, medida, p1, p2, centerLat, centerLng)
   });
 };
 
-// Helper: Determinar orientación geométrica respecto al centro con normalización de bounding box
-const getOrientacionGeometrica = (center, midPoint, width, height) => {
-  if (!center || !midPoint) return 'ESTE';
+// Helper: Determinar cuadrantes cardinales de linderos
+const getCardinalOrientations = (vertices = []) => {
+  const n = vertices.length;
+  if (n < 3) return [];
+  if (n === 3) return ['NORTE', 'ESTE', 'OESTE'];
 
-  // Normalizar las distancias por las dimensiones del bounding box
-  let dy = (midPoint[0] - center[0]) / (height || 1); // Latitud (Norte/Sur)
-  let dx = (midPoint[1] - center[1]) / (width || 1);  // Longitud (Este/Oeste)
+  const coords = vertices.map(v => {
+    let x = v.coord_x;
+    let y = v.coord_y;
+    if ((x === undefined || y === undefined || x === null || y === null) && v.geom_wkt) {
+      try {
+        const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
+        x = parseFloat(parts[0]);
+        y = parseFloat(parts[1]);
+      } catch (e) { }
+    }
+    return { x: Number(x) || 0, y: Number(y) || 0 };
+  });
 
-  // Calcular ángulo en grados (0° es Este, 90° es Norte, 180° es Oeste, -90° es Sur)
-  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const { x, y } = coords[i];
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const spanX = (maxX - minX) || 1;
+  const spanY = (maxY - minY) || 1;
 
-  if (angle >= 45 && angle < 135) return 'NORTE';
-  if (angle >= -45 && angle < 45) return 'ESTE';
-  if (angle >= -135 && angle < -45) return 'SUR';
-  return 'OESTE';
+  let neIdx = 1;
+  let bestNe = -Infinity;
+  const maxNeLimit = Math.max(1, n - 3);
+  for (let i = 1; i <= maxNeLimit; i++) {
+    const normX = (coords[i].x - minX) / spanX;
+    const normY = (coords[i].y - minY) / spanY;
+    const score = normY + normX;
+    if (score > bestNe) {
+      bestNe = score;
+      neIdx = i;
+    }
+  }
+
+  let seIdx = Math.min(n - 2, neIdx + 1);
+  let bestSe = -Infinity;
+  const maxSeLimit = Math.max(seIdx, n - 2);
+  for (let i = neIdx + 1; i <= maxSeLimit; i++) {
+    const normX = (coords[i].x - minX) / spanX;
+    const normY = (coords[i].y - minY) / spanY;
+    const score = -normY + normX;
+    if (score > bestSe) {
+      bestSe = score;
+      seIdx = i;
+    }
+  }
+
+  let swIdx = Math.min(n - 1, seIdx + 1);
+  let bestSw = -Infinity;
+  for (let i = seIdx + 1; i < n; i++) {
+    const normX = (coords[i].x - minX) / spanX;
+    const normY = (coords[i].y - minY) / spanY;
+    const score = -normY - normX;
+    if (score > bestSw) {
+      bestSw = score;
+      swIdx = i;
+    }
+  }
+
+  const res = [];
+  for (let i = 0; i < n; i++) {
+    if (i < neIdx) res.push('NORTE');
+    else if (i < seIdx) res.push('ESTE');
+    else if (i < swIdx) res.push('SUR');
+    else res.push('OESTE');
+  }
+  return res;
 };
 
 const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGraphicScale }) => {
@@ -636,19 +697,8 @@ export default function ReportePlanimetrico() {
   }, [fondoMinimapa, selectedCadFile, center, fetchCadGeoJson]);
 
   // Calcular centroides y linderos
+  const linderosOrientations = getCardinalOrientations(vertices);
   const linderosConInfo = linderos.map((l, index) => {
-    let midPoint = [0, 0];
-    try {
-      const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
-      const points = coordsStr.split(',').map(p => {
-        const [lng, lat] = p.trim().split(' ');
-        return [parseFloat(lat), parseFloat(lng)];
-      });
-      if (points.length >= 2) {
-        midPoint = [(points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2];
-      }
-    } catch (e) { }
-
     const currentCode = vertices[index]?.codigo || `P${String(index + 1).padStart(2, '0')}`;
     const nextCode = (index < vertices.length - 1)
       ? (vertices[index + 1]?.codigo || `P${String(index + 2).padStart(2, '0')}`)
@@ -658,20 +708,11 @@ export default function ReportePlanimetrico() {
     return {
       ...l,
       tramo: tramoCalculado,
-      orientacion: getOrientacionGeometrica(center, midPoint, centerInfo.width, centerInfo.height)
+      orientacion: linderosOrientations[index] || 'NORTE'
     };
   });
 
-  // Agrupar Linderos por Orientación
-  const linderosNorte = linderosConInfo.filter(l => l.orientacion === 'NORTE');
-  const linderosSur = linderosConInfo.filter(l => l.orientacion === 'SUR');
-  const linderosEste = linderosConInfo.filter(l => l.orientacion === 'ESTE');
-  const linderosOeste = linderosConInfo.filter(l => l.orientacion === 'OESTE');
 
-  const renderLinderoText = (l) => {
-    const tramoStr = (l.tramo || '').replace(' - ', ' al ');
-    return `Del ${tramoStr} con una distancia de ${l.longitud ? l.longitud.toFixed(1) : '0.0'} m, Rumbo ${l.rumbo || '-'}; ${l.colindante || ''}`;
-  };
 
   const currentDate = new Date().toLocaleDateString('es-ES');
   const dpaProvincia = activeEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
@@ -1188,7 +1229,7 @@ export default function ReportePlanimetrico() {
                   <div>
                     <strong style={{ fontSize: '1rem' }}>Lote de {batchDataList.length} reportes planimétricos preparado para impresión</strong>
                     <div style={{ fontSize: '0.82rem', opacity: 0.9, marginTop: '2px' }}>
-                      Total de páginas a imprimir: {batchDataList.length * 2} páginas (A4 Horizontal). Puedes imprimir directamente o guardar en PDF.
+                      Total de páginas a imprimir: {batchDataList.reduce((acc, item) => acc + 1 + Math.max(1, Math.ceil((item.vertices?.length || 0) / 24)), 0)} páginas (A4 Horizontal). Puedes imprimir directamente o guardar en PDF.
                     </div>
                   </div>
                 </div>
@@ -1400,32 +1441,32 @@ export default function ReportePlanimetrico() {
                     )}
 
                     <UtmGrid isMinimap={previewModal.type === 'minimapa'} />
-                    <Polygon 
-                      positions={polygonCoords} 
-                      pathOptions={{ 
-                        color: previewModal.type === 'minimapa' ? '#b91c1c' : '#0f172a', 
-                        weight: 3, 
-                        fillColor: previewModal.type === 'minimapa' ? '#ef4444' : '#f97316', 
-                        fillOpacity: previewModal.type === 'minimapa' ? 0.9 : 0.35 
-                      }} 
+                    <Polygon
+                      positions={polygonCoords}
+                      pathOptions={{
+                        color: previewModal.type === 'minimapa' ? '#b91c1c' : '#0f172a',
+                        weight: 3,
+                        fillColor: previewModal.type === 'minimapa' ? '#ef4444' : '#f97316',
+                        fillOpacity: previewModal.type === 'minimapa' ? 0.9 : 0.35
+                      }}
                     />
 
                     {/* Resaltado con círculo y etiqueta de código catastral en el mapa de ubicación */}
                     {previewModal.type === 'minimapa' && (
                       <>
-                        <CircleMarker 
-                          center={center} 
-                          radius={30} 
-                          pathOptions={{ 
-                            color: '#dc2626', 
-                            weight: 2.5, 
-                            dashArray: '5, 4', 
-                            fillColor: '#ef4444', 
-                            fillOpacity: 0.12 
-                          }} 
+                        <CircleMarker
+                          center={center}
+                          radius={30}
+                          pathOptions={{
+                            color: '#dc2626',
+                            weight: 2.5,
+                            dashArray: '5, 4',
+                            fillColor: '#ef4444',
+                            fillOpacity: 0.12
+                          }}
                         />
-                        <Marker 
-                          position={center} 
+                        <Marker
+                          position={center}
                           icon={L.divIcon({
                             className: 'minimap-predio-tag-modal',
                             html: `<div style="
@@ -1441,7 +1482,7 @@ export default function ReportePlanimetrico() {
                               transform: translate(-50%, -150%);
                             ">${predio?.codigo || predio?.cod_catastral || 'PREDIO'}</div>`,
                             iconSize: [0, 0]
-                          })} 
+                          })}
                         />
                       </>
                     )}

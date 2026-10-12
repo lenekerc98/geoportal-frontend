@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, UploadCloud, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, Trash2, StopCircle, Check, Info } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { showSuccess, showError } from '../../utils/swal';
@@ -11,6 +11,21 @@ export default function CadUploaderModal({ onClose, onSuccess, authToken }) {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percent: 0, currentFileName: '', statusText: '' });
   const xhrRef = useRef(null);
   const isCancelledRef = useRef(false);
+
+  // Cerrar modal con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (!isUploading) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isUploading, onClose]);
 
   const parseDxfDefaults = (fileName) => {
     const baseName = fileName.replace(/\.[^/.]+$/, "");

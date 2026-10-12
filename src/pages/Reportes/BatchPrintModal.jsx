@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Printer, X, Loader2, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 
 export default function BatchPrintModal({
@@ -13,6 +13,22 @@ export default function BatchPrintModal({
   const [printMode, setPrintMode] = useState('all'); // 'all' or 'range'
   const [fromNum, setFromNum] = useState(1);
   const [toNum, setToNum] = useState(Math.min(total, 50));
+
+  // Listener para cerrar con tecla Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (!loading) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, loading, onClose]);
 
   if (!isOpen) return null;
 
@@ -236,7 +252,7 @@ export default function BatchPrintModal({
               }}>
                 <FileText size={18} />
                 <span>
-                  Se enviarán a la impresora <strong>{countToPrint} predios</strong> ({countToPrint * 2} páginas: Plano e Informe de Linderación por cada predio).
+                  Se enviarán a la impresora <strong>{countToPrint} predios</strong> (Plano e Informe de Linderación paginado según la cantidad de vértices).
                 </span>
               </div>
 
