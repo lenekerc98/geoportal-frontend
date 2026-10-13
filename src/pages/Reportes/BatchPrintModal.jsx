@@ -281,7 +281,7 @@ export default function BatchPrintModal({
                 padding: '10px 14px',
                 fontSize: '0.82rem',
                 color: '#1e40af',
-                marginBottom: '20px',
+                marginBottom: '10px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'
@@ -290,6 +290,19 @@ export default function BatchPrintModal({
                 <span>
                   Se enviarán a la impresora <strong>{countToPrint} predios</strong> (Plano e Informe de Linderación paginado según la cantidad de vértices).
                 </span>
+              </div>
+
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: '8px',
+                padding: '9px 14px',
+                fontSize: '0.80rem',
+                color: '#92400e',
+                marginBottom: '20px',
+                lineHeight: '1.4'
+              }}>
+                📐 <strong>Configuración en diálogo de impresión:</strong> En la ventana de impresión, confirme que el <strong>Diseño esté en Horizontal</strong>, <strong>Tamaño de papel: A4</strong> y <strong>Márgenes: Ninguno</strong> para que el plano llene el 100% de la hoja.
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
