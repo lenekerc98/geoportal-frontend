@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { Maximize2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { escapeHtml } from '../../utils/sanitize';
-import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords } from '../../utils/geometryUtils';
+import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords, fetchCadGeoJsonForCenter } from '../../utils/geometryUtils';
 
 const getImageUrl = (url) => {
   if (!url) return '';
@@ -256,6 +256,27 @@ export default function PlanimetricoSheet({
   const center = (centerInfo.center && !isNaN(centerInfo.center[0]) && !isNaN(centerInfo.center[1]))
     ? centerInfo.center
     : [-1.5, -79.5];
+
+  const [localCadGeoJson, setLocalCadGeoJson] = useState(cadGeoJson);
+
+  useEffect(() => {
+    if (cadGeoJson) {
+      setLocalCadGeoJson(cadGeoJson);
+    }
+  }, [cadGeoJson]);
+
+  useEffect(() => {
+    if (fondoMinimapa === 'cad' && selectedCadFile && center && !isNaN(center[0]) && !isNaN(center[1])) {
+      if (!cadGeoJson) {
+        const token = localStorage.getItem('catastro_token');
+        fetchCadGeoJsonForCenter(API_URL, token, selectedCadFile, center).then(data => {
+          if (data) setLocalCadGeoJson(data);
+        });
+      }
+    }
+  }, [fondoMinimapa, selectedCadFile, center, cadGeoJson]);
+
+  const activeCadGeoJson = cadGeoJson || localCadGeoJson;
 
   const linderosConInfo = useMemo(() => {
     const orientations = getCardinalOrientations(vertices);
@@ -605,10 +626,10 @@ export default function PlanimetricoSheet({
                         <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
                       )}
 
-                      {fondoMinimapa === 'cad' && cadGeoJson && (
+                      {fondoMinimapa === 'cad' && activeCadGeoJson && (
                         <GeoJSON
-                          key={'minimap_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
-                          data={cadGeoJson}
+                          key={'minimap_' + selectedCadFile + (activeCadGeoJson?.features?.length || 0)}
+                          data={activeCadGeoJson}
                           filter={(feature) => {
                             const geomType = feature?.geometry?.type;
                             const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || '').toUpperCase();

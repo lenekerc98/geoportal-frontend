@@ -13,12 +13,9 @@ import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import { escapeHtml } from '../../utils/sanitize';
 import PlanimetricoSheet from './PlanimetricoSheet';
-import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords } from '../../utils/geometryUtils';
+import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords, fetchCadGeoJsonForCenter } from '../../utils/geometryUtils';
 import BatchPrintModal from './BatchPrintModal';
 import './ReportePlanimetrico.css';
-
-// Caché en memoria para evitar re-descargas pesadas de capas CAD GeoJSON
-const cadGeoJsonCache = new Map();
 
 // Helper: Crear icono de texto Leaflet
 const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, lng = 0, centerLat = 0, centerLng = 0) => {
@@ -421,34 +418,12 @@ export default function ReportePlanimetrico() {
   }, [activeEmpresa?.id, activeEmpresa?.parametros?.carta_predeterminada, selectedCadFile]);
 
   const fetchCadGeoJson = useCallback(async (archivo, centerPoint) => {
-    if (!archivo) return;
-    let bboxQuery = '';
-    if (centerPoint && centerPoint[0] && centerPoint[1]) {
-      // Discretizar a una cuadrícula de ~2km para maximizar aciertos de caché entre predios cercanos
-      const step = 0.02;
-      const snapLng = (Math.round(centerPoint[1] / step) * step).toFixed(4);
-      const snapLat = (Math.round(centerPoint[0] / step) * step).toFixed(4);
-      const pad = 0.035; // ~3.8 km cubre perfectamente el recuadro 235px a escala 1:50000
-      const minLng = (parseFloat(snapLng) - pad).toFixed(4);
-      const minLat = (parseFloat(snapLat) - pad).toFixed(4);
-      const maxLng = (parseFloat(snapLng) + pad).toFixed(4);
-      const maxLat = (parseFloat(snapLat) + pad).toFixed(4);
-      bboxQuery = `&bbox=${minLng},${minLat},${maxLng},${maxLat}`;
-    }
-    const cacheKey = `${archivo}_${bboxQuery}`;
-    if (cadGeoJsonCache.has(cacheKey)) {
-      setCadGeoJson(cadGeoJsonCache.get(cacheKey));
-      return;
-    }
+    if (!archivo || !centerPoint) return;
     try {
       setIsLoadingCad(true);
       const token = localStorage.getItem('catastro_token');
-      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}&simplify=2.0${bboxQuery}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const json = await res.json();
-        cadGeoJsonCache.set(cacheKey, json);
+      const json = await fetchCadGeoJsonForCenter(API_URL, token, archivo, centerPoint);
+      if (json) {
         setCadGeoJson(json);
       }
     } catch (e) {
@@ -839,6 +814,33 @@ export default function ReportePlanimetrico() {
           });
           if (res.ok) {
             const json = await res.json();
+            // Determinar archivo CAD para este predio específico
+            let targetCadFile = selectedCadFile;
+            if (json.predio?.nombre_carta || json.predio?.codigo_carta) {
+              const nomClean = (json.predio.nombre_carta || '').toUpperCase().trim();
+              const codClean = (json.predio.codigo_carta || '').toUpperCase().trim();
+              const matchCad = cadArchivosList.find(a =>
+                (nomClean && a.nombre && a.nombre.toUpperCase() === nomClean) ||
+                (codClean && a.codigo && a.codigo.toUpperCase() === codClean) ||
+                (nomClean && a.nombre_archivo && a.nombre_archivo.toUpperCase().includes(nomClean)) ||
+                (codClean && a.nombre_archivo && a.nombre_archivo.toUpperCase().includes(codClean))
+              );
+              if (matchCad) targetCadFile = matchCad.nombre_archivo;
+            }
+            if (fondoMinimapa === 'cad' && targetCadFile && json.predio?.geom_wkt) {
+              const poly = parseWktPolygonCoords(json.predio.geom_wkt);
+              if (poly.length > 0) {
+                const lats = poly.map(p => p[0]);
+                const lngs = poly.map(p => p[1]);
+                const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+                const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+                if (!isNaN(cLat) && !isNaN(cLng)) {
+                  const cadData = await fetchCadGeoJsonForCenter(API_URL, token, targetCadFile, [cLat, cLng]);
+                  json._cadGeoJson = cadData;
+                  json._selectedCadFile = targetCadFile;
+                }
+              }
+            }
             results.push(json);
           }
         } catch (err) {
@@ -860,7 +862,7 @@ export default function ReportePlanimetrico() {
 
       setTimeout(() => {
         window.print();
-      }, 1000);
+      }, 1500);
     } catch (e) {
       console.error('Error en lote de impresión:', e);
       showError('Error al preparar el lote de impresión');
@@ -1338,8 +1340,8 @@ export default function ReportePlanimetrico() {
                   textSize={textSize}
                   textAngleOffset={item.predio?.angulo_texto || textAngleOffset}
                   fondoMinimapa={fondoMinimapa}
-                  selectedCadFile={selectedCadFile}
-                  cadGeoJson={cadGeoJson}
+                  selectedCadFile={item._selectedCadFile || selectedCadFile}
+                  cadGeoJson={item._cadGeoJson || cadGeoJson}
                   codigoCarta={item.predio?.codigo_carta || codigoCarta}
                   nombreCarta={item.predio?.nombre_carta || nombreCarta}
                   nombreCuadricula={item.predio?.cuadricula_carta || nombreCuadricula}
