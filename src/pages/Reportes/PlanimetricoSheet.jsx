@@ -5,6 +5,7 @@ import { Maximize2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { escapeHtml } from '../../utils/sanitize';
 import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords, fetchCadGeoJsonForCenter } from '../../utils/geometryUtils';
+import defaultLogoGad from '../../assets/logo_gad.png';
 
 const getImageUrl = (url) => {
   if (!url) return '';
@@ -457,22 +458,18 @@ export default function PlanimetricoSheet({
 
           {/* HEADER OFICIAL CON LOGO GAD Y NOMBRE DE EMPRESA */}
           <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '10px 0', borderBottom: '2px solid black', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {(currentEmpresa?.logo_url || currentEmpresa?.logo) && (
-              <img
-                src={getImageUrl(currentEmpresa.logo_url || currentEmpresa.logo)}
-                alt="Logo Empresa"
-                style={{ position: 'absolute', top: '50%', left: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
-                onError={(e) => {
-                  console.warn('Error al cargar logo de empresa:', e.target.src);
-                  if (!e.target.dataset.triedFallback) {
-                    e.target.dataset.triedFallback = 'true';
-                    e.target.src = '/logo_gad.png';
-                  } else {
-                    e.target.style.display = 'none';
-                  }
-                }}
-              />
-            )}
+            <img
+              src={currentEmpresa?.logo_url ? getImageUrl(currentEmpresa.logo_url) : defaultLogoGad}
+              alt="Logo Empresa"
+              style={{ position: 'absolute', top: '50%', left: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
+              onError={(e) => {
+                if (e.target.src !== defaultLogoGad) {
+                  e.target.src = defaultLogoGad;
+                } else {
+                  e.target.style.display = 'none';
+                }
+              }}
+            />
 
             <div className="report-header-text" style={{ display: 'inline-block', textAlign: 'center', padding: '0 90px' }}>
               <div style={{ fontSize: '25px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px' }}>

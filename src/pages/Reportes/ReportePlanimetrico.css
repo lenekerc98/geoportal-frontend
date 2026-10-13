@@ -885,28 +885,25 @@
 /* REGLAS ESTRICTAS DE IMPRESIÓN (A4 HORIZONTAL) */
 /* ============================================= */
 @page {
+  size: 297mm 210mm;
   margin: 0;
 }
 
 @media print {
   @page {
+    size: 297mm 210mm;
     margin: 0;
-  }
-
-  *, *:before, *:after {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
   }
 
   html,
   body {
     width: 297mm !important;
-    height: auto !important;
-    min-height: 100% !important;
+    height: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     background: #ffffff !important;
-    overflow: visible !important;
   }
 
   .no-print,
@@ -916,52 +913,39 @@
     display: none !important;
   }
 
-  .report-wrapper {
-    display: block !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    position: static !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-  }
-
+  .report-wrapper,
   .report-pages-container {
-    display: block !important;
-    height: auto !important;
     min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    position: static !important;
-    margin: 0 !important;
     padding: 0 !important;
-    background: #ffffff !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
     transform: none !important;
-    zoom: normal !important;
+    background: #ffffff !important;
   }
 
   .print-page {
-    display: flex !important;
-    flex-direction: column !important;
+    margin: 0 !important;
+    padding: 8mm !important;
     width: 297mm !important;
     height: 209mm !important;
-    min-height: 209mm !important;
-    max-height: 209mm !important;
-    margin: 0 !important;
-    padding: 6mm 8mm !important;
     box-sizing: border-box !important;
     box-shadow: none !important;
     overflow: hidden !important;
     position: relative !important;
     background: #ffffff !important;
-    page-break-before: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
     page-break-after: always !important;
-    page-break-inside: avoid !important;
-    break-before: auto !important;
     break-after: page !important;
+    page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  .print-page + .print-page {
+    page-break-before: always !important;
+    break-before: page !important;
   }
 
   .print-page:last-child {
