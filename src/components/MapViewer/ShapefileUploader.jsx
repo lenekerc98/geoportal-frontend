@@ -29,7 +29,8 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     cod_catastral: '',
     fecha_adjudicacion: '',
     numero_tramite: '',
-    institucion: ''
+    institucion: '',
+    sector: ''
   });
   const [renames, setRenames] = useState({});
   const [isParsing, setIsParsing] = useState(false);
@@ -101,7 +102,8 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
               cod_catastral: '',
               fecha_adjudicacion: '',
               numero_tramite: '',
-              institucion: ''
+              institucion: '',
+              sector: ''
             };
             cols.forEach(c => {
                const k = c.original.toUpperCase();
@@ -122,6 +124,9 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                }
                if (k.includes('INSTITUC') || k.includes('ENTIDAD') || k === 'STRTA') {
                  newMap.institucion = c.original;
+               }
+               if (k.includes('SECTOR') || k === 'SEC' || k.includes('ZONA') || k.includes('BARRIO') || k.includes('RECINTO')) {
+                 newMap.sector = c.original;
                }
             });
             setMapping(newMap);
@@ -607,6 +612,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                                 <option value="fecha_adjudicacion">Fecha de Adjudicación</option>
                                 <option value="numero_tramite">Número de Trámite</option>
                                 <option value="institucion">Institución</option>
+                                <option value="sector">Sector</option>
                               </select>
                             </td>
                             <td>
@@ -762,6 +768,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                                 Área: {conf.incoming.area_ha} ha 
                                 {conf.incoming.fecha_adjudicacion ? ` | F. Adju: ${conf.incoming.fecha_adjudicacion}` : ''}
                                 {conf.incoming.numero_tramite ? ` | Trámite: ${conf.incoming.numero_tramite}` : ''}
+                                {conf.incoming.sector ? ` | Sector: ${conf.incoming.sector}` : ''}
                               </div>
                             </td>
                             <td style={{padding: '8px', textAlign: 'center'}}>
@@ -900,8 +907,9 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                             <td style={{padding: '8px', fontSize: '0.75rem', color: 'var(--text-muted)'}}>
                               {item.fecha_adjudicacion ? `F. Adju: ${item.fecha_adjudicacion} ` : ''}
                               {item.numero_tramite ? `Trámite: ${item.numero_tramite} ` : ''}
-                              {item.institucion ? `Inst: ${item.institucion}` : ''}
-                              {!item.fecha_adjudicacion && !item.numero_tramite && !item.institucion ? '-' : ''}
+                              {item.institucion ? `Inst: ${item.institucion} ` : ''}
+                              {item.sector ? `Sector: ${item.sector} ` : ''}
+                              {!item.fecha_adjudicacion && !item.numero_tramite && !item.institucion && !item.sector ? '-' : ''}
                             </td>
                           </tr>
                         );
