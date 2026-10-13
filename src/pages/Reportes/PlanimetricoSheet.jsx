@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, Polygon, Marker, GeoJSON, TileLayer, CircleMarker } from 'react-leaflet';
+import { MapContainer, Polygon, Marker, GeoJSON, TileLayer, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Maximize2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
@@ -31,8 +31,18 @@ const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, 
       </div>
     `,
     iconSize: [pointSize, pointSize],
-    iconAnchor: [pointSize / 2, pointSize / 2]
   });
+};
+
+const MinimapViewUpdater = ({ center }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
+      map.setView(center, 13, { animate: false });
+      map.invalidateSize();
+    }
+  }, [map, center[0], center[1]]);
+  return null;
 };
 
 const createRotatedTextIcon = (colindante, medida, p1, p2, centerLat, centerLng) => {
@@ -260,23 +270,28 @@ export default function PlanimetricoSheet({
   const [localCadGeoJson, setLocalCadGeoJson] = useState(cadGeoJson);
 
   useEffect(() => {
-    if (cadGeoJson) {
+    if (cadGeoJson && cadGeoJson.features && cadGeoJson.features.length > 0) {
       setLocalCadGeoJson(cadGeoJson);
     }
   }, [cadGeoJson]);
 
   useEffect(() => {
-    if (fondoMinimapa === 'cad' && selectedCadFile && center && !isNaN(center[0]) && !isNaN(center[1])) {
-      if (!cadGeoJson) {
+    if (fondoMinimapa === 'cad' && center && !isNaN(center[0]) && !isNaN(center[1])) {
+      const hasValidFeatures = localCadGeoJson && Array.isArray(localCadGeoJson.features) && localCadGeoJson.features.length > 0;
+      if (!hasValidFeatures) {
         const token = localStorage.getItem('catastro_token');
         fetchCadGeoJsonForCenter(API_URL, token, selectedCadFile, center).then(data => {
-          if (data) setLocalCadGeoJson(data);
+          if (data && data.features && data.features.length > 0) {
+            setLocalCadGeoJson(data);
+          }
         });
       }
     }
-  }, [fondoMinimapa, selectedCadFile, center, cadGeoJson]);
+  }, [fondoMinimapa, selectedCadFile, center, localCadGeoJson]);
 
-  const activeCadGeoJson = cadGeoJson || localCadGeoJson;
+  const activeCadGeoJson = (localCadGeoJson && localCadGeoJson.features && localCadGeoJson.features.length > 0)
+    ? localCadGeoJson
+    : cadGeoJson;
 
   const linderosConInfo = useMemo(() => {
     const orientations = getCardinalOrientations(vertices);
@@ -617,7 +632,20 @@ export default function PlanimetricoSheet({
                     )}
 
                     {!isNaN(center[0]) && !isNaN(center[1]) && (
-                      <MapContainer preferCanvas={true} center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                      <MapContainer
+                        key={`minimap_${center[0].toFixed(5)}_${center[1].toFixed(5)}_${fondoMinimapa}`}
+                        preferCanvas={true}
+                        center={center}
+                        zoom={13}
+                        style={{ width: '100%', height: '100%' }}
+                        zoomControl={false}
+                        scrollWheelZoom={false}
+                        doubleClickZoom={false}
+                        dragging={false}
+                        touchZoom={false}
+                      >
+                      <MinimapViewUpdater center={center} />
+
                       {fondoMinimapa === 'osm' && (
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
                       )}
@@ -628,7 +656,7 @@ export default function PlanimetricoSheet({
 
                       {fondoMinimapa === 'cad' && activeCadGeoJson && (
                         <GeoJSON
-                          key={'minimap_' + selectedCadFile + (activeCadGeoJson?.features?.length || 0)}
+                          key={'minimap_cad_' + (activeCadGeoJson?.features?.length || 0)}
                           data={activeCadGeoJson}
                           filter={(feature) => {
                             const geomType = feature?.geometry?.type;
@@ -643,11 +671,11 @@ export default function PlanimetricoSheet({
                           }}
                           style={(feature) => {
                             const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
-                            if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.6, opacity: 0.6 };
-                            if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.2, opacity: 0.85 };
-                            if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.0, opacity: 0.85 };
-                            if (capa.includes('CURVA') || capa.includes('NIVEL') || capa.includes('ACCIDENTE')) return { color: '#ca8a04', weight: 0.6, opacity: 0.75 };
-                            return { color: '#475569', weight: 0.7, opacity: 0.7 };
+                            if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.8, opacity: 0.7 };
+                            if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.8, opacity: 0.95 };
+                            if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.6, opacity: 0.95 };
+                            if (capa.includes('CURVA') || capa.includes('NIVEL') || capa.includes('ACCIDENTE')) return { color: '#ca8a04', weight: 1.3, opacity: 0.9 };
+                            return { color: '#334155', weight: 1.1, opacity: 0.85 };
                           }}
                           pointToLayer={(feature, latlng) => {
                             const textVal = feature?.properties?.texto || feature?.properties?.text;

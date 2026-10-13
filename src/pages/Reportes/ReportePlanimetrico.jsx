@@ -827,7 +827,7 @@ export default function ReportePlanimetrico() {
               );
               if (matchCad) targetCadFile = matchCad.nombre_archivo;
             }
-            if (fondoMinimapa === 'cad' && targetCadFile && json.predio?.geom_wkt) {
+            if (fondoMinimapa === 'cad' && json.predio?.geom_wkt) {
               const poly = parseWktPolygonCoords(json.predio.geom_wkt);
               if (poly.length > 0) {
                 const lats = poly.map(p => p[0]);
@@ -835,7 +835,7 @@ export default function ReportePlanimetrico() {
                 const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
                 const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
                 if (!isNaN(cLat) && !isNaN(cLng)) {
-                  const cadData = await fetchCadGeoJsonForCenter(API_URL, token, targetCadFile, [cLat, cLng]);
+                  const cadData = await fetchCadGeoJsonForCenter(API_URL, token, targetCadFile || '', [cLat, cLng]);
                   json._cadGeoJson = cadData;
                   json._selectedCadFile = targetCadFile;
                 }
@@ -862,7 +862,7 @@ export default function ReportePlanimetrico() {
 
       setTimeout(() => {
         window.print();
-      }, 1500);
+      }, 2500);
     } catch (e) {
       console.error('Error en lote de impresión:', e);
       showError('Error al preparar el lote de impresión');
@@ -1341,7 +1341,7 @@ export default function ReportePlanimetrico() {
                   textAngleOffset={item.predio?.angulo_texto || textAngleOffset}
                   fondoMinimapa={fondoMinimapa}
                   selectedCadFile={item._selectedCadFile || selectedCadFile}
-                  cadGeoJson={item._cadGeoJson || cadGeoJson}
+                  cadGeoJson={item._cadGeoJson || null}
                   codigoCarta={item.predio?.codigo_carta || codigoCarta}
                   nombreCarta={item.predio?.nombre_carta || nombreCarta}
                   nombreCuadricula={item.predio?.cuadricula_carta || nombreCuadricula}

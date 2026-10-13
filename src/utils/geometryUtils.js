@@ -268,26 +268,27 @@ export const cadGeoJsonMemoryCache = new Map();
  * discretizando a un bounding box de ~4km para maximizar aciertos de caché entre predios cercanos.
  */
 export async function fetchCadGeoJsonForCenter(apiUrl, token, archivo, centerPoint) {
-  if (!archivo || !centerPoint || !centerPoint[0] || !centerPoint[1] || isNaN(centerPoint[0]) || isNaN(centerPoint[1])) {
+  if (!centerPoint || !centerPoint[0] || !centerPoint[1] || isNaN(centerPoint[0]) || isNaN(centerPoint[1])) {
     return null;
   }
   const step = 0.02;
   const snapLng = (Math.round(centerPoint[1] / step) * step).toFixed(4);
   const snapLat = (Math.round(centerPoint[0] / step) * step).toFixed(4);
-  const pad = 0.04;
+  const pad = 0.05; // ~5.5 km para asegurar cobertura completa de la lámina A4
   const minLng = (parseFloat(snapLng) - pad).toFixed(4);
   const minLat = (parseFloat(snapLat) - pad).toFixed(4);
   const maxLng = (parseFloat(snapLng) + pad).toFixed(4);
   const maxLat = (parseFloat(snapLat) + pad).toFixed(4);
+  const archivoParam = archivo ? `archivo=${encodeURIComponent(archivo)}&` : '';
   const bboxQuery = `&bbox=${minLng},${minLat},${maxLng},${maxLat}`;
-  const cacheKey = `${archivo}_${bboxQuery}`;
+  const cacheKey = `${archivo || 'any'}_${bboxQuery}`;
 
   if (cadGeoJsonMemoryCache.has(cacheKey)) {
     return cadGeoJsonMemoryCache.get(cacheKey);
   }
 
   try {
-    const res = await fetch(`${apiUrl}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}&simplify=2.0${bboxQuery}`, {
+    const res = await fetch(`${apiUrl}/api/gis/cad-layers/geojson?${archivoParam}simplify=1.5${bboxQuery}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
