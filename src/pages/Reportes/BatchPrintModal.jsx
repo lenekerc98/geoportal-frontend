@@ -13,7 +13,7 @@ export default function BatchPrintModal({
   const total = allPredios.length;
   const [printMode, setPrintMode] = useState('all'); // 'all' or 'range'
   const [fromNum, setFromNum] = useState(1);
-  const [toNum, setToNum] = useState(Math.min(total, 50));
+  const [toNum, setToNum] = useState(Math.min(total, 20));
   const [duplexMode, setDuplexMode] = useState(initialDuplex);
 
   // Listener para cerrar con tecla Escape
@@ -208,9 +208,9 @@ export default function BatchPrintModal({
                       style={{ marginTop: '4px' }}
                     />
                     <div style={{ flex: 1 }}>
-                      <strong>Imprimir rango específico (por lotes)</strong>
+                      <strong>Imprimir rango específico (por lotes recomendados)</strong>
                       <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '8px' }}>
-                        Recomendado si hay más de 50 predios para agilizar la respuesta de la impresora.
+                        Recomendado imprimir en lotes de hasta 20 o 25 predios a la vez para un rendimiento óptimo de la impresora y del navegador.
                       </div>
 
                       {printMode === 'range' && (
@@ -302,7 +302,7 @@ export default function BatchPrintModal({
                 marginBottom: '20px',
                 lineHeight: '1.4'
               }}>
-                📐 <strong>Configuración en diálogo de impresión:</strong> En la ventana de impresión, confirme que el <strong>Diseño esté en Horizontal</strong>, <strong>Tamaño de papel: A4</strong> y <strong>Márgenes: Ninguno</strong> para que el plano llene el 100% de la hoja.
+                📐 <strong>Configuración en diálogo de impresión:</strong> En la ventana de impresión de Chrome/Windows, confirme que el <strong>Diseño esté en Horizontal</strong>, <strong>Tamaño de papel: A4</strong>, <strong>Márgenes: Ninguno</strong> y <strong>Escala: Predeterminado</strong> para que el plano llene el 100% de la hoja sin reducción de escala.
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>

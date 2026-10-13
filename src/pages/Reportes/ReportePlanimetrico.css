@@ -885,20 +885,19 @@
 /* REGLAS ESTRICTAS DE IMPRESIÓN (A4 HORIZONTAL) */
 /* ============================================= */
 @page {
-  size: 297mm 210mm;
   margin: 0;
 }
 
 @media print {
   @page {
-    size: 297mm 210mm;
     margin: 0;
   }
 
   html,
   body {
-    width: 297mm !important;
-    height: 210mm !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
@@ -953,78 +952,20 @@
     break-after: auto !important;
   }
 
-  /* Modo Dúplex: En impresión, la página en blanco sale sin bordes ni marcas */
+  /* Modo Dúplex: Hoja completamente en blanco sin bordes ni marcas */
   .duplex-blank-page {
     border: none !important;
-  }
-  .duplex-blank-inner {
-    border: none !important;
-  }
-  .duplex-blank-placeholder {
-    display: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
   }
 }
 
 /* ============================================= */
-/* MODO DÚPLEX INTELIGENTE - PÁGINA EN BLANCO    */
+/* MODO DÚPLEX INTELIGENTE - HOJA EN BLANCO      */
 /* ============================================= */
 .duplex-blank-page {
   background: #ffffff !important;
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-.duplex-blank-inner {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  height: 100% !important;
-  border: 1px dashed #cbd5e1 !important;
-}
-
-.duplex-blank-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  max-width: 480px;
-  padding: 30px;
-  background: rgba(248, 250, 252, 0.85);
-  border: 1.5px dashed #94a3b8;
-  border-radius: 12px;
-  color: #475569;
-}
-
-.duplex-blank-icon {
-  font-size: 38px;
-  margin-bottom: 12px;
-}
-
-.duplex-blank-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #065f46;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.duplex-blank-desc {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #64748b;
-  margin: 0 0 14px 0;
-}
-
-.duplex-blank-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
+  border: none !important;
+  outline: none !important;
 }

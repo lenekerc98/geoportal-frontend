@@ -204,6 +204,10 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
 
     if (isNaN(center[0]) || isNaN(center[1])) return;
 
+    try {
+      map.invalidateSize({ animate: false });
+    } catch (e) { }
+
     if (scaleValue === 'Auto') {
       try {
         map.fitBounds(validCoords, { padding: [80, 80], animate: false });
@@ -867,14 +871,25 @@ export default function ReportePlanimetrico() {
       }
 
       setBatchDataList(results);
-      setBatchLoading(false);
-      setShowBatchModal(false);
       setIsBatchPrinting(true);
       setReportZoom(1);
 
+      setBatchProgress({
+        current: results.length,
+        total: results.length,
+        message: `Renderizando ${results.length} láminas cartográficas en pantalla... Por favor espere.`
+      });
+
+      // Dar tiempo suficiente proporcional a la cantidad de predios para que todas las láminas se monten y rendericen en el DOM
+      const renderWaitMs = Math.max(2500, Math.min(8000, results.length * 150));
+
       setTimeout(() => {
-        window.print();
-      }, 2500);
+        setBatchLoading(false);
+        setShowBatchModal(false);
+        setTimeout(() => {
+          window.print();
+        }, 400);
+      }, renderWaitMs);
     } catch (e) {
       console.error('Error en lote de impresión:', e);
       showError('Error al preparar el lote de impresión');

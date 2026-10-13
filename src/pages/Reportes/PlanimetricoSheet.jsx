@@ -513,7 +513,7 @@ export default function PlanimetricoSheet({
                   )}
 
                   {polygonCoords.length > 0 && !isNaN(center[0]) && !isNaN(center[1]) && (
-                    <MapContainer preferCanvas={true} center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                    <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                       {MapScaleUpdater && (
                         <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                       )}
@@ -631,7 +631,6 @@ export default function PlanimetricoSheet({
                     {!isNaN(center[0]) && !isNaN(center[1]) && (
                       <MapContainer
                         key={`minimap_${center[0].toFixed(5)}_${center[1].toFixed(5)}_${fondoMinimapa}`}
-                        preferCanvas={true}
                         center={center}
                         zoom={13}
                         style={{ width: '100%', height: '100%' }}
@@ -1002,21 +1001,7 @@ export default function PlanimetricoSheet({
 
       {/* PÁGINA EN BLANCO AUTOMÁTICA PARA MODO DÚPLEX INTELIGENTE (CARA A CARA) */}
       {duplexMode && (1 + totalSheets) % 2 !== 0 && (
-        <div className="print-page duplex-blank-page" key="duplex-blank-page">
-          <div className="report-inner-border duplex-blank-inner">
-            <div className="duplex-blank-placeholder no-print">
-              <div className="duplex-blank-icon">📄</div>
-              <div className="duplex-blank-title">Modo Dúplex Inteligente</div>
-              <p className="duplex-blank-desc">
-                Esta página se mantiene intencionalmente en blanco para que, al imprimir a doble cara (cara a cara), 
-                el siguiente predio comience en una hoja física nueva y limpia en lugar de imprimirse en el reverso de este expediente.
-              </p>
-              <div className="duplex-blank-badge">
-                Reverso libre para expediente: #{predio?.codigo || predio?.cod_catastral || ''} ({1 + totalSheets} páginas de contenido)
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="print-page duplex-blank-page" key="duplex-blank-page" />
       )}
     </>
   );
