@@ -815,6 +815,7 @@ export default function ReportePlanimetrico() {
       const token = localStorage.getItem('catastro_token');
       const targetList = allPredios.slice(fromIdx - 1, toIdx);
       const results = [];
+      const cadCache = {};
 
       for (let i = 0; i < targetList.length; i++) {
         const item = targetList[i];
@@ -851,8 +852,11 @@ export default function ReportePlanimetrico() {
                 const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
                 const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
                 if (!isNaN(cLat) && !isNaN(cLng)) {
-                  const cadData = await fetchCadGeoJsonForCenter(API_URL, token, targetCadFile || '', [cLat, cLng]);
-                  json._cadGeoJson = cadData;
+                  const cacheKey = `${targetCadFile || ''}_${cLat.toFixed(3)}_${cLng.toFixed(3)}`;
+                  if (!cadCache[cacheKey]) {
+                    cadCache[cacheKey] = await fetchCadGeoJsonForCenter(API_URL, token, targetCadFile || '', [cLat, cLng]);
+                  }
+                  json._cadGeoJson = cadCache[cacheKey];
                   json._selectedCadFile = targetCadFile;
                 }
               }
