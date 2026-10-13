@@ -56,11 +56,11 @@ export function normalizeVerticesAndLinderos(rawVertices = [], rawLinderos = [])
     let x = v.coord_x;
     let y = v.coord_y;
     if ((x === undefined || y === undefined || x === null || y === null) && v.geom_wkt) {
-      try {
-        const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
-        x = parseFloat(parts[0]);
-        y = parseFloat(parts[1]);
-      } catch (e) {}
+      const pt = parseWktPointCoords(v.geom_wkt);
+      if (pt) {
+        x = pt.lng; // Nota: en WKT 'POINT(X Y)', primer valor es X / Lng
+        y = pt.lat; // segundo valor es Y / Lat
+      }
     }
     return { x: Number(x) || 0, y: Number(y) || 0 };
   });
@@ -172,3 +172,92 @@ export function normalizeVerticesAndLinderos(rawVertices = [], rawLinderos = [])
 
   return { vertices: orderedVerts, linderos: orderedLins };
 }
+
+/**
+ * Parsea un WKT POLYGON o MULTIPOLYGON de forma tolerante y segura.
+ * Devuelve un array de pares [lat, lng] válidos para Leaflet.
+ * Garantiza que NINGÚN elemento sea NaN o null.
+ */
+export function parseWktPolygonCoords(wkt) {
+  if (!wkt || typeof wkt !== 'string') return [];
+  try {
+    const trimmed = wkt.trim();
+    if (!trimmed.toUpperCase().includes('POLYGON')) return [];
+
+    // Remover prefijos tipo 'MULTIPOLYGON (((', 'POLYGON ((', etc.
+    // Quita cualquier letra inicial y paréntesis de apertura consecutivos
+    let cleaned = trimmed.replace(/^[A-Za-z\s_]+\(+/, '');
+
+    // Si tiene múltiples anillos o polígonos, tomamos el anillo exterior principal
+    if (cleaned.includes(')')) {
+      cleaned = cleaned.split(')')[0];
+    }
+    cleaned = cleaned.replace(/[()]/g, '').trim();
+
+    const coords = [];
+    const pairs = cleaned.split(',');
+    for (let i = 0; i < pairs.length; i++) {
+      const parts = pairs[i].trim().split(/\s+/);
+      if (parts.length >= 2) {
+        const lng = parseFloat(parts[0]);
+        const lat = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+          coords.push([lat, lng]);
+        }
+      }
+    }
+    return coords;
+  } catch (err) {
+    console.error('Error parseando WKT polygon:', err, wkt);
+    return [];
+  }
+}
+
+/**
+ * Parsea un WKT POINT ('POINT(lng lat)' o 'POINT (lng lat)')
+ * Devuelve { lat, lng } garantizando números válidos, o null si falla.
+ */
+export function parseWktPointCoords(wkt) {
+  if (!wkt || typeof wkt !== 'string') return null;
+  try {
+    const cleaned = wkt.trim().replace(/^[A-Za-z\s_]+\(+/, '').replace(/\)+$/, '').trim();
+    const parts = cleaned.split(/\s+/);
+    if (parts.length >= 2) {
+      const lng = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+        return { lat, lng };
+      }
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Parsea un WKT LINESTRING ('LINESTRING(lng1 lat1, lng2 lat2, ...)')
+ * Devuelve un array de [lat, lng] válidos para Polyline de Leaflet.
+ */
+export function parseWktLineCoords(wkt) {
+  if (!wkt || typeof wkt !== 'string') return [];
+  try {
+    const cleaned = wkt.trim().replace(/^[A-Za-z\s_]+\(+/, '').replace(/\)+$/, '').trim();
+    const coords = [];
+    const pairs = cleaned.split(',');
+    for (let i = 0; i < pairs.length; i++) {
+      const parts = pairs[i].trim().split(/\s+/);
+      if (parts.length >= 2) {
+        const lng = parseFloat(parts[0]);
+        const lat = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+          coords.push([lat, lng]);
+        }
+      }
+    }
+    return coords;
+  } catch (err) {
+    return [];
+  }
+}
+

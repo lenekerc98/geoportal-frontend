@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { Maximize2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { escapeHtml } from '../../utils/sanitize';
-import { normalizeVerticesAndLinderos } from '../../utils/geometryUtils';
+import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords } from '../../utils/geometryUtils';
 
 const getImageUrl = (url) => {
   if (!url) return '';
@@ -81,11 +81,11 @@ const getCardinalOrientations = (vertices = []) => {
     let x = v.coord_x;
     let y = v.coord_y;
     if ((x === undefined || y === undefined || x === null || y === null) && v.geom_wkt) {
-      try {
-        const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
-        x = parseFloat(parts[0]);
-        y = parseFloat(parts[1]);
-      } catch (e) { }
+      const pt = parseWktPointCoords(v.geom_wkt);
+      if (pt) {
+        x = pt.lng;
+        y = pt.lat;
+      }
     }
     return { x: Number(x) || 0, y: Number(y) || 0 };
   });
@@ -211,27 +211,25 @@ export default function PlanimetricoSheet({
   }, [data?.vertices, data?.linderos]);
 
   const polygonCoords = useMemo(() => {
-    const coords = [];
-    if (predio.geom_wkt) {
-      try {
-        const coordsStr = predio.geom_wkt.replace('POLYGON((', '').replace('))', '');
-        coordsStr.split(',').forEach(p => {
-          const [lng, lat] = p.trim().split(' ');
-          if (lat && lng) coords.push([parseFloat(lat), parseFloat(lng)]);
-        });
-      } catch (e) { }
-    }
-    return coords;
+    return parseWktPolygonCoords(predio.geom_wkt);
   }, [predio.geom_wkt]);
 
   const centerInfo = useMemo(() => {
-    if (polygonCoords.length === 0) return { center: [0, 0], width: 1, height: 1, mainAngle: 0 };
-    const lats = polygonCoords.map(p => p[0]);
-    const lngs = polygonCoords.map(p => p[1]);
+    if (!polygonCoords || polygonCoords.length === 0) return { center: [-1.5, -79.5], width: 1, height: 1, mainAngle: 0 };
+    const lats = polygonCoords.map(p => p[0]).filter(v => typeof v === 'number' && !isNaN(v) && isFinite(v));
+    const lngs = polygonCoords.map(p => p[1]).filter(v => typeof v === 'number' && !isNaN(v) && isFinite(v));
+    if (lats.length === 0 || lngs.length === 0) return { center: [-1.5, -79.5], width: 1, height: 1, mainAngle: 0 };
+
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs);
     const maxLng = Math.max(...lngs);
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+    if (isNaN(centerLat) || isNaN(centerLng)) {
+      return { center: [-1.5, -79.5], width: 1, height: 1, mainAngle: 0 };
+    }
+
     let maxDist = 0;
     let mainAngle = 0;
     for (let i = 0; i < polygonCoords.length; i++) {
@@ -248,14 +246,16 @@ export default function PlanimetricoSheet({
       }
     }
     return {
-      center: [(minLat + maxLat) / 2, (minLng + maxLng) / 2],
-      height: maxLat - minLat || 1,
-      width: maxLng - minLng || 1,
+      center: [centerLat, centerLng],
+      height: Math.max(0.0001, maxLat - minLat),
+      width: Math.max(0.0001, maxLng - minLng),
       mainAngle
     };
   }, [polygonCoords]);
 
-  const center = centerInfo.center;
+  const center = (centerInfo.center && !isNaN(centerInfo.center[0]) && !isNaN(centerInfo.center[1]))
+    ? centerInfo.center
+    : [-1.5, -79.5];
 
   const linderosConInfo = useMemo(() => {
     const orientations = getCardinalOrientations(vertices);
@@ -325,14 +325,11 @@ export default function PlanimetricoSheet({
     return linderos.map((l, i) => {
       try {
         if (!l.geom_wkt) return null;
-        const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
-        const points = coordsStr.split(',').map(p => {
-          const [lng, lat] = p.trim().split(' ');
-          return [parseFloat(lat), parseFloat(lng)];
-        });
+        const points = parseWktLineCoords(l.geom_wkt);
         if (points.length >= 2) {
           const midLat = (points[0][0] + points[1][0]) / 2;
           const midLng = (points[0][1] + points[1][1]) / 2;
+          if (isNaN(midLat) || isNaN(midLng)) return null;
           const medida = `${l.longitud ? Number(l.longitud).toFixed(1) : '0.0'}m`;
           const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
           return (
@@ -482,7 +479,7 @@ export default function PlanimetricoSheet({
                     </button>
                   )}
 
-                  {polygonCoords.length > 0 && (
+                  {polygonCoords.length > 0 && !isNaN(center[0]) && !isNaN(center[1]) && (
                     <MapContainer preferCanvas={true} center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                       {MapScaleUpdater && (
                         <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
@@ -494,13 +491,13 @@ export default function PlanimetricoSheet({
                       {vertices.map(v => {
                         let lat = 0, lng = 0;
                         if (v.geom_wkt) {
-                          try {
-                            const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
-                            lng = parseFloat(parts[0]);
-                            lat = parseFloat(parts[1]);
-                          } catch (e) { }
+                          const pt = parseWktPointCoords(v.geom_wkt);
+                          if (pt) {
+                            lat = pt.lat;
+                            lng = pt.lng;
+                          }
                         }
-                        if (!lat || !lng) return null;
+                        if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
                         return (
                           <React.Fragment key={v.id}>
                             <Marker position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label', pointSize, textSize, lat, lng, center[0], center[1])} />
@@ -598,7 +595,8 @@ export default function PlanimetricoSheet({
                       </button>
                     )}
 
-                    <MapContainer preferCanvas={true} center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                    {!isNaN(center[0]) && !isNaN(center[1]) && (
+                      <MapContainer preferCanvas={true} center={center} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
                       {fondoMinimapa === 'osm' && (
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
                       )}
@@ -665,6 +663,7 @@ export default function PlanimetricoSheet({
                       />
 
                     </MapContainer>
+                    )}
                   </div>
 
                   {minimapGridLabels.top.map((lbl, i) => (

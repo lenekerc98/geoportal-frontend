@@ -13,7 +13,7 @@ import { AppContext } from '../../context/AppContext';
 import { showSuccess, showError } from '../../utils/swal';
 import { escapeHtml } from '../../utils/sanitize';
 import PlanimetricoSheet from './PlanimetricoSheet';
-import { normalizeVerticesAndLinderos } from '../../utils/geometryUtils';
+import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords } from '../../utils/geometryUtils';
 import BatchPrintModal from './BatchPrintModal';
 import './ReportePlanimetrico.css';
 
@@ -94,11 +94,11 @@ const getCardinalOrientations = (vertices = []) => {
     let x = v.coord_x;
     let y = v.coord_y;
     if ((x === undefined || y === undefined || x === null || y === null) && v.geom_wkt) {
-      try {
-        const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
-        x = parseFloat(parts[0]);
-        y = parseFloat(parts[1]);
-      } catch (e) { }
+      const pt = parseWktPointCoords(v.geom_wkt);
+      if (pt) {
+        x = pt.lng;
+        y = pt.lat;
+      }
     }
     return { x: Number(x) || 0, y: Number(y) || 0 };
   });
@@ -198,17 +198,24 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
 
     if (!polygonCoords || polygonCoords.length === 0) return;
 
-    const lats = polygonCoords.map(p => p[0]);
-    const lngs = polygonCoords.map(p => p[1]);
+    const validCoords = polygonCoords.filter(p => Array.isArray(p) && p.length >= 2 && typeof p[0] === 'number' && typeof p[1] === 'number' && !isNaN(p[0]) && !isNaN(p[1]) && isFinite(p[0]) && isFinite(p[1]));
+    if (validCoords.length === 0) return;
+
+    const lats = validCoords.map(p => p[0]);
+    const lngs = validCoords.map(p => p[1]);
     const center = [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2];
 
+    if (isNaN(center[0]) || isNaN(center[1])) return;
+
     if (scaleValue === 'Auto') {
-      map.fitBounds(polygonCoords, { padding: [80, 80], animate: false });
-      const z = map.getZoom();
-      let s = Math.round(1000 * Math.pow(2, 19 - z));
-      if (s > 1000) s = Math.round(s / 100) * 100;
-      else if (s > 100) s = Math.round(s / 50) * 50;
-      setCalculatedScale(`~ 1:${s}`);
+      try {
+        map.fitBounds(validCoords, { padding: [80, 80], animate: false });
+        const z = map.getZoom();
+        let s = Math.round(1000 * Math.pow(2, 19 - z));
+        if (s > 1000) s = Math.round(s / 100) * 100;
+        else if (s > 100) s = Math.round(s / 50) * 50;
+        setCalculatedScale(`~ 1:${s}`);
+      } catch (e) { }
     } else {
       let s = 1000;
       if (scaleValue && scaleValue.includes(':')) {
@@ -216,7 +223,9 @@ const MapScaleUpdater = ({ scaleValue, polygonCoords, setCalculatedScale, setGra
         if (!isNaN(val) && val > 0) s = val;
       }
       const z = 19 - Math.log2(s / 1000);
-      map.setView(center, z, { animate: false });
+      if (!isNaN(z) && isFinite(z)) {
+        map.setView(center, z, { animate: false });
+      }
       setCalculatedScale(scaleValue);
     }
 
@@ -666,27 +675,25 @@ export default function ReportePlanimetrico() {
   };
 
   const polygonCoords = useMemo(() => {
-    const coords = [];
-    if (predio.geom_wkt) {
-      try {
-        const coordsStr = predio.geom_wkt.replace('POLYGON((', '').replace('))', '');
-        coordsStr.split(',').forEach(p => {
-          const [lng, lat] = p.trim().split(' ');
-          if (lat && lng) coords.push([parseFloat(lat), parseFloat(lng)]);
-        });
-      } catch (e) { }
-    }
-    return coords;
-  }, [predio.geom_wkt]);
+    return parseWktPolygonCoords(predio?.geom_wkt);
+  }, [predio?.geom_wkt]);
 
   const centerInfo = useMemo(() => {
-    if (polygonCoords.length === 0) return { center: [0, 0], width: 1, height: 1 };
-    const lats = polygonCoords.map(p => p[0]);
-    const lngs = polygonCoords.map(p => p[1]);
+    if (!polygonCoords || polygonCoords.length === 0) return { center: [-1.5, -79.5], width: 1, height: 1 };
+    const lats = polygonCoords.map(p => p[0]).filter(v => typeof v === 'number' && !isNaN(v) && isFinite(v));
+    const lngs = polygonCoords.map(p => p[1]).filter(v => typeof v === 'number' && !isNaN(v) && isFinite(v));
+    if (lats.length === 0 || lngs.length === 0) return { center: [-1.5, -79.5], width: 1, height: 1 };
+
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs);
     const maxLng = Math.max(...lngs);
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+    if (isNaN(centerLat) || isNaN(centerLng)) {
+      return { center: [-1.5, -79.5], width: 1, height: 1 };
+    }
+
     let maxDist = 0;
     let mainAngle = 0;
     for (let i = 0; i < polygonCoords.length; i++) {
@@ -706,13 +713,15 @@ export default function ReportePlanimetrico() {
     }
 
     return {
-      center: [(minLat + maxLat) / 2, (minLng + maxLng) / 2],
-      height: maxLat - minLat || 1,
-      width: maxLng - minLng || 1,
+      center: [centerLat, centerLng],
+      height: Math.max(0.0001, maxLat - minLat),
+      width: Math.max(0.0001, maxLng - minLng),
       mainAngle
     };
   }, [polygonCoords]);
-  const center = centerInfo.center;
+  const center = (centerInfo.center && !isNaN(centerInfo.center[0]) && !isNaN(centerInfo.center[1]))
+    ? centerInfo.center
+    : [-1.5, -79.5];
 
   useEffect(() => {
     if (fondoMinimapa === 'cad' && selectedCadFile && center && center[0]) {
@@ -1438,7 +1447,8 @@ export default function ReportePlanimetrico() {
 
                 {/* Contenedor del Mapa Interactivo */}
                 <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                  <MapContainer
+                  {!isNaN(center[0]) && !isNaN(center[1]) && (
+                    <MapContainer
                     preferCanvas={true}
                     center={center}
                     zoom={previewModal.type === 'plano' ? 18 : 14}
@@ -1522,18 +1532,19 @@ export default function ReportePlanimetrico() {
                     {previewModal.type === 'plano' && vertices.map(v => {
                       let lat = 0, lng = 0;
                       if (v.geom_wkt) {
-                        try {
-                          const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
-                          lng = parseFloat(parts[0]);
-                          lat = parseFloat(parts[1]);
-                        } catch (e) { }
+                        const pt = parseWktPointCoords(v.geom_wkt);
+                        if (pt) {
+                          lat = pt.lat;
+                          lng = pt.lng;
+                        }
                       }
-                      if (!lat || !lng) return null;
+                      if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
                       return (
                         <Marker key={v.id} position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label', 7, 11, lat, lng, center[0], center[1])} />
                       );
                     })}
                   </MapContainer>
+                  )}
                 </div>
               </div>
             </div>
