@@ -517,14 +517,15 @@ export default function Users() {
                       <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
                         <input 
                           type="checkbox" 
-                          checked={formData.proyectos_ids?.includes(p.id)}
+                          checked={formData.proyectos_ids?.map(Number).includes(Number(p.id))}
                           onChange={(e) => {
                             const isChecked = e.target.checked;
+                            const pId = Number(p.id);
                             setFormData(prev => ({
                               ...prev,
                               proyectos_ids: isChecked 
-                                ? [...(prev.proyectos_ids || []), p.id] 
-                                : (prev.proyectos_ids || []).filter(id => id !== p.id)
+                                ? [...(prev.proyectos_ids || []).filter(id => Number(id) !== pId), pId] 
+                                : (prev.proyectos_ids || []).filter(id => Number(id) !== pId)
                             }));
                           }}
                           style={{ cursor: 'pointer' }}
@@ -577,7 +578,21 @@ export default function Users() {
                       </span>
                     </td>
                     <td data-label="Acciones" style={{ textAlign: 'right' }}>
-                      <button onClick={() => { setFormData({ username: u.username, password: '', id_rol: u.id_rol, id_empresa: u.id_empresa || '', nombres: u.nombres || '', apellidos: u.apellidos || '', cedula: u.cedula || '', correo: u.correo || '' }); setEditingId(u.id_usuario); setIsEditing(true); }} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '8px', borderRadius: '6px', marginRight: '10px' }} title="Editar">
+                      <button onClick={() => { 
+                        setFormData({ 
+                          username: u.username, 
+                          password: '', 
+                          id_rol: u.id_rol, 
+                          id_empresa: u.id_empresa || '', 
+                          proyectos_ids: u.proyectos_ids || (u.proyectos ? u.proyectos.map(p => p.id) : []),
+                          nombres: u.nombres || '', 
+                          apellidos: u.apellidos || '', 
+                          cedula: u.cedula || '', 
+                          correo: u.correo || '' 
+                        }); 
+                        setEditingId(u.id_usuario); 
+                        setIsEditing(true); 
+                      }} style={{ background: 'transparent', border: '1px solid var(--card-border)', color: 'var(--text-main)', cursor: 'pointer', padding: '8px', borderRadius: '6px', marginRight: '10px' }} title="Editar">
                         <Edit size={16} />
                       </button>
                       <button onClick={() => handleDeleteUser(u.id_usuario, u.username)} style={{ background: 'rgba(239, 68, 68, 0.2)', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '8px', borderRadius: '6px' }} title="Eliminar">

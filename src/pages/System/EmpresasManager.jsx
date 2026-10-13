@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Building2, Plus, Edit2, Trash2, Loader2, Calendar } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { showSuccess, showError } from '../../utils/swal';
+import { AppContext } from '../../context/AppContext';
 
 export default function EmpresasManager() {
+  const { activeEmpresa, setGlobalEmpresa } = useContext(AppContext);
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -164,6 +166,18 @@ export default function EmpresasManager() {
       showSuccess('Empresa guardada con éxito');
       setShowModal(false);
       fetchEmpresas();
+
+      if (activeEmpresa?.id === empresaId) {
+        fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(list => {
+            if (Array.isArray(list)) {
+              const fresh = list.find(e => e.id === empresaId);
+              if (fresh) setGlobalEmpresa(fresh);
+            }
+          })
+          .catch(console.error);
+      }
     } catch (err) {
       showError(err.message);
     }

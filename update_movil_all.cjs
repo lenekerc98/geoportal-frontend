@@ -572,14 +572,6 @@ export default function ReportePlanimetricoSheet({
                           <UtmGrid setMapGridLabels={setMinimapGridLabels} isMinimap={true} />
                           <Polygon positions={polygonCoords} pathOptions={{ color: '#b91c1c', weight: 2.5, fillColor: '#ef4444', fillOpacity: 0.95 }} />
                           <CircleMarker center={center} radius={20} pathOptions={{ color: '#dc2626', weight: 2, dashArray: '4, 4', fillColor: '#ef4444', fillOpacity: 0.1 }} />
-                          <Marker
-                            position={center}
-                            icon={L.divIcon({
-                              className: 'minimap-predio-tag',
-                              html: \`<div style="font-size: 7.5px; font-weight: 800; color: #991b1b; background: rgba(255,255,255,0.95); padding: 1px 4px; border: 1.2px solid #dc2626; border-radius: 3px; white-space: nowrap; transform: translate(-50%, -150%);">\${escapeHtml(predio?.codigo || predio?.cod_catastral || 'PREDIO')}</div>\`,
-                              iconSize: [0, 0]
-                            })}
-                          />
                         </MapContainer>
                       )}
                     </div>

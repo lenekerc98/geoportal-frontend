@@ -26,13 +26,17 @@ export default function EditLinderosModal({ predio, isOpen, onClose, onSaved }) 
       if (res.ok) {
         const data = await res.json();
         setDetalle(data);
-        const sortedLinderos = (data.linderos || []).map((l, index) => ({
-          id: l.id,
-          tramo: `Tramo ${index + 1} (P${String(index + 1).padStart(2, '0')} - P${String(((index + 1) % data.linderos.length) + 1).padStart(2, '0')})`,
-          longitud: l.longitud ? Number(l.longitud).toFixed(2) : '0.00',
-          rumbo: l.rumbo || '',
-          colindante: l.colindante || ''
-        }));
+        const sortedLinderos = (data.linderos || []).map((l, index) => {
+          const rawCol = l.colindante || '';
+          const cleanCol = rawCol.replace(/^(Norte|Sur|Este|Oeste)\s*:\s*/i, '').replace(/\s*\([\d\.]+\s*m\)/i, '').trim();
+          return {
+            id: l.id,
+            tramo: `Tramo ${index + 1} (P${String(index + 1).padStart(2, '0')} - P${String(((index + 1) % data.linderos.length) + 1).padStart(2, '0')})`,
+            longitud: l.longitud ? Number(l.longitud).toFixed(2) : '0.00',
+            rumbo: l.rumbo || '',
+            colindante: cleanCol
+          };
+        });
         setLinderos(sortedLinderos);
       } else {
         setDetalle(null);
@@ -69,8 +73,8 @@ export default function EditLinderosModal({ predio, isOpen, onClose, onSaved }) 
       const payload = {
         linderos: linderos.map(l => ({
           id: l.id,
-          colindante: l.colindante.trim(),
-          rumbo: l.rumbo.trim() || null
+          colindante: (l.colindante || '').replace(/^(Norte|Sur|Este|Oeste)\s*:\s*/i, '').replace(/\s*\([\d\.]+\s*m\)/i, '').trim(),
+          rumbo: (l.rumbo || '').trim() || null
         }))
       };
 

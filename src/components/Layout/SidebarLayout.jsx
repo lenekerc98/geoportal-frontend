@@ -24,7 +24,7 @@ const SystemHealthIndicator = ({ collapsed }) => {
         setHealth({ api: 'ERROR', database: 'ERROR', storage: 'ERROR' });
       }
     };
-    
+
     checkHealth();
     const interval = setInterval(checkHealth, 30000);
     return () => clearInterval(interval);
@@ -32,7 +32,7 @@ const SystemHealthIndicator = ({ collapsed }) => {
 
   const isAllOk = health.api === 'OK' && health.database === 'OK' && health.storage === 'OK';
   const hasError = health.api === 'ERROR' || health.database.startsWith('ERROR') || health.storage.startsWith('ERROR');
-  
+
   const statusColor = isAllOk ? 'var(--success)' : (hasError ? 'var(--danger)' : 'var(--warning)');
 
   useEffect(() => {
@@ -41,7 +41,7 @@ const SystemHealthIndicator = ({ collapsed }) => {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         setUserRole(payload.role || '');
-      } catch (e) {}
+      } catch (e) { }
     }
   }, []);
 
@@ -55,8 +55,8 @@ const SystemHealthIndicator = ({ collapsed }) => {
 
   return (
     <div style={{ padding: '12px 15px', borderTop: '1px solid var(--sidebar-border)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-      <div 
-        onClick={() => setIsOpen(!isOpen)} 
+      <div
+        onClick={() => setIsOpen(!isOpen)}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -122,7 +122,12 @@ export default function SidebarLayout() {
       .then(data => {
         if (Array.isArray(data)) {
           setEmpresasList(data);
-          if (data.length === 1 && (!activeEmpresa || activeEmpresa.id !== data[0].id)) {
+          if (activeEmpresa) {
+            const currentFresh = data.find(e => e.id === activeEmpresa.id);
+            if (currentFresh) {
+              setGlobalEmpresa(currentFresh);
+            }
+          } else if (data.length > 0) {
             setGlobalEmpresa(data[0]);
           }
         }
@@ -159,7 +164,7 @@ export default function SidebarLayout() {
       navigate('/');
       return;
     }
-    
+
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const exp = payload.exp;
@@ -168,8 +173,8 @@ export default function SidebarLayout() {
         setUserPermisos(payload.permisos);
       }
       if (Date.now() >= exp * 1000) {
-         localStorage.removeItem('catastro_token');
-         navigate('/');
+        localStorage.removeItem('catastro_token');
+        navigate('/');
       }
     } catch (e) {
       localStorage.removeItem('catastro_token');
@@ -238,7 +243,7 @@ export default function SidebarLayout() {
             </div>
             <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '220px' }}>Catastro Rural Cantón Urdaneta 2026</span>
           </div>
-          <button 
+          <button
             onClick={() => setCollapsed(!collapsed)}
             style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', padding: '5px' }}
           >
@@ -258,14 +263,14 @@ export default function SidebarLayout() {
                 <span className="title" style={{ fontSize: '15px', lineHeight: '1.2', whiteSpace: 'normal' }}>Catastro Rural Cantón Urdaneta 2026</span>
               </div>
             )}
-            <button 
-              onClick={() => setCollapsed(!collapsed)} 
+            <button
+              onClick={() => setCollapsed(!collapsed)}
               style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '5px' }}
             >
               <Menu size={20} />
             </button>
           </div>
-          
+
           {!collapsed && (
             <div style={{ marginTop: '15px', padding: '12px', background: 'var(--bg-lighter)', borderRadius: '8px', border: '1px solid var(--card-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -277,7 +282,7 @@ export default function SidebarLayout() {
 
               {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) ? (
                 <>
-                  <select 
+                  <select
                     style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', marginBottom: '8px', fontWeight: '500' }}
                     value={activeEmpresa?.id || ''}
                     onChange={(e) => {
@@ -291,9 +296,9 @@ export default function SidebarLayout() {
                       <option key={emp.id} value={emp.id}>{emp.nombre}</option>
                     ))}
                   </select>
-                  
+
                   {activeEmpresa && (
-                    <select 
+                    <select
                       style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
                       value={activeProyecto?.id || ''}
                       onChange={(e) => {
@@ -318,7 +323,7 @@ export default function SidebarLayout() {
                   </div>
 
                   {proyectosList.length > 0 && (
-                    <select 
+                    <select
                       style={{ width: '100%', padding: '6px 8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', fontWeight: '500' }}
                       value={activeProyecto?.id || ''}
                       onChange={(e) => {
@@ -339,30 +344,30 @@ export default function SidebarLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/geoportal" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/geoportal" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Map size={20} />
             <span>Geoportal</span>
           </NavLink>
 
-          <NavLink to="/dashboard" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/dashboard" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <BarChart2 size={20} />
             <span>Dashboard</span>
           </NavLink>
 
-          <NavLink to="/predios" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive || location.pathname === '/reporteria' ? 'active' : ''}`}>
+          <NavLink to="/predios" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item ${isActive || location.pathname === '/reporteria' ? 'active' : ''}`}>
             <Layers size={20} />
-            <span>Gestión de Predios</span>
+            <span>Predios</span>
           </NavLink>
 
           {hasPermission('cartas_topograficas') && (
-            <NavLink to="/cartas-topograficas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/cartas-topograficas" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <FileSpreadsheet size={20} />
               <span>Cartas Topográficas</span>
             </NavLink>
           )}
-          
+
           {hasAccess(['admin']) && (
-            <NavLink to="/usuarios" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/usuarios" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <Users size={20} />
               <span>Usuarios</span>
             </NavLink>
@@ -373,30 +378,30 @@ export default function SidebarLayout() {
               <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default' }}>
                 <span>Localización</span>
               </div>
-              <NavLink to="/localizacion/dpa" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+              <NavLink to="/localizacion/dpa" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                 <Map size={18} />
                 <span>Gestión DPA</span>
               </NavLink>
-              
+
               <div className="nav-item" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', cursor: 'default', marginTop: '10px' }}>
                 <span>Sistema</span>
               </div>
-              <NavLink to="/sistema/parametros" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+              <NavLink to="/sistema/parametros" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                 <Settings size={18} />
                 <span>Parámetros Generales</span>
               </NavLink>
-              <NavLink to="/sistema/logs" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+              <NavLink to="/sistema/logs" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                 <Shield size={18} />
                 <span>Logs y Auditoría</span>
               </NavLink>
               {['superadmin', 'superadministrador'].includes(userRole?.toLowerCase()) && (
-                <NavLink to="/empresas" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                <NavLink to="/empresas" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                   <Building2 size={18} />
                   <span>Gestión de Empresas</span>
                 </NavLink>
               )}
               {['superadmin', 'superadministrador', 'admin'].includes(userRole?.toLowerCase()) && (
-                <NavLink to="/proyectos" onClick={() => isMobile && setCollapsed(true)} className={({isActive}) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
+                <NavLink to="/proyectos" onClick={() => isMobile && setCollapsed(true)} className={({ isActive }) => `nav-item sub-item ${isActive ? 'active' : ''}`} style={{ paddingLeft: '35px' }}>
                   <FolderGit2 size={18} />
                   <span>Gestión de Proyectos</span>
                 </NavLink>
@@ -406,9 +411,9 @@ export default function SidebarLayout() {
         </nav>
 
         <div className="sidebar-footer">
-          <button 
-            onClick={toggleTheme} 
-            className="nav-item" 
+          <button
+            onClick={toggleTheme}
+            className="nav-item"
             style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', justifyContent: 'flex-start' }}
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -416,9 +421,9 @@ export default function SidebarLayout() {
           </button>
 
           <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid var(--sidebar-border)' }}>
-            <button 
-              onClick={handleLogout} 
-              className="nav-item" 
+            <button
+              onClick={handleLogout}
+              className="nav-item"
               style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', color: 'var(--danger)', justifyContent: 'flex-start' }}
             >
               <LogOut size={20} />

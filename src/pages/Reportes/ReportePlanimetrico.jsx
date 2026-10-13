@@ -308,9 +308,28 @@ const UtmGrid = ({ setMapGridLabels, isMinimap = false }) => {
 export default function ReportePlanimetrico() {
   const { id, codigo } = useParams();
   const navigate = useNavigate();
-  const { activeEmpresa, activeProyecto } = useContext(AppContext);
+  const { activeEmpresa, setGlobalEmpresa, activeProyecto } = useContext(AppContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Asegurar que activeEmpresa cuenta con todos los datos frescos (logo_url, bandera_url, etc.)
+  useEffect(() => {
+    const token = localStorage.getItem('catastro_token');
+    if (!token) return;
+    fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(empresas => {
+        if (Array.isArray(empresas) && empresas.length > 0) {
+          const fresh = activeEmpresa
+            ? empresas.find(e => e.id === activeEmpresa.id) || empresas[0]
+            : empresas[0];
+          if (fresh) {
+            setGlobalEmpresa(fresh);
+          }
+        }
+      })
+      .catch(console.error);
+  }, [activeEmpresa?.id]);
 
   const [allPredios, setAllPredios] = useState([]);
 
@@ -395,11 +414,15 @@ export default function ReportePlanimetrico() {
     if (!archivo) return;
     let bboxQuery = '';
     if (centerPoint && centerPoint[0] && centerPoint[1]) {
-      const pad = 0.06; // ~6.5 km buffer covers the 1:50000 minimap box perfectly
-      const minLng = (centerPoint[1] - pad).toFixed(6);
-      const minLat = (centerPoint[0] - pad).toFixed(6);
-      const maxLng = (centerPoint[1] + pad).toFixed(6);
-      const maxLat = (centerPoint[0] + pad).toFixed(6);
+      // Discretizar a una cuadrícula de ~2km para maximizar aciertos de caché entre predios cercanos
+      const step = 0.02;
+      const snapLng = (Math.round(centerPoint[1] / step) * step).toFixed(4);
+      const snapLat = (Math.round(centerPoint[0] / step) * step).toFixed(4);
+      const pad = 0.035; // ~3.8 km cubre perfectamente el recuadro 235px a escala 1:50000
+      const minLng = (parseFloat(snapLng) - pad).toFixed(4);
+      const minLat = (parseFloat(snapLat) - pad).toFixed(4);
+      const maxLng = (parseFloat(snapLng) + pad).toFixed(4);
+      const maxLat = (parseFloat(snapLat) + pad).toFixed(4);
       bboxQuery = `&bbox=${minLng},${minLat},${maxLng},${maxLat}`;
     }
     const cacheKey = `${archivo}_${bboxQuery}`;
@@ -410,7 +433,7 @@ export default function ReportePlanimetrico() {
     try {
       setIsLoadingCad(true);
       const token = localStorage.getItem('catastro_token');
-      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}&simplify=1.5${bboxQuery}`, {
+      const res = await fetch(`${API_URL}/api/gis/cad-layers/geojson?archivo=${encodeURIComponent(archivo)}&simplify=2.0${bboxQuery}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -718,7 +741,7 @@ export default function ReportePlanimetrico() {
   const dpaProvincia = activeEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
   const dpaCanton = activeEmpresa?.canton || predio?.canton || 'URDANETA';
   const dpaParroquia = activeEmpresa?.ciudad || predio?.ciudad || 'CATARAMA';
-  const dpaSector = activeEmpresa?.sector || predio?.sector || 'URBANO';
+  const dpaSector = predio?.sector || activeEmpresa?.sector || 'URBANO';
 
   const displayScale = scale === 'custom' ? customScale : scale;
 
@@ -1464,25 +1487,6 @@ export default function ReportePlanimetrico() {
                             fillColor: '#ef4444',
                             fillOpacity: 0.12
                           }}
-                        />
-                        <Marker
-                          position={center}
-                          icon={L.divIcon({
-                            className: 'minimap-predio-tag-modal',
-                            html: `<div style="
-                              font-size: 10px; 
-                              font-weight: 800; 
-                              color: #991b1b; 
-                              background: rgba(255, 255, 255, 0.95); 
-                              padding: 2px 8px; 
-                              border: 1.5px solid #dc2626; 
-                              border-radius: 4px; 
-                              white-space: nowrap; 
-                              box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-                              transform: translate(-50%, -150%);
-                            ">${predio?.codigo || predio?.cod_catastral || 'PREDIO'}</div>`,
-                            iconSize: [0, 0]
-                          })}
                         />
                       </>
                     )}

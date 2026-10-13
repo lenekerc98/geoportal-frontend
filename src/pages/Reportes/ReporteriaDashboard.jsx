@@ -38,11 +38,11 @@ const ReporteriaDashboard = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Date filters
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -64,7 +64,7 @@ const ReporteriaDashboard = () => {
         const payload = JSON.parse(atob(t.split('.')[1]));
         const role = (payload.role || '').toLowerCase();
         setIsStrictSuperAdmin(role.includes('superadmin') || role.includes('superadministrador'));
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const handlePurged = () => fetchData();
@@ -81,7 +81,7 @@ const ReporteriaDashboard = () => {
       if (fechaFin) params.append('fecha_fin', fechaFin);
       if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
       if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
-      
+
       const queryString = params.toString();
       if (queryString) {
         queryUrl += `?${queryString}`;
@@ -110,10 +110,11 @@ const ReporteriaDashboard = () => {
 
   // ESTADO DERIVADO: Evita loops infinitos de renderizado
   const term = searchTerm.toLowerCase();
-  const filteredData = data.filter(item => 
+  const filteredData = data.filter(item =>
     String(item.codigo || '').toLowerCase().includes(term) ||
     String(item.nombre_posesionario || '').toLowerCase().includes(term) ||
-    String(item.cedula_posesionario || '').toLowerCase().includes(term)
+    String(item.cedula_posesionario || '').toLowerCase().includes(term) ||
+    String(item.sector || '').toLowerCase().includes(term)
   );
 
   // Totales / Métricas
@@ -151,10 +152,10 @@ const ReporteriaDashboard = () => {
     if (!confirmed) return;
 
     try {
-      const deleteUrl = item.predio_id 
-        ? `${API_URL}/api/gis/predios/${item.predio_id}` 
+      const deleteUrl = item.predio_id
+        ? `${API_URL}/api/gis/predios/${item.predio_id}`
         : `${API_URL}/api/gis/codigos-catastrales/${encodeURIComponent(item.codigo)}`;
-      
+
       const res = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -182,6 +183,7 @@ const ReporteriaDashboard = () => {
       'Código Catastral': item.codigo,
       'Posesionario': item.nombre_posesionario || 'SIN NOMBRE',
       'Cédula': item.cedula_posesionario || 'S/D',
+      'Sector': item.sector || 'S/D',
       'Superficie (Ha)': item.area_ha ? Number(item.area_ha).toFixed(4) : 'S/D',
       'Empresa': item.empresa_nombre || 'N/A',
       'Fecha Registro': item.fecha_creacion ? new Date(item.fecha_creacion).toLocaleDateString() : 'S/D'
@@ -207,17 +209,17 @@ const ReporteriaDashboard = () => {
   };
 
   const emptyRows = itemsPerPage !== 'todos' && totalPages > 1 && currentPage === totalPages
-    ? itemsPerPage - currentItems.length 
+    ? itemsPerPage - currentItems.length
     : 0;
 
-  const totalCols = isSuperAdmin ? 7 : 6;
+  const totalCols = isSuperAdmin ? 8 : 7;
 
   return (
     <div className="reporteria-dashboard">
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Layers size={28} color="var(--primary)" /> Gestión de Predios
+            <Layers size={28} color="var(--primary)" />Predios
           </h1>
           <p>Administración integral de predios, linderos perimétricos, posesionarios y emisión de reportes oficiales.</p>
         </div>
@@ -281,23 +283,23 @@ const ReporteriaDashboard = () => {
               <p>Consulta, edita datos y linderos, visualiza en el mapa o emite reportes planimétricos y actas de linderación.</p>
             </div>
           </div>
-          
+
           <div className="filters-container">
             <div className="date-filters">
               <div className="date-group">
                 <label>Desde:</label>
-                <input 
-                  type="date" 
-                  value={fechaInicio} 
+                <input
+                  type="date"
+                  value={fechaInicio}
                   onChange={(e) => setFechaInicio(e.target.value)}
                   className="date-input"
                 />
               </div>
               <div className="date-group">
                 <label>Hasta:</label>
-                <input 
-                  type="date" 
-                  value={fechaFin} 
+                <input
+                  type="date"
+                  value={fechaFin}
                   onChange={(e) => setFechaFin(e.target.value)}
                   className="date-input"
                 />
@@ -310,8 +312,8 @@ const ReporteriaDashboard = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <div className="input-group search-box">
                 <Search size={18} className="input-icon" />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Buscar por código, cédula o nombre..."
                   value={searchTerm}
                   onChange={handleSearchChange}
@@ -319,7 +321,7 @@ const ReporteriaDashboard = () => {
                 />
               </div>
 
-              <button 
+              <button
                 className="btn-export-excel"
                 onClick={handleExportExcel}
                 title="Descargar catálogo actual en Excel"
@@ -328,7 +330,7 @@ const ReporteriaDashboard = () => {
                 Exportar Excel
               </button>
 
-              <button 
+              <button
                 className="btn-print-all"
                 onClick={() => {
                   if (filteredData.length === 0) {
@@ -371,6 +373,7 @@ const ReporteriaDashboard = () => {
                   <th>Código Catastral</th>
                   <th>Posesionario</th>
                   <th>Cédula</th>
+                  <th>Sector</th>
                   <th>Superficie</th>
                   {isSuperAdmin && <th>Empresa</th>}
                   <th>Fecha Registro</th>
@@ -381,75 +384,76 @@ const ReporteriaDashboard = () => {
                 {currentItems.length > 0 ? (
                   <>
                     {currentItems.map((item, idx) => (
-                    <tr key={item.codigo || idx}>
-                      <td data-label="Código Catastral" className="fw-bold">{item.codigo}</td>
-                      <td data-label="Posesionario">{item.nombre_posesionario || 'SIN NOMBRE'}</td>
-                      <td data-label="Cédula">{item.cedula_posesionario || 'S/D'}</td>
-                      <td data-label="Superficie">{item.area_ha ? `${Number(item.area_ha).toFixed(4)} Ha` : '—'}</td>
-                      {isSuperAdmin && <td data-label="Empresa">{item.empresa_nombre || 'N/A'}</td>}
-                      <td data-label="Fecha Registro">{item.fecha_creacion ? new Date(item.fecha_creacion).toLocaleDateString() : 'S/D'}</td>
-                      <td data-label="Acción" style={{ textAlign: 'center' }}>
-                        <div className="actions-toolbar">
-                          {/* 1. Editar Predio */}
-                          <button
-                            type="button"
-                            className="btn-act btn-act-edit"
-                            onClick={() => handleEditPredio(item)}
-                            title="Editar datos del predio y posesionario"
-                          >
-                            <Edit3 size={15} />
-                          </button>
+                      <tr key={item.codigo || idx}>
+                        <td data-label="Código Catastral" className="fw-bold">{item.codigo}</td>
+                        <td data-label="Posesionario">{item.nombre_posesionario || 'SIN NOMBRE'}</td>
+                        <td data-label="Cédula">{item.cedula_posesionario || 'S/D'}</td>
+                        <td data-label="Sector"><span className="badge-sector" style={{ fontSize: '0.82rem', padding: '2px 8px', borderRadius: '4px', background: '#f1f5f9', color: '#334155', fontWeight: '500' }}>{item.sector || 'S/D'}</span></td>
+                        <td data-label="Superficie">{item.area_ha ? `${Number(item.area_ha).toFixed(4)} Ha` : '—'}</td>
+                        {isSuperAdmin && <td data-label="Empresa">{item.empresa_nombre || 'N/A'}</td>}
+                        <td data-label="Fecha Registro">{item.fecha_creacion ? new Date(item.fecha_creacion).toLocaleDateString() : 'S/D'}</td>
+                        <td data-label="Acción" style={{ textAlign: 'center' }}>
+                          <div className="actions-toolbar">
+                            {/* 1. Editar Predio */}
+                            <button
+                              type="button"
+                              className="btn-act btn-act-edit"
+                              onClick={() => handleEditPredio(item)}
+                              title="Editar datos del predio y posesionario"
+                            >
+                              <Edit3 size={15} />
+                            </button>
 
-                          {/* 2. Editar Linderos */}
-                          <button
-                            type="button"
-                            className="btn-act btn-act-linderos"
-                            onClick={() => handleEditLinderos(item)}
-                            title="Editar linderos, colindantes y rumbos"
-                          >
-                            <Ruler size={15} />
-                          </button>
+                            {/* 2. Editar Linderos */}
+                            <button
+                              type="button"
+                              className="btn-act btn-act-linderos"
+                              onClick={() => handleEditLinderos(item)}
+                              title="Editar linderos, colindantes y rumbos"
+                            >
+                              <Ruler size={15} />
+                            </button>
 
-                          {/* 3. Ver en Mapa */}
-                          <button
-                            type="button"
-                            className="btn-act btn-act-map"
-                            onClick={() => handleVerEnMapa(item)}
-                            title="Ubicar y enfocar predio en el Geoportal"
-                          >
-                            <MapPin size={15} />
-                          </button>
+                            {/* 3. Ver en Mapa */}
+                            <button
+                              type="button"
+                              className="btn-act btn-act-map"
+                              onClick={() => handleVerEnMapa(item)}
+                              title="Ubicar y enfocar predio en el Geoportal"
+                            >
+                              <MapPin size={15} />
+                            </button>
 
-                          {/* 4. Imprimir Reporte */}
-                          <button
-                            type="button"
-                            className="btn-act btn-act-report"
-                            onClick={() => handleGenerarReporte(item.codigo, 'planimetrico')}
-                            title="Generar Levantamiento Planimétrico"
-                          >
-                            <Printer size={15} />
-                          </button>
+                            {/* 4. Imprimir Reporte */}
+                            <button
+                              type="button"
+                              className="btn-act btn-act-report"
+                              onClick={() => handleGenerarReporte(item.codigo, 'planimetrico')}
+                              title="Generar Levantamiento Planimétrico"
+                            >
+                              <Printer size={15} />
+                            </button>
 
-                          {/* 5. Eliminar Predio */}
-                          <button
-                            type="button"
-                            className="btn-act btn-act-delete"
-                            onClick={() => handleDeletePredio(item)}
-                            title="Eliminar predio individualmente"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {emptyRows > 0 && Array.from({ length: emptyRows }).map((_, idx) => (
-                    <tr key={`empty-${idx}`} style={{ height: '53px' }}>
-                      <td colSpan={totalCols} style={{ border: 'none' }}></td>
-                    </tr>
-                  ))}
-                </>
-              ) : (
+                            {/* 5. Eliminar Predio */}
+                            <button
+                              type="button"
+                              className="btn-act btn-act-delete"
+                              onClick={() => handleDeletePredio(item)}
+                              title="Eliminar predio individualmente"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {emptyRows > 0 && Array.from({ length: emptyRows }).map((_, idx) => (
+                      <tr key={`empty-${idx}`} style={{ height: '53px' }}>
+                        <td colSpan={totalCols} style={{ border: 'none' }}></td>
+                      </tr>
+                    ))}
+                  </>
+                ) : (
                   <tr>
                     <td colSpan={totalCols} className="empty-state">No se encontraron predios.</td>
                   </tr>
@@ -467,20 +471,20 @@ const ReporteriaDashboard = () => {
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Filas por página:</label>
-                <select 
-                  value={itemsPerPage} 
+                <select
+                  value={itemsPerPage}
                   onChange={(e) => {
                     const val = e.target.value;
                     setItemsPerPage(val === 'todos' ? 'todos' : Number(val));
                     setCurrentPage(1);
                   }}
-                  style={{ 
-                    padding: '4px 8px', 
-                    borderRadius: '4px', 
-                    border: '1px solid var(--border-color)', 
-                    background: 'var(--bg-input)', 
-                    color: 'var(--text-main)', 
-                    outline: 'none', 
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-main)',
+                    outline: 'none',
                     cursor: 'pointer',
                     fontSize: '0.85rem'
                   }}
@@ -495,15 +499,15 @@ const ReporteriaDashboard = () => {
               </div>
             </div>
             <div className="pagination-buttons">
-              <button 
-                onClick={() => goToPage(1)} 
+              <button
+                onClick={() => goToPage(1)}
                 disabled={currentPage === 1}
                 title="Primero"
               >
                 <ChevronsLeft size={16} />
               </button>
-              <button 
-                onClick={() => goToPage(currentPage - 1)} 
+              <button
+                onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
                 title="Anterior"
               >
@@ -512,15 +516,15 @@ const ReporteriaDashboard = () => {
               <span className="page-indicator">
                 Página {currentPage} de {totalPages}
               </span>
-              <button 
-                onClick={() => goToPage(currentPage + 1)} 
+              <button
+                onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
                 title="Siguiente"
               >
                 <ChevronRight size={16} />
               </button>
-              <button 
-                onClick={() => goToPage(totalPages)} 
+              <button
+                onClick={() => goToPage(totalPages)}
                 disabled={currentPage === totalPages}
                 title="Último"
               >

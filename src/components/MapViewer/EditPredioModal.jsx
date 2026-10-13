@@ -7,6 +7,7 @@ export default function EditPredioModal({ predio, isOpen, onClose, onSaved }) {
   const [codigo, setCodigo] = useState('');
   const [cedula, setCedula] = useState('');
   const [nombrePosesionario, setNombrePosesionario] = useState('');
+  const [sector, setSector] = useState('');
   const [posesionarioId, setPosesionarioId] = useState(null);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -17,6 +18,7 @@ export default function EditPredioModal({ predio, isOpen, onClose, onSaved }) {
       setCodigo(predio.codigo || predio.cod_catastral || '');
       setCedula(predio.cedula_posesionario || predio.cedula || '');
       setNombrePosesionario(predio.nombre_posesionario || '');
+      setSector(predio.sector || '');
       setPosesionarioId(predio.posesionario_id || null);
       setSearchMsg(null);
     }
@@ -100,7 +102,8 @@ export default function EditPredioModal({ predio, isOpen, onClose, onSaved }) {
       const pId = predio.predio_id || predio.id;
       if (pId) {
         const updateData = {
-          cod_catastral: codigo.trim()
+          cod_catastral: codigo.trim(),
+          sector: sector.trim() || null
         };
         if (finalPosesionarioId) {
           updateData.posesionario_id = finalPosesionarioId;
@@ -291,6 +294,29 @@ export default function EditPredioModal({ predio, isOpen, onClose, onSaved }) {
                 value={nombrePosesionario}
                 onChange={(e) => setNombrePosesionario(e.target.value)}
                 placeholder="Ej: Jesus Cañarte Pinto"
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--card-border, #cbd5e1)',
+                  background: 'var(--bg-panel, #ffffff)',
+                  color: 'var(--text-main, #1e293b)',
+                  fontSize: '0.88rem',
+                  textTransform: 'uppercase'
+                }}
+              />
+            </div>
+
+            {/* Sector */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '500', marginBottom: '4px' }}>
+                Sector:
+              </label>
+              <input
+                type="text"
+                value={sector}
+                onChange={(e) => setSector(e.target.value)}
+                placeholder="Ej: LA INDUSTRIA, SAN ISIDRO, RURAL..."
                 style={{
                   width: '100%',
                   padding: '8px 10px',

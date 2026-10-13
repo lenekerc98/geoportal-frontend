@@ -519,7 +519,7 @@
 }
 
 .report-header-text div:first-child {
-  font-size: 13px !important;
+  font-size: 23px !important;
   font-weight: 800 !important;
   color: #000000 !important;
   letter-spacing: 0.8px;
@@ -752,7 +752,8 @@
   background: #ffffff !important;
 }
 
-.report-table th, .report-table td {
+.report-table th,
+.report-table td {
   border: 1px solid #000000;
   padding: 3px 4px;
   text-align: center;
@@ -854,7 +855,9 @@
     gap: 8px;
   }
 
-  .rh-left, .rh-center, .rh-right {
+  .rh-left,
+  .rh-center,
+  .rh-right {
     width: 100%;
     justify-content: space-between;
   }
@@ -886,7 +889,9 @@
     size: 297mm 210mm;
     margin: 0;
   }
-  html, body {
+
+  html,
+  body {
     width: 297mm;
     height: 210mm;
     margin: 0 !important;
@@ -895,12 +900,14 @@
     print-color-adjust: exact !important;
     background: #ffffff !important;
   }
+
   .no-print,
   .report-header-bar,
   .report-floating-panel,
   .leaflet-control-container {
     display: none !important;
   }
+
   .report-wrapper,
   .report-pages-container {
     min-height: 0 !important;
@@ -912,6 +919,7 @@
     transform: none !important;
     background: #ffffff !important;
   }
+
   .print-page {
     margin: 0 !important;
     padding: 8mm !important;
@@ -923,7 +931,8 @@
     position: relative !important;
     background: #ffffff !important;
   }
-  .print-page + .print-page {
+
+  .print-page+.print-page {
     page-break-before: always;
   }
 }

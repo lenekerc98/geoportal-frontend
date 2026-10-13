@@ -1,10 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, Polygon, Marker, GeoJSON, TileLayer, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import { Maximize2 } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { escapeHtml } from '../../utils/sanitize';
 import { normalizeVerticesAndLinderos } from '../../utils/geometryUtils';
+
+const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  return `${API_URL}${cleanUrl}`;
+};
 
 // Helper: Crear icono de texto Leaflet para vértices
 const createTextIcon = (text, className, pointSize = 6, textSize = 10, lat = 0, lng = 0, centerLat = 0, centerLng = 0) => {
@@ -78,7 +85,7 @@ const getCardinalOrientations = (vertices = []) => {
         const parts = v.geom_wkt.replace('POINT(', '').replace(')', '').trim().split(' ');
         x = parseFloat(parts[0]);
         y = parseFloat(parts[1]);
-      } catch (e) {}
+      } catch (e) { }
     }
     return { x: Number(x) || 0, y: Number(y) || 0 };
   });
@@ -170,6 +177,34 @@ export default function PlanimetricoSheet({
   const [graphicScale, setGraphicScale] = useState({ totalWidthPx: 300, ticks: [0, 20, 40, 60, 80, 100] });
 
   const predio = data?.predio || {};
+
+  const [empresaInfo, setEmpresaInfo] = useState(activeEmpresa);
+
+  useEffect(() => {
+    if (activeEmpresa) {
+      setEmpresaInfo(prev => ({ ...(prev || {}), ...activeEmpresa }));
+    }
+  }, [activeEmpresa]);
+
+  useEffect(() => {
+    // Si activeEmpresa no tiene logo_url, consultar la API para asegurar los datos más recientes
+    if (!empresaInfo?.logo_url && !activeEmpresa?.logo_url) {
+      const token = localStorage.getItem('catastro_token');
+      if (!token) return;
+      fetch(`${API_URL}/api/empresas`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(list => {
+          if (Array.isArray(list) && list.length > 0) {
+            const targetId = activeEmpresa?.id || predio?.empresa_id || 2;
+            const match = list.find(e => e.id === targetId) || list[0];
+            if (match) {
+              setEmpresaInfo(prev => ({ ...(prev || {}), ...match }));
+            }
+          }
+        })
+        .catch(() => { });
+    }
+  }, [activeEmpresa?.id, activeEmpresa?.logo_url, predio?.empresa_id]);
   const { vertices, linderos } = useMemo(() => {
     return normalizeVerticesAndLinderos(data?.vertices, data?.linderos);
   }, [data?.vertices, data?.linderos]);
@@ -261,6 +296,57 @@ export default function PlanimetricoSheet({
     return list;
   }, [linderosConInfo]);
 
+  // Memoizar marcadores rotados y colindantes para no recalcular trigonometría en cada render
+  const linderosMarkers = useMemo(() => {
+    if (!linderos || linderos.length === 0) return [];
+    const contiguousGroups = [];
+    let currGroup = null;
+    linderos.forEach((l, idx) => {
+      const cName = (l.colindante || '').trim();
+      if (cName === '') {
+        currGroup = null;
+        return;
+      }
+      if (currGroup && currGroup.name === cName) {
+        currGroup.indices.push(idx);
+      } else {
+        currGroup = { name: cName, indices: [idx] };
+        contiguousGroups.push(currGroup);
+      }
+    });
+
+    const centerIndices = new Set();
+    contiguousGroups.forEach(group => {
+      const midIndex = group.indices[Math.floor(group.indices.length / 2)];
+      centerIndices.add(midIndex);
+    });
+
+    return linderos.map((l, i) => {
+      try {
+        if (!l.geom_wkt) return null;
+        const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
+        const points = coordsStr.split(',').map(p => {
+          const [lng, lat] = p.trim().split(' ');
+          return [parseFloat(lat), parseFloat(lng)];
+        });
+        if (points.length >= 2) {
+          const midLat = (points[0][0] + points[1][0]) / 2;
+          const midLng = (points[0][1] + points[1][1]) / 2;
+          const medida = `${l.longitud ? Number(l.longitud).toFixed(1) : '0.0'}m`;
+          const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
+          return (
+            <Marker
+              key={`lindero-${i}`}
+              position={[midLat, midLng]}
+              icon={createRotatedTextIcon(colindanteToRender, medida, points[0], points[1], center[0], center[1])}
+            />
+          );
+        }
+      } catch (e) { }
+      return null;
+    });
+  }, [linderos, center]);
+
   // Capacidad de filas por hoja
   const ROWS_PER_PAGE = 28;
   const LINDEROS_CAPACITY_NORMAL = 38;
@@ -314,18 +400,20 @@ export default function PlanimetricoSheet({
 
   const renderLinderoText = (l) => {
     const tramoStr = (l.tramo || '').replace(' - ', ' al ');
-    const colindanteText = l.colindante && l.colindante.trim() && l.colindante.trim() !== '-' 
-      ? `; ${l.colindante.trim()}` 
+    const colindanteText = l.colindante && l.colindante.trim() && l.colindante.trim() !== '-'
+      ? `; ${l.colindante.trim()}`
       : '';
     return `Del ${tramoStr} con una distancia de ${l.longitud ? Number(l.longitud).toFixed(1) : '0.0'} m, Rumbo ${l.rumbo || '-'}${colindanteText}`;
   };
 
   const currentDate = new Date().toLocaleDateString('es-ES');
-  const dpaProvincia = activeEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
-  const dpaCanton = activeEmpresa?.canton || predio?.canton || 'URDANETA';
-  const dpaParroquia = activeEmpresa?.ciudad || predio?.ciudad || 'CATARAMA';
-  const dpaSector = activeEmpresa?.sector || predio?.sector || 'URBANO';
+  const currentEmpresa = empresaInfo || activeEmpresa;
+  const dpaProvincia = currentEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
+  const dpaCanton = currentEmpresa?.canton || predio?.canton || 'URDANETA';
+  const dpaParroquia = currentEmpresa?.ciudad || predio?.ciudad || 'CATARAMA';
+  const dpaSector = predio?.sector || currentEmpresa?.sector || 'URBANO';
   const displayScale = scale === 'custom' ? customScale : scale;
+  const directorNombre = currentEmpresa?.nombre_director || ' ';
 
   return (
     <>
@@ -335,30 +423,41 @@ export default function PlanimetricoSheet({
 
           {/* HEADER OFICIAL CON LOGO GAD Y NOMBRE DE EMPRESA */}
           <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '10px 0', borderBottom: '2px solid black', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {(activeEmpresa?.logo_url || activeEmpresa?.logo) && (
+            {(currentEmpresa?.logo_url || currentEmpresa?.logo) && (
               <img
-                src={((activeEmpresa.logo_url || activeEmpresa.logo).startsWith('http') ? (activeEmpresa.logo_url || activeEmpresa.logo) : `${API_URL}${activeEmpresa.logo_url || activeEmpresa.logo}`)}
+                src={getImageUrl(currentEmpresa.logo_url || currentEmpresa.logo)}
                 alt="Logo Empresa"
                 style={{ position: 'absolute', top: '50%', left: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
-                onError={(e) => { e.target.style.display = 'none'; }}
+                onError={(e) => {
+                  console.warn('Error al cargar logo de empresa:', e.target.src);
+                  if (!e.target.dataset.triedFallback) {
+                    e.target.dataset.triedFallback = 'true';
+                    e.target.src = '/logo_gad.png';
+                  } else {
+                    e.target.style.display = 'none';
+                  }
+                }}
               />
             )}
 
             <div className="report-header-text" style={{ display: 'inline-block', textAlign: 'center', padding: '0 90px' }}>
-              <div style={{ fontSize: '15px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
-                {activeEmpresa?.nombre || 'GOBIERNO AUTÓNOMO DESCENTRALIZADO MUNICIPAL'}
+              <div style={{ fontSize: '25px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
+                {currentEmpresa?.nombre}
               </div>
-              <h1 style={{ margin: '0', fontSize: '20px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              <h1 style={{ margin: '0', fontSize: '10px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px', textTransform: 'uppercase' }}>
                 LEVANTAMIENTO PLANIMÉTRICO
               </h1>
             </div>
 
-            {activeEmpresa?.bandera_url && (
+            {currentEmpresa?.bandera_url && (
               <img
-                src={(activeEmpresa.bandera_url.startsWith('http') ? activeEmpresa.bandera_url : `${API_URL}${activeEmpresa.bandera_url}`)}
+                src={getImageUrl(currentEmpresa.bandera_url)}
                 alt="Bandera Empresa"
                 style={{ position: 'absolute', top: '50%', right: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
-                onError={(e) => { e.target.style.display = 'none'; }}
+                onError={(e) => {
+                  console.warn('Error al cargar bandera de empresa:', e.target.src);
+                  e.target.style.display = 'none';
+                }}
               />
             )}
           </div>
@@ -419,47 +518,7 @@ export default function PlanimetricoSheet({
                         iconAnchor: [0, 0]
                       })} />
 
-                      {(() => {
-                        const contiguousGroups = [];
-                        let currGroup = null;
-                        linderos.forEach((l, idx) => {
-                          const cName = (l.colindante || '').trim();
-                          if (cName === '') {
-                            currGroup = null;
-                            return;
-                          }
-                          if (currGroup && currGroup.name === cName) {
-                            currGroup.indices.push(idx);
-                          } else {
-                            currGroup = { name: cName, indices: [idx] };
-                            contiguousGroups.push(currGroup);
-                          }
-                        });
-
-                        const centerIndices = new Set();
-                        contiguousGroups.forEach(group => {
-                          const midIndex = group.indices[Math.floor(group.indices.length / 2)];
-                          centerIndices.add(midIndex);
-                        });
-
-                        return linderos.map((l, i) => {
-                          try {
-                            const coordsStr = l.geom_wkt.replace('LINESTRING(', '').replace(')', '');
-                            const points = coordsStr.split(',').map(p => {
-                              const [lng, lat] = p.trim().split(' ');
-                              return [parseFloat(lat), parseFloat(lng)];
-                            });
-                            if (points.length >= 2) {
-                              const midLat = (points[0][0] + points[1][0]) / 2;
-                              const midLng = (points[0][1] + points[1][1]) / 2;
-                              const medida = `${l.longitud ? l.longitud.toFixed(1) : '0.0'}m`;
-                              const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
-                              return <Marker key={i} position={[midLat, midLng]} icon={createRotatedTextIcon(colindanteToRender, medida, points[0], points[1], center[0], center[1])} />;
-                            }
-                          } catch (e) { }
-                          return null;
-                        });
-                      })()}
+                      {linderosMarkers}
 
                       <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, textAlign: 'center' }}>
                         <div style={{ width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '30px solid white', filter: 'drop-shadow(0px 0px 1px black)', margin: '0 auto' }}></div>
@@ -511,10 +570,10 @@ export default function PlanimetricoSheet({
                 </div>
                 <div className="footer-box" style={{ flex: 1.5, borderRight: 'none' }}>
                   <div className="box-title">COORDENADAS PLANAS:</div>
-                  <div className="box-content" style={{ fontSize: '7.5px', lineHeight: '1.2', fontWeight: 'bold', paddingTop: '2px', textAlign: 'center' }}>
-                    SISTEMA DE COORDENADAS: WGS 1984 UTM ZONE 17S<br />
-                    PROYECCIÓN: TRANSVERSE MERCATOR<br />
-                    DATUM: WGS 1984
+                  <div className="box-content" style={{ fontSize: '7.5px', lineHeight: '1.2', paddingTop: '2px', textAlign: 'center' }}>
+                    <strong>SISTEMA DE COORDENADAS:</strong> WGS 1984 UTM ZONE 17S<br />
+                    <strong>PROYECCIÓN:</strong> TRANSVERSE MERCATOR<br />
+                    <strong>DATUM:</strong> WGS 1984
                   </div>
                 </div>
               </div>
@@ -552,8 +611,11 @@ export default function PlanimetricoSheet({
                           key={'minimap_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
                           data={cadGeoJson}
                           filter={(feature) => {
-                            // Descartar geometrías Point / MultiPoint que causan los marcadores azules de ubicación
-                            if (feature?.geometry?.type === 'Point' || feature?.geometry?.type === 'MultiPoint') {
+                            const geomType = feature?.geometry?.type;
+                            const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || '').toUpperCase();
+                            // Filtrar puntos densos de cota/altura que saturan el minimapa 235px
+                            if (geomType === 'Point' || geomType === 'MultiPoint') {
+                              if (capa.includes('ALTURA') || capa.includes('ELEVACION') || capa.includes('VALORCURVA')) return false;
                               const textVal = feature?.properties?.texto || feature?.properties?.text;
                               return Boolean(textVal && String(textVal).trim());
                             }
@@ -578,49 +640,29 @@ export default function PlanimetricoSheet({
                                 })
                               });
                             }
-                            return L.circleMarker(latlng, { radius: 0, opacity: 0, fillOpacity: 0 });
+                            return null;
                           }}
                         />
                       )}
 
                       {UtmGrid && <UtmGrid setMapGridLabels={setMinimapGridLabels} isMinimap={true} />}
-                      
+
                       {/* Polígono del predio destacado */}
                       <Polygon positions={polygonCoords} pathOptions={{ color: '#b91c1c', weight: 2.5, fillColor: '#ef4444', fillOpacity: 0.95 }} />
 
                       {/* Círculo envolvente para ubicar el predio en la carta general */}
-                      <CircleMarker 
-                        center={center} 
-                        radius={22} 
-                        pathOptions={{ 
-                          color: '#dc2626', 
-                          weight: 2.2, 
-                          dashArray: '5, 4', 
-                          fillColor: '#ef4444', 
-                          fillOpacity: 0.1 
-                        }} 
+                      <CircleMarker
+                        center={center}
+                        radius={22}
+                        pathOptions={{
+                          color: '#dc2626',
+                          weight: 2.2,
+                          dashArray: '5, 4',
+                          fillColor: '#ef4444',
+                          fillOpacity: 0.1
+                        }}
                       />
 
-                      {/* Código catastral destacado en el minimapa */}
-                      <Marker 
-                        position={center} 
-                        icon={L.divIcon({
-                          className: 'minimap-predio-tag',
-                          html: `<div style="
-                            font-size: 8px; 
-                            font-weight: 800; 
-                            color: #991b1b; 
-                            background: rgba(255, 255, 255, 0.95); 
-                            padding: 1px 5px; 
-                            border: 1.5px solid #dc2626; 
-                            border-radius: 4px; 
-                            white-space: nowrap; 
-                            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-                            transform: translate(-50%, -150%);
-                          ">${predio?.codigo || predio?.cod_catastral || 'PREDIO'}</div>`,
-                          iconSize: [0, 0]
-                        })} 
-                      />
                     </MapContainer>
                   </div>
 
@@ -640,12 +682,14 @@ export default function PlanimetricoSheet({
               <div className="sidebar-box">
                 <div className="box-title">UBICACIÓN:</div>
                 <div className="box-content" style={{ textAlign: 'center', fontSize: '8px', lineHeight: '1.2' }}>
-                  <div style={{ fontWeight: 'bold' }}>
-                    CARTA TOPOGRÁFICA: {nombreCarta || predio?.nombre_carta || 'VENTANAS / CATARAMA / JUAN MONTALVO'}
+                  <div>
+                    <strong>CARTA TOPOGRÁFICA:</strong> {nombreCarta || predio?.nombre_carta || ''}
                   </div>
-                  <div>ESCALA: 1:50000</div>
-                  <div style={{ fontWeight: 'bold', marginTop: '1px' }}>
-                    CÓDIGO: {codigoCarta || predio?.codigo_carta || 'CT-NIV-D1 / CT-NIV-D3 / CT-NIV-F1 / CT-NIV-F3'}
+                  <div style={{ marginTop: '1px' }}>
+                    <strong>CÓDIGO:</strong> {codigoCarta || predio?.codigo_carta || ''}
+                  </div>
+                  <div style={{ marginTop: '1px' }}>
+                    <strong>ESCALA:</strong> 1:50000
                   </div>
                 </div>
               </div>
@@ -654,12 +698,12 @@ export default function PlanimetricoSheet({
                 <div className="box-title">POSESIONARIO:</div>
                 <div className="box-content">
                   {predio?.nombre_posesionario || 'SIN NOMBRE'}<br />
-                  C.C.: {predio?.cedula || 'S/D'}
+                  <strong>C.C.:</strong> {predio?.cedula || 'S/D'}
                 </div>
               </div>
               <div className="sidebar-box">
-                <div className="box-title">Codigo Catastral</div>
-                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                <div className="box-title">CODIGO CATASTRAL:</div>
+                <div className="box-content" style={{ textAlign: 'center' }}>
                   {predio?.codigo || predio?.cod_catastral || 'S/D'}
                 </div>
               </div>
@@ -667,13 +711,13 @@ export default function PlanimetricoSheet({
               <div style={{ display: 'flex', width: '100%', borderBottom: '1px solid black' }}>
                 <div style={{ flex: 1, borderRight: '1px solid black', display: 'flex', flexDirection: 'column', minHeight: '35px' }}>
                   <div className="box-title" style={{ borderBottom: 'none' }}>PROVINCIA:</div>
-                  <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="box-content" style={{ textAlign: 'center', textTransform: 'uppercase', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {dpaProvincia}
                   </div>
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '35px' }}>
                   <div className="box-title" style={{ borderBottom: 'none' }}>CANTÓN:</div>
-                  <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="box-content" style={{ textAlign: 'center', textTransform: 'uppercase', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {dpaCanton}
                   </div>
                 </div>
@@ -681,21 +725,21 @@ export default function PlanimetricoSheet({
 
               <div className="sidebar-box">
                 <div className="box-title">PARROQUIA:</div>
-                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                  {dpaParroquia}
+                <div className="box-content" style={{ textAlign: 'center', textTransform: 'uppercase' }}>
+                  CATARAMA - URDANETA - PIJULLO {/*dpaParroquia11*/}
                 </div>
               </div>
 
               <div className="sidebar-box">
                 <div className="box-title">SECTOR:</div>
-                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                <div className="box-content" style={{ textAlign: 'center', textTransform: 'uppercase' }}>
                   {dpaSector}
                 </div>
               </div>
 
               <div className="sidebar-box">
                 <div className="box-title">NOMBRE DEL PREDIO:</div>
-                <div className="box-content" style={{ textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                <div className="box-content" style={{ textAlign: 'center', textTransform: 'uppercase' }}>
                   {predio?.nombre_predio || 'SIN NOMBRE'}
                 </div>
               </div>
@@ -706,8 +750,7 @@ export default function PlanimetricoSheet({
                     <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>RESP. TÉCNICO:</div>
                     <div style={{ textAlign: 'center', marginBottom: '2px' }}>
                       <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
-                      <div style={{ fontSize: '7px', fontWeight: 'bold', minHeight: '10px' }}>
-                        {activeEmpresa?.nombre_director || ' '}
+                      <div style={{ fontSize: '7px', minHeight: '10px' }}>
                       </div>
                     </div>
                   </div>
@@ -715,8 +758,8 @@ export default function PlanimetricoSheet({
                     <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>REVISADO Y APROBADO POR:</div>
                     <div style={{ textAlign: 'center', marginBottom: '2px' }}>
                       <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
-                      <div style={{ fontSize: '7px', fontWeight: 'bold', minHeight: '10px', color: 'transparent', userSelect: 'none' }}>
-                        .
+                      <div style={{ fontSize: '7px', minHeight: '10px' }}>
+                        {directorNombre}
                       </div>
                     </div>
                   </div>
@@ -851,7 +894,7 @@ export default function PlanimetricoSheet({
                   <div className="page2-title">
                     DESCRIPCIÓN DE LINDEROS{sheetTitleSuffix}
                   </div>
-                  
+
                   {sheetGroups.length > 0 ? (
                     sheetGroups.map((g, gIdx) => {
                       const titleText = `COLINDANTE ${g.orientacion}${g.isContinuation ? ' (CONTINUACIÓN)' : ''}`;
@@ -885,18 +928,17 @@ export default function PlanimetricoSheet({
                     <div className="firmas-grid">
                       <div className="firma-box">
                         <div className="firma-box-title">RESPONSABILIDAD TÉCNICA</div>
-                        <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center', height: '35px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                          <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
-                          <div style={{ fontSize: '8px', fontWeight: 'bold' }}>{activeEmpresa?.nombre_director || ' '}</div>
-                          <div style={{ fontSize: '8px' }}>Director(a) de Catastro</div>
+                        <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+                          <div style={{ borderTop: '1px solid black', width: '85%', margin: '0 auto 2px auto' }}></div>
+                          <div style={{ fontSize: '7px', minHeight: '10px' }}>
+                          </div>
                         </div>
                       </div>
                       <div className="firma-box" style={{ borderLeft: 'none' }}>
                         <div className="firma-box-title">REVISADO Y APROBADO POR:</div>
                         <div style={{ marginTop: 'auto', marginBottom: '2px', textAlign: 'center', height: '35px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                           <div style={{ borderTop: '1px solid black', width: '80%', margin: '0 auto 2px auto' }}></div>
-                          <div style={{ fontSize: '8px', fontWeight: 'bold', color: 'transparent', userSelect: 'none' }}>.</div>
-                          <div style={{ fontSize: '8px', color: 'transparent', userSelect: 'none' }}>.</div>
+                          <div style={{ fontSize: '8px' }}>{directorNombre}</div>
                         </div>
                       </div>
                     </div>

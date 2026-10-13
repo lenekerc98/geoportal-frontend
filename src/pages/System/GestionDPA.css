@@ -1,0 +1,240 @@
+.dpa-page-container {
+  padding: 24px 32px;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  color: var(--text-main);
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 40px);
+}
+
+.dpa-top-header {
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dpa-title-block h1 {
+  font-size: 1.65rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.02em;
+}
+
+.dpa-title-block p {
+  margin: 4px 0 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.dpa-breadcrumbs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--card-border);
+  padding: 8px 16px;
+  border-radius: 9999px;
+  color: var(--text-muted);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.dpa-breadcrumbs-bar .crumb-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.dpa-breadcrumbs-bar .crumb-active {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* Grilla de 3 columnas obligatoria en desktop (uno al lado del otro) */
+.dpa-columns-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  flex: 1;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .dpa-columns-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dpa-column-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px);
+  min-height: 520px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dpa-column-card:focus-within {
+  border-color: rgba(2, 132, 199, 0.45);
+}
+
+.dpa-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--card-border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.dpa-card-top h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.dpa-badge-pill {
+  font-size: 0.75rem;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  background: rgba(2, 132, 199, 0.12);
+  color: var(--primary);
+  font-weight: 700;
+  border: 1px solid rgba(2, 132, 199, 0.2);
+}
+
+.dpa-search-wrapper {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.dpa-search-box {
+  width: 100%;
+  padding: 9px 12px 9px 34px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.dpa-search-box:focus {
+  border-color: var(--primary);
+  background: var(--bg-panel);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.dpa-search-ico {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.dpa-items-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-right: 4px;
+}
+
+.dpa-items-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dpa-items-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 4px;
+}
+
+.dpa-list-entry {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.18s ease;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.dpa-list-entry:hover {
+  background: rgba(2, 132, 199, 0.06);
+  border-color: rgba(2, 132, 199, 0.2);
+  transform: translateX(2px);
+}
+
+.dpa-list-entry.is-selected {
+  background: rgba(2, 132, 199, 0.14);
+  border-color: rgba(2, 132, 199, 0.45);
+  color: #0284c7;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.1);
+}
+
+.dpa-code-tag {
+  font-family: monospace;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+
+.dpa-list-entry.is-selected .dpa-code-tag {
+  background: rgba(2, 132, 199, 0.22);
+  color: #0284c7;
+  font-weight: 700;
+}
+
+.dpa-empty-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.dpa-empty-indicator svg {
+  margin-bottom: 12px;
+  opacity: 0.45;
+}
