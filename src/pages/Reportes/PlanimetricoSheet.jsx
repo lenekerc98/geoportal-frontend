@@ -166,6 +166,7 @@ export default function PlanimetricoSheet({
   codigoCarta = '',
   nombreCarta = '',
   nombreCuadricula = 'ZONA 17S',
+  duplexMode = true,
   onPrevisualizarPlano,
   onPrevisualizarMinimapa,
   MapScaleUpdater,
@@ -953,6 +954,25 @@ export default function PlanimetricoSheet({
           </div>
         );
       })}
+
+      {/* PÁGINA EN BLANCO AUTOMÁTICA PARA MODO DÚPLEX INTELIGENTE (CARA A CARA) */}
+      {duplexMode && (1 + totalSheets) % 2 !== 0 && (
+        <div className="print-page duplex-blank-page" key="duplex-blank-page">
+          <div className="report-inner-border duplex-blank-inner">
+            <div className="duplex-blank-placeholder no-print">
+              <div className="duplex-blank-icon">📄</div>
+              <div className="duplex-blank-title">Modo Dúplex Inteligente</div>
+              <p className="duplex-blank-desc">
+                Esta página se mantiene intencionalmente en blanco para que, al imprimir a doble cara (cara a cara), 
+                el siguiente predio comience en una hoja física nueva y limpia en lugar de imprimirse en el reverso de este expediente.
+              </p>
+              <div className="duplex-blank-badge">
+                Reverso libre para expediente: #{predio?.codigo || predio?.cod_catastral || ''} ({1 + totalSheets} páginas de contenido)
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

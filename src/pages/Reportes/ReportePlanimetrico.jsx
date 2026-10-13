@@ -6,7 +6,7 @@ import proj4 from 'proj4';
 
 // Definir proyección UTM 17S
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
-import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, AlertCircle, Save, Layers, Maximize2, X, ZoomIn } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, AlertCircle, Save, Layers, Maximize2, X, ZoomIn, Copy } from 'lucide-react';
 import { API_URL } from '../../services/api';
 import { getOfflinePredioById } from '../../services/offlineDB';
 import { AppContext } from '../../context/AppContext';
@@ -371,6 +371,7 @@ export default function ReportePlanimetrico() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: '' });
   const [batchDataList, setBatchDataList] = useState([]);
+  const [duplexMode, setDuplexMode] = useState(true); // Modo Dúplex Inteligente (Cara a Cara)
 
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
@@ -807,8 +808,9 @@ export default function ReportePlanimetrico() {
     }
   }, [autoBatch, allPredios.length]);
 
-  const handleStartBatch = async (fromIdx, toIdx) => {
+  const handleStartBatch = async (fromIdx, toIdx, isDuplex = true) => {
     try {
+      setDuplexMode(isDuplex);
       setBatchLoading(true);
       const token = localStorage.getItem('catastro_token');
       const targetList = allPredios.slice(fromIdx - 1, toIdx);
@@ -1122,6 +1124,29 @@ export default function ReportePlanimetrico() {
                 <button type="button" className="rfp-step-btn" onClick={() => setReportZoom(1)} style={{ fontSize: '10px', width: 'auto', padding: '0 8px' }}>100%</button>
               </div>
             </div>
+
+            {/* Sección 7: Modo Dúplex Inteligente */}
+            <div className="rfp-group">
+              <label 
+                className="rfp-label" 
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                onClick={() => setDuplexMode(prev => !prev)}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Copy size={13} color="#059669" /> Modo Dúplex Inteligente
+                </span>
+                <input 
+                  type="checkbox" 
+                  checked={duplexMode} 
+                  onChange={(e) => setDuplexMode(e.target.checked)}
+                  style={{ accentColor: '#059669', cursor: 'pointer', width: '15px', height: '15px' }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </label>
+              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px', lineHeight: '1.3' }}>
+                Inserta hoja en blanco en predios impares para separar expedientes al imprimir a doble cara.
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1296,6 +1321,7 @@ export default function ReportePlanimetrico() {
                 <PlanimetricoSheet
                   key={item.predio?.id || item.predio?.cod_catastral || idx}
                   data={item}
+                  duplexMode={duplexMode}
                   activeEmpresa={activeEmpresa}
                   scale={scale}
                   customScale={customScale}
@@ -1317,6 +1343,7 @@ export default function ReportePlanimetrico() {
             <div className="report-pages-container" style={{ zoom: reportZoom }}>
               <PlanimetricoSheet
                 data={data}
+                duplexMode={duplexMode}
                 activeEmpresa={activeEmpresa}
                 scale={scale}
                 customScale={customScale}
@@ -1522,6 +1549,7 @@ export default function ReportePlanimetrico() {
         onStartBatch={handleStartBatch}
         loading={batchLoading}
         progress={batchProgress}
+        initialDuplex={duplexMode}
       />
     </div>
   );

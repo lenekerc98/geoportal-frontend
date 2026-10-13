@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, X, Loader2, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
+import { Printer, X, Loader2, CheckCircle2, AlertCircle, FileText, Copy } from 'lucide-react';
 
 export default function BatchPrintModal({
   isOpen,
@@ -7,12 +7,14 @@ export default function BatchPrintModal({
   allPredios = [],
   onStartBatch,
   loading = false,
-  progress = { current: 0, total: 0, message: '' }
+  progress = { current: 0, total: 0, message: '' },
+  initialDuplex = true
 }) {
   const total = allPredios.length;
   const [printMode, setPrintMode] = useState('all'); // 'all' or 'range'
   const [fromNum, setFromNum] = useState(1);
   const [toNum, setToNum] = useState(Math.min(total, 50));
+  const [duplexMode, setDuplexMode] = useState(initialDuplex);
 
   // Listener para cerrar con tecla Escape
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function BatchPrintModal({
       fromIdx = Math.max(1, parseInt(fromNum) || 1);
       toIdx = Math.min(total, Math.max(fromIdx, parseInt(toNum) || total));
     }
-    onStartBatch(fromIdx, toIdx);
+    onStartBatch(fromIdx, toIdx, duplexMode);
   };
 
   const countToPrint = printMode === 'all' 
@@ -235,6 +237,40 @@ export default function BatchPrintModal({
                       )}
                     </div>
                   </label>
+                </div>
+              </div>
+
+              {/* Opción: Modo Dúplex Inteligente */}
+              <div 
+                style={{
+                  background: duplexMode ? 'rgba(16, 185, 129, 0.08)' : '#f8fafc',
+                  border: `1px solid ${duplexMode ? 'rgba(16, 185, 129, 0.4)' : '#e2e8f0'}`,
+                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onClick={() => setDuplexMode(!duplexMode)}
+              >
+                <input
+                  type="checkbox"
+                  id="chk-duplex-mode"
+                  checked={duplexMode}
+                  onChange={(e) => setDuplexMode(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: '#059669', marginTop: '2px', cursor: 'pointer' }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="chk-duplex-mode" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.9rem', color: '#065f46', cursor: 'pointer' }}>
+                    <Copy size={16} color="#059669" /> Modo Dúplex Inteligente
+                  </label>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '0.78rem', color: '#475569', lineHeight: '1.35' }}>
+                    Si un predio tiene un número impar de hojas (ej. 3 páginas), inserta automáticamente una hoja en blanco en su reverso para que el siguiente predio empiece siempre en una hoja física nueva limpia (evita que el plano de un predio se imprima al reverso del anterior).
+                  </p>
                 </div>
               </div>
 
