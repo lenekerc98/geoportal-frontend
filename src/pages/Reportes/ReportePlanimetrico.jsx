@@ -749,6 +749,18 @@ export default function ReportePlanimetrico() {
   const [reportZoom, setReportZoom] = useState(window.innerWidth <= 768 ? 0.4 : 1);
   const [showToolsPanel, setShowToolsPanel] = useState(false);
   const [textAngleOffset, setTextAngleOffset] = useState(0);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  useEffect(() => {
+    const handleBeforePrint = () => setIsPrinting(true);
+    const handleAfterPrint = () => setIsPrinting(false);
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
 
   useEffect(() => {
     if (predio?.angulo_texto && predio.angulo_texto !== 0) {
@@ -1271,7 +1283,7 @@ export default function ReportePlanimetrico() {
           )}
 
           {isBatchPrinting ? (
-            <div className="report-pages-container" style={{ zoom: reportZoom }}>
+            <div className="report-pages-container" style={isPrinting ? undefined : { zoom: reportZoom }}>
               <div className="no-print" style={{
                 background: '#059669',
                 color: 'white',
@@ -1351,7 +1363,7 @@ export default function ReportePlanimetrico() {
               ))}
             </div>
           ) : (
-            <div className="report-pages-container" style={{ zoom: reportZoom }}>
+            <div className="report-pages-container" style={isPrinting ? undefined : { zoom: reportZoom }}>
               <PlanimetricoSheet
                 data={data}
                 duplexMode={duplexMode}
