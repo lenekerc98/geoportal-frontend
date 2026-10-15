@@ -899,13 +899,29 @@
 
   html,
   body {
-    width: 297mm;
-    height: 210mm;
+    width: 297mm !important;
+    min-width: 297mm !important;
+    max-width: 297mm !important;
+    height: auto !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  #root {
+    width: 297mm !important;
+    min-width: 297mm !important;
+    max-width: 297mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
   }
 
   .no-print,
@@ -917,6 +933,9 @@
 
   .report-wrapper,
   .report-pages-container {
+    width: 297mm !important;
+    min-width: 297mm !important;
+    max-width: 297mm !important;
     min-height: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -926,23 +945,48 @@
     transform: none !important;
     background: #ffffff !important;
     zoom: 1 !important;
-    zoom: normal !important;
   }
 
   .print-page {
     margin: 0 !important;
     padding: 8mm !important;
     width: 297mm !important;
+    max-width: 297mm !important;
+    min-width: 297mm !important;
     height: 209mm !important;
+    max-height: 209mm !important;
+    min-height: 209mm !important;
     box-sizing: border-box !important;
     box-shadow: none !important;
     overflow: hidden !important;
+    contain: layout paint !important;
+    clip-path: inset(0) !important;
     position: relative !important;
     background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .print-page + .print-page {
-    page-break-before: always;
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Desactivar elementos fuera de vista de Leaflet que provocan auto-scaling */
+  .leaflet-proxy {
+    display: none !important;
+  }
+
+  .leaflet-container {
+    overflow: hidden !important;
+    contain: layout paint !important;
+    clip-path: inset(0) !important;
+  }
+
+  .minimap-box {
+    overflow: hidden !important;
+    contain: layout paint !important;
+    clip-path: inset(0) !important;
   }
 
   /* Modo Dúplex: Hoja completamente en blanco sin bordes ni marcas */

@@ -11,9 +11,12 @@ export default function BatchPrintModal({
   initialDuplex = true
 }) {
   const total = allPredios.length;
-  const [printMode, setPrintMode] = useState('all'); // 'all' or 'range'
+  const BATCH_SIZE = 200;
+  const totalLotes = Math.max(1, Math.ceil(total / BATCH_SIZE));
+  const [printMode, setPrintMode] = useState('lote200'); // 'lote200', 'range', 'all'
+  const [selectedLote, setSelectedLote] = useState(1);
   const [fromNum, setFromNum] = useState(1);
-  const [toNum, setToNum] = useState(Math.min(total, 20));
+  const [toNum, setToNum] = useState(Math.min(total, 200));
   const [duplexMode, setDuplexMode] = useState(initialDuplex);
 
   // Listener para cerrar con tecla Escape
@@ -37,16 +40,24 @@ export default function BatchPrintModal({
   const handleStart = () => {
     let fromIdx = 1;
     let toIdx = total;
-    if (printMode === 'range') {
+    if (printMode === 'lote200') {
+      fromIdx = (selectedLote - 1) * BATCH_SIZE + 1;
+      toIdx = Math.min(total, selectedLote * BATCH_SIZE);
+    } else if (printMode === 'range') {
       fromIdx = Math.max(1, parseInt(fromNum) || 1);
       toIdx = Math.min(total, Math.max(fromIdx, parseInt(toNum) || total));
     }
-    onStartBatch(fromIdx, toIdx, duplexMode);
+    onStartBatch(fromIdx, toIdx, duplexMode, selectedLote);
   };
 
-  const countToPrint = printMode === 'all' 
-    ? total 
-    : Math.max(0, Math.min(total, parseInt(toNum) || total) - Math.max(1, parseInt(fromNum) || 1) + 1);
+  let countToPrint = total;
+  if (printMode === 'lote200') {
+    const fromI = (selectedLote - 1) * BATCH_SIZE + 1;
+    const toI = Math.min(total, selectedLote * BATCH_SIZE);
+    countToPrint = Math.max(0, toI - fromI + 1);
+  } else if (printMode === 'range') {
+    countToPrint = Math.max(0, Math.min(total, parseInt(toNum) || total) - Math.max(1, parseInt(fromNum) || 1) + 1);
+  }
 
   const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
@@ -160,35 +171,117 @@ export default function BatchPrintModal({
 
               <div style={{ marginBottom: '18px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '0.88rem', marginBottom: '10px', color: '#334155' }}>
-                  Selecciona qué deseas imprimir:
+                  Selecciona la modalidad de generación:
                 </label>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* OPCIÓN 1: LOTES DE 200 PREDIOS (RECOMENDADO) */}
                   <label style={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     gap: '10px',
-                    padding: '10px 14px',
+                    padding: '12px 14px',
                     borderRadius: '8px',
-                    border: `1px solid ${printMode === 'all' ? '#059669' : '#cbd5e1'}`,
-                    background: printMode === 'all' ? 'rgba(5, 150, 105, 0.06)' : 'white',
+                    border: `1.5px solid ${printMode === 'lote200' ? '#059669' : '#cbd5e1'}`,
+                    background: printMode === 'lote200' ? 'rgba(5, 150, 105, 0.06)' : 'white',
                     cursor: 'pointer',
                     fontSize: '0.9rem'
                   }}>
                     <input
                       type="radio"
                       name="printMode"
-                      checked={printMode === 'all'}
-                      onChange={() => setPrintMode('all')}
+                      checked={printMode === 'lote200'}
+                      onChange={() => setPrintMode('lote200')}
+                      style={{ marginTop: '4px' }}
                     />
-                    <div>
-                      <strong>Todos los predios del catálogo</strong>
-                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                        Se generarán los reportes de los {total} predios existentes ({total * 2} páginas en total).
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <strong style={{ color: '#065f46' }}>Lotes de 200 predios (Recomendado)</strong>
+                        <span style={{ fontSize: '0.72rem', background: '#d1fae5', color: '#047857', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                          Óptimo y Seguro
+                        </span>
                       </div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px', marginBottom: '8px' }}>
+                        Genera ~400 páginas por lote para que el navegador y la impresora trabajen fluidos sin congelarse.
+                      </div>
+
+                      {printMode === 'lote200' && (
+                        <div style={{ marginTop: '8px', background: 'white', border: '1px solid #a7f3d0', borderRadius: '8px', padding: '10px' }}>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 'bold', color: '#047857', marginBottom: '6px' }}>
+                            Selecciona el lote a procesar ({totalLotes} lotes en total):
+                          </label>
+                          <select
+                            value={selectedLote}
+                            onChange={(e) => setSelectedLote(Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1.5px solid #059669',
+                              fontWeight: '600',
+                              fontSize: '0.85rem',
+                              color: '#0f172a',
+                              background: '#f0fdf4',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {Array.from({ length: totalLotes }, (_, i) => {
+                              const lNum = i + 1;
+                              const startP = (lNum - 1) * BATCH_SIZE + 1;
+                              const endP = Math.min(total, lNum * BATCH_SIZE);
+                              const count = endP - startP + 1;
+                              return (
+                                <option key={lNum} value={lNum}>
+                                  Lote {lNum} de {totalLotes}: Predios {startP} al {endP} ({count} predios)
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginTop: '8px' }}>
+                            <button
+                              type="button"
+                              disabled={selectedLote <= 1}
+                              onClick={(e) => { e.preventDefault(); setSelectedLote(prev => Math.max(1, prev - 1)); }}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                background: selectedLote <= 1 ? '#f1f5f9' : '#ffffff',
+                                color: selectedLote <= 1 ? '#94a3b8' : '#334155',
+                                fontSize: '0.78rem',
+                                fontWeight: '600',
+                                cursor: selectedLote <= 1 ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              ⬅ Lote Anterior
+                            </button>
+                            <button
+                              type="button"
+                              disabled={selectedLote >= totalLotes}
+                              onClick={(e) => { e.preventDefault(); setSelectedLote(prev => Math.min(totalLotes, prev + 1)); }}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                background: selectedLote >= totalLotes ? '#f1f5f9' : '#ffffff',
+                                color: selectedLote >= totalLotes ? '#94a3b8' : '#334155',
+                                fontSize: '0.78rem',
+                                fontWeight: '600',
+                                cursor: selectedLote >= totalLotes ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              Siguiente Lote ➡
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </label>
 
+                  {/* OPCIÓN 2: RANGO PERSONALIZADO */}
                   <label style={{
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -208,13 +301,13 @@ export default function BatchPrintModal({
                       style={{ marginTop: '4px' }}
                     />
                     <div style={{ flex: 1 }}>
-                      <strong>Imprimir rango específico (por lotes recomendados)</strong>
-                      <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '8px' }}>
-                        Recomendado imprimir en lotes de hasta 20 o 25 predios a la vez para un rendimiento óptimo de la impresora y del navegador.
+                      <strong>Rango específico personalizado</strong>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                        Define manualmente el número de predio inicial y final.
                       </div>
 
                       {printMode === 'range' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
                           <span style={{ fontSize: '0.85rem' }}>Desde:</span>
                           <input
                             type="number"
@@ -222,7 +315,7 @@ export default function BatchPrintModal({
                             max={total}
                             value={fromNum}
                             onChange={(e) => setFromNum(e.target.value)}
-                            style={{ width: '70px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                            style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                           />
                           <span style={{ fontSize: '0.85rem' }}>Hasta:</span>
                           <input
@@ -231,10 +324,39 @@ export default function BatchPrintModal({
                             max={total}
                             value={toNum}
                             onChange={(e) => setToNum(e.target.value)}
-                            style={{ width: '70px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                            style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                           />
                         </div>
                       )}
+                    </div>
+                  </label>
+
+                  {/* OPCIÓN 3: TODOS LOS PREDIOS (CON ADVERTENCIA) */}
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: `1px solid ${printMode === 'all' ? '#ef4444' : '#cbd5e1'}`,
+                    background: printMode === 'all' ? 'rgba(239, 68, 68, 0.04)' : 'white',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem'
+                  }}>
+                    <input
+                      type="radio"
+                      name="printMode"
+                      checked={printMode === 'all'}
+                      onChange={() => setPrintMode('all')}
+                      style={{ marginTop: '4px' }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ color: printMode === 'all' ? '#b91c1c' : '#334155' }}>
+                        Todos los predios ({total} predios)
+                      </strong>
+                      <div style={{ fontSize: '0.76rem', color: '#dc2626', marginTop: '2px' }}>
+                        ⚠️ No recomendado directamente en el navegador: generará ~8,832 páginas en memoria y puede colgar la pestaña. Usa Lotes de 200.
+                      </div>
                     </div>
                   </label>
                 </div>

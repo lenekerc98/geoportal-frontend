@@ -137,12 +137,19 @@ export default defineConfig({
     host: true, // Permite acceso desde la red local
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true
+        target: 'https://geoportal-backend-43s0.onrender.com',
+        changeOrigin: true,
+        secure: false
       },
       '/token': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true
+        target: 'https://geoportal-backend-43s0.onrender.com',
+        changeOrigin: true,
+        secure: false
+      },
+      '/uploads': {
+        target: 'https://geoportal-backend-43s0.onrender.com',
+        changeOrigin: true,
+        secure: false
       }
     }
   },

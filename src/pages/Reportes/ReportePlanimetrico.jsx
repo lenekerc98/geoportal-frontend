@@ -375,6 +375,13 @@ export default function ReportePlanimetrico() {
   const [searchParams] = useSearchParams();
   const autoBatch = searchParams.get('batch') === 'true';
 
+  useEffect(() => {
+    const urlToken = searchParams.get('token');
+    if (urlToken) {
+      localStorage.setItem('catastro_token', urlToken);
+    }
+  }, [searchParams]);
+
   // Estados de Impresión Masiva (Batch Print)
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
@@ -382,6 +389,7 @@ export default function ReportePlanimetrico() {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, message: '' });
   const [batchDataList, setBatchDataList] = useState([]);
   const [duplexMode, setDuplexMode] = useState(true); // Modo Dúplex Inteligente (Cara a Cara)
+  const [currentLoteInfo, setCurrentLoteInfo] = useState({ loteNum: 1, fromIdx: 1, toIdx: 200, totalLotes: 1 });
 
   const predefinedScales = ['Auto', '1:100', '1:500', '1:1000', '1:1500', '1:2000', '1:2500', '1:3000', '1:4000', '1:5000', '1:10000', '1:50000'];
 
@@ -457,7 +465,7 @@ export default function ReportePlanimetrico() {
   useEffect(() => {
     const fetchAllPredios = async () => {
       try {
-        const token = localStorage.getItem('catastro_token');
+        const token = searchParams.get('token') || localStorage.getItem('catastro_token');
         const params = new URLSearchParams();
         if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
         if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
@@ -804,88 +812,112 @@ export default function ReportePlanimetrico() {
 
   useEffect(() => {
     if (autoBatch && allPredios.length > 0) {
-      setShowBatchModal(true);
+      const pFrom = parseInt(searchParams.get('from'));
+      const pTo = parseInt(searchParams.get('to'));
+      if (pFrom && pTo) {
+        handleStartBatch(pFrom, pTo, true, Math.ceil(pFrom / 200));
+      } else {
+        setShowBatchModal(true);
+      }
     }
   }, [autoBatch, allPredios.length]);
 
-  const handleStartBatch = async (fromIdx, toIdx, isDuplex = true) => {
+  const handleStartBatch = async (fromIdx, toIdx, isDuplex = true, currentLoteNum = null) => {
     try {
+      const BATCH_SIZE = 200;
+      const calcLoteNum = currentLoteNum || Math.ceil(fromIdx / BATCH_SIZE);
+      const totalLotes = Math.max(1, Math.ceil(allPredios.length / BATCH_SIZE));
+      setCurrentLoteInfo({
+        loteNum: calcLoteNum,
+        fromIdx,
+        toIdx,
+        totalLotes
+      });
+
       setDuplexMode(isDuplex);
       setBatchLoading(true);
-      const token = localStorage.getItem('catastro_token');
+      const token = searchParams.get('token') || localStorage.getItem('catastro_token');
       const targetList = allPredios.slice(fromIdx - 1, toIdx);
-      const results = [];
+      const results = new Array(targetList.length);
       const cadCache = {};
+      let loadedCount = 0;
 
-      for (let i = 0; i < targetList.length; i++) {
-        const item = targetList[i];
-        setBatchProgress({
-          current: i + 1,
-          total: targetList.length,
-          message: `Cargando predio ${i + 1} de ${targetList.length}: ${item.codigo || item.nombre_posesionario || ''}`
-        });
-
-        try {
-          const res = await fetch(`${API_URL}/api/gis/predios/detalle/${encodeURIComponent(item.codigo)}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const json = await res.json();
-            // Determinar archivo CAD para este predio específico
-            let targetCadFile = selectedCadFile;
-            if (json.predio?.nombre_carta || json.predio?.codigo_carta) {
-              const nomClean = (json.predio.nombre_carta || '').toUpperCase().trim();
-              const codClean = (json.predio.codigo_carta || '').toUpperCase().trim();
-              const matchCad = cadArchivosList.find(a =>
-                (nomClean && a.nombre && a.nombre.toUpperCase() === nomClean) ||
-                (codClean && a.codigo && a.codigo.toUpperCase() === codClean) ||
-                (nomClean && a.nombre_archivo && a.nombre_archivo.toUpperCase().includes(nomClean)) ||
-                (codClean && a.nombre_archivo && a.nombre_archivo.toUpperCase().includes(codClean))
-              );
-              if (matchCad) targetCadFile = matchCad.nombre_archivo;
-            }
-            if (fondoMinimapa === 'cad' && json.predio?.geom_wkt) {
-              const poly = parseWktPolygonCoords(json.predio.geom_wkt);
-              if (poly.length > 0) {
-                const lats = poly.map(p => p[0]);
-                const lngs = poly.map(p => p[1]);
-                const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-                const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
-                if (!isNaN(cLat) && !isNaN(cLng)) {
-                  const cacheKey = `${targetCadFile || ''}_${cLat.toFixed(3)}_${cLng.toFixed(3)}`;
-                  if (!cadCache[cacheKey]) {
-                    cadCache[cacheKey] = await fetchCadGeoJsonForCenter(API_URL, token, targetCadFile || '', [cLat, cLng]);
+      // Carga concurrente en grupos de 8 para máxima velocidad sin saturar
+      const concurrency = 8;
+      for (let i = 0; i < targetList.length; i += concurrency) {
+        const chunk = targetList.slice(i, i + concurrency);
+        await Promise.all(chunk.map(async (item, chunkIdx) => {
+          const globalIdx = i + chunkIdx;
+          try {
+            const res = await fetch(`${API_URL}/api/gis/predios/detalle/${encodeURIComponent(item.codigo)}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const json = await res.json();
+              // Determinar archivo CAD para este predio específico
+              let targetCadFile = selectedCadFile;
+              if (json.predio?.nombre_carta || json.predio?.codigo_carta) {
+                const nomClean = (json.predio.nombre_carta || '').toUpperCase().trim();
+                const codClean = (json.predio.codigo_carta || '').toUpperCase().trim();
+                const matchCad = cadArchivosList.find(a =>
+                  (nomClean && a.nombre && a.nombre.toUpperCase() === nomClean) ||
+                  (codClean && a.codigo && a.codigo.toUpperCase() === codClean) ||
+                  (nomClean && a.nombre_archivo && a.nombre_archivo.toUpperCase().includes(nomClean)) ||
+                  (codClean && a.nombre_archivo && a.nombre_archivo.toUpperCase().includes(codClean))
+                );
+                if (matchCad) targetCadFile = matchCad.nombre_archivo;
+              }
+              if (fondoMinimapa === 'cad' && json.predio?.geom_wkt) {
+                const poly = parseWktPolygonCoords(json.predio.geom_wkt);
+                if (poly.length > 0) {
+                  const lats = poly.map(p => p[0]);
+                  const lngs = poly.map(p => p[1]);
+                  const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+                  const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+                  if (!isNaN(cLat) && !isNaN(cLng)) {
+                    const cacheKey = `${targetCadFile || ''}_${cLat.toFixed(3)}_${cLng.toFixed(3)}`;
+                    if (!cadCache[cacheKey]) {
+                      cadCache[cacheKey] = await fetchCadGeoJsonForCenter(API_URL, token, targetCadFile || '', [cLat, cLng]);
+                    }
+                    json._cadGeoJson = cadCache[cacheKey];
+                    json._selectedCadFile = targetCadFile;
                   }
-                  json._cadGeoJson = cadCache[cacheKey];
-                  json._selectedCadFile = targetCadFile;
                 }
               }
+              results[globalIdx] = json;
             }
-            results.push(json);
+          } catch (err) {
+            console.error(`Error cargando predio ${item.codigo}:`, err);
+          } finally {
+            loadedCount++;
+            setBatchProgress({
+              current: loadedCount,
+              total: targetList.length,
+              message: `Cargando Lote ${calcLoteNum} (${loadedCount} de ${targetList.length}): ${item.codigo || item.nombre_posesionario || ''}`
+            });
           }
-        } catch (err) {
-          console.error(`Error cargando predio ${item.codigo}:`, err);
-        }
+        }));
       }
 
-      if (results.length === 0) {
+      const validResults = results.filter(Boolean);
+      if (validResults.length === 0) {
         showError('No se pudo cargar ningún predio para el lote de impresión');
         setBatchLoading(false);
         return;
       }
 
-      setBatchDataList(results);
+      setBatchDataList(validResults);
       setIsBatchPrinting(true);
       setReportZoom(1);
 
       setBatchProgress({
-        current: results.length,
-        total: results.length,
-        message: `Renderizando ${results.length} láminas cartográficas en pantalla... Por favor espere.`
+        current: validResults.length,
+        total: validResults.length,
+        message: `Renderizando ${validResults.length} láminas cartográficas del Lote ${calcLoteNum}... Por favor espere.`
       });
 
-      // Dar tiempo suficiente proporcional a la cantidad de predios para que todas las láminas se monten y rendericen en el DOM
-      const renderWaitMs = Math.max(2500, Math.min(8000, results.length * 150));
+      // Tiempo de montaje en DOM optimizado
+      const renderWaitMs = Math.max(2000, Math.min(6000, validResults.length * 30));
 
       setTimeout(() => {
         setBatchLoading(false);
@@ -1312,18 +1344,47 @@ export default function ReportePlanimetrico() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)'
+                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
+                flexWrap: 'wrap',
+                gap: '12px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Printer size={22} />
+                  <Printer size={24} />
                   <div>
-                    <strong style={{ fontSize: '1rem' }}>Lote de {batchDataList.length} reportes planimétricos preparado para impresión</strong>
+                    <strong style={{ fontSize: '1.05rem' }}>
+                      Lote {currentLoteInfo.loteNum} de {currentLoteInfo.totalLotes} ({batchDataList.length} predios: {currentLoteInfo.fromIdx} al {currentLoteInfo.toIdx})
+                    </strong>
                     <div style={{ fontSize: '0.82rem', opacity: 0.9, marginTop: '2px' }}>
-                      Total de páginas a imprimir: {batchDataList.reduce((acc, item) => acc + 1 + Math.max(1, Math.ceil((item.vertices?.length || 0) / 24)), 0)} páginas (A4 Horizontal). Puedes imprimir directamente o guardar en PDF.
+                      Total de páginas en este lote: {batchDataList.reduce((acc, item) => acc + 1 + Math.max(1, Math.ceil((item.vertices?.length || 0) / 24)), 0)} páginas (A4 Horizontal).
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
+
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Botón Lote Anterior */}
+                  <button
+                    disabled={currentLoteInfo.loteNum <= 1}
+                    onClick={() => {
+                      const prevLote = currentLoteInfo.loteNum - 1;
+                      const prevFrom = (prevLote - 1) * 200 + 1;
+                      const prevTo = Math.min(allPredios.length, prevLote * 200);
+                      handleStartBatch(prevFrom, prevTo, duplexMode, prevLote);
+                    }}
+                    style={{
+                      background: currentLoteInfo.loteNum <= 1 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.25)',
+                      color: currentLoteInfo.loteNum <= 1 ? 'rgba(255, 255, 255, 0.4)' : 'white',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      fontWeight: 'bold',
+                      fontSize: '0.82rem',
+                      cursor: currentLoteInfo.loteNum <= 1 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    ⬅ Lote Anterior
+                  </button>
+
+                  {/* Botón Imprimir Lote */}
                   <button
                     onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }}
                     style={{
@@ -1333,6 +1394,7 @@ export default function ReportePlanimetrico() {
                       padding: '8px 18px',
                       borderRadius: '6px',
                       fontWeight: 'bold',
+                      fontSize: '0.88rem',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -1340,21 +1402,64 @@ export default function ReportePlanimetrico() {
                       boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
                     }}
                   >
-                    <Printer size={16} /> Imprimir Lote
+                    <Printer size={16} /> Imprimir Lote {currentLoteInfo.loteNum}
                   </button>
+
+                  {/* Botón Siguiente Lote */}
                   <button
-                    onClick={() => { setIsBatchPrinting(false); setBatchDataList([]); }}
+                    disabled={currentLoteInfo.loteNum >= currentLoteInfo.totalLotes}
+                    onClick={() => {
+                      const nextLote = currentLoteInfo.loteNum + 1;
+                      const nextFrom = (nextLote - 1) * 200 + 1;
+                      const nextTo = Math.min(allPredios.length, nextLote * 200);
+                      handleStartBatch(nextFrom, nextTo, duplexMode, nextLote);
+                    }}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.2)',
+                      background: currentLoteInfo.loteNum >= currentLoteInfo.totalLotes ? 'rgba(255, 255, 255, 0.1)' : '#10b981',
                       color: 'white',
-                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.6)',
                       padding: '8px 14px',
                       borderRadius: '6px',
+                      fontWeight: 'bold',
+                      fontSize: '0.82rem',
+                      cursor: currentLoteInfo.loteNum >= currentLoteInfo.totalLotes ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Siguiente Lote ➡
+                  </button>
+
+                  {/* Botón Cambiar Lote */}
+                  <button
+                    onClick={() => setShowBatchModal(true)}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.15)',
+                      color: 'white',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
                       fontWeight: '600',
+                      fontSize: '0.82rem',
                       cursor: 'pointer'
                     }}
                   >
-                    Volver a Vista Individual
+                    Seleccionar otro lote
+                  </button>
+
+                  {/* Volver */}
+                  <button
+                    onClick={() => { setIsBatchPrinting(false); setBatchDataList([]); }}
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.2)',
+                      color: 'white',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Salir
                   </button>
                 </div>
               </div>
