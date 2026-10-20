@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FolderGit2, Plus, Edit2, Trash2, Loader2, Calendar } from 'lucide-react';
-import { API_URL } from '../../services/api';
+import { FolderGit2, Plus, Edit2, Trash2, Loader2, Calendar, Building2 } from 'lucide-react';
+import { API_URL, safeDecodeJwt } from '../../services/api';
 import { showSuccess, showError } from '../../utils/swal';
 
 export default function ProjectsManager() {
@@ -12,6 +12,17 @@ export default function ProjectsManager() {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ nombre: '', descripcion: '', empresas_ids: [] });
   const [empresas, setEmpresas] = useState([]);
+  const [userRole, setUserRole] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('catastro_token');
+    if (token) {
+      const payload = safeDecodeJwt(token);
+      setUserRole((payload?.role || '').toLowerCase());
+    }
+  }, []);
+
+  const isSuperAdmin = ['superadmin', 'superadministrador'].includes(userRole);
 
   const fetchProyectos = async () => {
     try {
@@ -270,31 +281,38 @@ export default function ProjectsManager() {
                   className="input-dynamic"
                 />
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Empresas Asociadas</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', background: 'var(--bg-main)', padding: '10px', borderRadius: '5px', border: '1px solid var(--card-border)', maxHeight: '150px', overflowY: 'auto' }}>
-                  {empresas.map(emp => (
-                    <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={formData.empresas_ids.includes(emp.id)}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setFormData(prev => ({
-                            ...prev,
-                            empresas_ids: isChecked 
-                              ? [...prev.empresas_ids, emp.id] 
-                              : prev.empresas_ids.filter(id => id !== emp.id)
-                          }));
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      />
-                      {emp.nombre}
-                    </label>
-                  ))}
-                  {empresas.length === 0 && <span style={{ fontSize: '12px', color: 'gray' }}>No hay empresas disponibles</span>}
+              {isSuperAdmin ? (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: 'gray' }}>Empresas Asociadas</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', background: 'var(--bg-main)', padding: '10px', borderRadius: '5px', border: '1px solid var(--card-border)', maxHeight: '150px', overflowY: 'auto' }}>
+                    {empresas.map(emp => (
+                      <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={formData.empresas_ids.includes(emp.id)}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setFormData(prev => ({
+                              ...prev,
+                              empresas_ids: isChecked 
+                                ? [...prev.empresas_ids, emp.id] 
+                                : prev.empresas_ids.filter(id => id !== emp.id)
+                            }));
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        {emp.nombre}
+                      </label>
+                    ))}
+                    {empresas.length === 0 && <span style={{ fontSize: '12px', color: 'gray' }}>No hay empresas disponibles</span>}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ padding: '10px 12px', background: 'rgba(2, 132, 199, 0.1)', border: '1px solid var(--accent-color)', borderRadius: '6px', fontSize: '13px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Building2 size={16} color="var(--accent-color)" />
+                  <span>Se vinculará automáticamente a su empresa asignada: <strong>{empresas[0]?.nombre || 'Su Empresa'}</strong></span>
+                </div>
+              )}
               
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 15px', background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--card-border)', borderRadius: '5px', cursor: 'pointer' }}>
