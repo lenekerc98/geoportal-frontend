@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Map, BarChart2, Users, Settings, LogOut, Menu, Moon, Sun, Shield, Building2, FolderGit2, FileText, ChevronDown, ChevronRight, FileSpreadsheet, Layers } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
-import { API_URL } from '../../services/api';
+import { API_URL, safeDecodeJwt } from '../../services/api';
 import SandboxBanner from '../SandboxBanner';
 
 const SystemHealthIndicator = ({ collapsed }) => {
@@ -38,10 +38,10 @@ const SystemHealthIndicator = ({ collapsed }) => {
   useEffect(() => {
     const token = localStorage.getItem('catastro_token');
     if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
+      const payload = safeDecodeJwt(token);
+      if (payload) {
         setUserRole(payload.role || '');
-      } catch (e) { }
+      }
     }
   }, []);
 
@@ -122,12 +122,22 @@ export default function SidebarLayout() {
       .then(data => {
         if (Array.isArray(data)) {
           setEmpresasList(data);
-          if (activeEmpresa) {
-            const currentFresh = data.find(e => e.id === activeEmpresa.id);
+          
+          // Recuperar empresa previamente seleccionada y guardada en la sesión
+          const savedEmpresaStr = localStorage.getItem('catastro_active_empresa');
+          let targetEmpId = activeEmpresa?.id;
+          if (!targetEmpId && savedEmpresaStr) {
+            try { targetEmpId = JSON.parse(savedEmpresaStr)?.id; } catch(e){}
+          }
+
+          if (targetEmpId) {
+            const currentFresh = data.find(e => e.id === targetEmpId);
             if (currentFresh) {
               setGlobalEmpresa(currentFresh);
+              return;
             }
-          } else if (data.length > 0) {
+          }
+          if (data.length > 0) {
             setGlobalEmpresa(data[0]);
           }
         }
@@ -143,14 +153,28 @@ export default function SidebarLayout() {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
-          if (activeEmpresa) {
-            const filtered = data.filter(p => p.empresas_ids && p.empresas_ids.includes(activeEmpresa.id));
-            setProyectosList(filtered);
-            if (activeProyecto && (!activeProyecto.empresas_ids || !activeProyecto.empresas_ids.includes(activeEmpresa.id))) {
-              setGlobalProyecto(null);
+          const filtered = activeEmpresa
+            ? data.filter(p => !p.empresas_ids || p.empresas_ids.length === 0 || p.empresas_ids.includes(activeEmpresa.id))
+            : data;
+          setProyectosList(filtered);
+
+          // Recuperar proyecto previamente seleccionado y guardado en la sesión
+          const savedProyectoStr = localStorage.getItem('catastro_active_proyecto');
+          let targetProjId = activeProyecto?.id;
+          if (!targetProjId && savedProyectoStr) {
+            try { targetProjId = JSON.parse(savedProyectoStr)?.id; } catch(e){}
+          }
+
+          if (targetProjId) {
+            const matchedProj = filtered.find(p => p.id === targetProjId);
+            if (matchedProj) {
+              setGlobalProyecto(matchedProj);
+              return;
             }
-          } else {
-            setProyectosList(data);
+          }
+
+          if (activeProyecto && !filtered.some(p => p.id === activeProyecto.id)) {
+            setGlobalProyecto(null);
           }
         }
       })
@@ -165,18 +189,18 @@ export default function SidebarLayout() {
       return;
     }
 
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const exp = payload.exp;
-      setUserRole(payload.role || '');
-      if (payload.permisos) {
-        setUserPermisos(payload.permisos);
-      }
-      if (Date.now() >= exp * 1000) {
-        localStorage.removeItem('catastro_token');
-        navigate('/');
-      }
-    } catch (e) {
+    const payload = safeDecodeJwt(token);
+    if (!payload) {
+      localStorage.removeItem('catastro_token');
+      navigate('/');
+      return;
+    }
+
+    setUserRole(payload.role || '');
+    if (payload.permisos) {
+      setUserPermisos(payload.permisos);
+    }
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
       localStorage.removeItem('catastro_token');
       navigate('/');
     }

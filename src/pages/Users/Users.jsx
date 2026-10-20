@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../../services/api';
-import { User, Plus, Edit, Trash2, ArrowLeft, Loader2, Save, X, Shield, Lock, CheckCircle, Sliders } from 'lucide-react';
+import { User, Plus, Edit, Trash2, ArrowLeft, Loader2, Save, X, Shield, Lock, CheckCircle, Sliders, Smartphone, RefreshCw, CheckCircle2, AlertTriangle, Building2, FolderGit2 } from 'lucide-react';
 import { confirmDelete, showSuccess, showError } from '../../utils/swal';
 
 export default function Users() {
-  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'roles'
+  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'roles' | 'operadores'
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [proyectosList, setProyectosList] = useState([]);
@@ -17,6 +17,11 @@ export default function Users() {
   const [editingId, setEditingId] = useState(null);
   const [empresas, setEmpresas] = useState([]);
   const [userRole, setUserRole] = useState('');
+  
+  // State for Operadores de Campo / Brigadistas (Móvil)
+  const [operadores, setOperadores] = useState([]);
+  const [loadingOperadores, setLoadingOperadores] = useState(false);
+  const [savingOperadorId, setSavingOperadorId] = useState(null);
   
   // State for Roles Permissions Matrix
   const [editingRolePermissions, setEditingRolePermissions] = useState({});
@@ -96,7 +101,7 @@ export default function Users() {
       const role = payload.role || '';
       setUserRole(role.toLowerCase());
       
-      // Si es superadmin, obtener empresas
+      // Si es superadmin, obtener empresas y operadores
       if (role.toLowerCase() === 'superadministrador' || role.toLowerCase() === 'superadmin') {
         const empRes = await fetch(`${API_URL}/api/empresas`, {
           headers: { 'Authorization': `Bearer ${authToken}` }
@@ -104,11 +109,102 @@ export default function Users() {
         if (empRes.ok) {
           setEmpresas(await empRes.json());
         }
+        fetchOperadores();
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOperadores = async () => {
+    try {
+      setLoadingOperadores(true);
+      const res = await fetch(`${API_URL}/api/operadores-temporales`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        setOperadores(await res.json());
+      }
+    } catch (e) {
+      console.error('Error fetching operadores:', e);
+    } finally {
+      setLoadingOperadores(false);
+    }
+  };
+
+  const handleToggleOperadorActivo = async (op) => {
+    try {
+      setSavingOperadorId(op.id);
+      const newActivo = !op.activo;
+      const res = await fetch(`${API_URL}/api/operadores-temporales/${op.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ activo: newActivo })
+      });
+      if (res.ok) {
+        showSuccess(newActivo ? 'Acceso Habilitado' : 'Acceso Deshabilitado', `El operador ${op.nombre_completo} ahora está ${newActivo ? 'habilitado' : 'deshabilitado'} para sincronizar en campo.`);
+        setOperadores(prev => prev.map(o => o.id === op.id ? { ...o, activo: newActivo } : o));
+      } else {
+        const err = await res.json();
+        showError('Error', err.detail || 'No se pudo actualizar el estado');
+      }
+    } catch (e) {
+      showError('Error', 'Fallo al comunicarse con el servidor');
+    } finally {
+      setSavingOperadorId(null);
+    }
+  };
+
+  const handleUpdateOperadorAssignment = async (id, empresaId, proyectoId) => {
+    try {
+      setSavingOperadorId(id);
+      const res = await fetch(`${API_URL}/api/operadores-temporales/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          empresa_id: empresaId ? parseInt(empresaId) : null,
+          proyecto_id: proyectoId ? parseInt(proyectoId) : null
+        })
+      });
+      if (res.ok) {
+        showSuccess('Asignación Guardada', 'Empresa y Proyecto asignados exitosamente al operador.');
+        fetchOperadores();
+      } else {
+        const err = await res.json();
+        showError('Error', err.detail || 'No se pudo guardar la asignación');
+      }
+    } catch (e) {
+      showError('Error', 'Fallo al actualizar asignación');
+    } finally {
+      setSavingOperadorId(null);
+    }
+  };
+
+  const handleDeleteOperador = async (id, nombre) => {
+    const isConfirmed = await confirmDelete(`¿Estás seguro de eliminar el registro de ${nombre}? El dispositivo tendrá que registrarse nuevamente.`);
+    if (!isConfirmed) return;
+    try {
+      const res = await fetch(`${API_URL}/api/operadores-temporales/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        showSuccess('Eliminado', 'Operador temporal eliminado.');
+        fetchOperadores();
+      } else {
+        const err = await res.json();
+        showError('Error', err.detail || 'No se pudo eliminar');
+      }
+    } catch (e) {
+      showError('Error', 'Error de conexión');
     }
   };
 
@@ -392,6 +488,28 @@ export default function Users() {
             >
               <Shield size={16} /> Matriz de Permisos
             </button>
+            {(userRole === 'superadmin' || userRole === 'superadministrador') && (
+              <button
+                onClick={() => { setActiveTab('operadores'); fetchOperadores(); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  transition: 'all 0.2s ease',
+                  backgroundColor: activeTab === 'operadores' ? 'var(--accent-color)' : 'transparent',
+                  color: activeTab === 'operadores' ? '#ffffff' : 'var(--text-main)',
+                  boxShadow: activeTab === 'operadores' ? '0 2px 8px rgba(2, 132, 199, 0.35)' : 'none'
+                }}
+              >
+                <Smartphone size={16} /> Operadores de Campo (Móvil)
+              </button>
+            )}
           </div>
 
           {activeTab === 'users' && !isEditing && !isCreating && (
@@ -605,7 +723,7 @@ export default function Users() {
             </table>
           </div>
         )
-      ) : (
+      ) : activeTab === 'roles' ? (
         /* Tab de Matriz de Permisos por Rol (Visualización individual mediante Combo Box) */
         <div style={{ maxWidth: '920px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Barra Superior con Selector de Rol (Combo Box) */}
@@ -808,7 +926,183 @@ export default function Users() {
             );
           })()}
         </div>
-      )}
+      ) : activeTab === 'operadores' ? (
+        /* Tab de Gestión de Operadores de Campo / Brigadistas Móviles */
+        <div style={{ maxWidth: '1150px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="glass-panel" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(2, 132, 199, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Smartphone size={22} color="var(--accent-color)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>Control de Acceso a Campo (Brigadistas Móviles)</h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+                  Active la casilla de verificación (check) para habilitar el acceso a sincronizar y asigne la Empresa y Proyecto correspondientes.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={fetchOperadores}
+              disabled={loadingOperadores}
+              className="btn-dynamic"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 16px', fontSize: '13px' }}
+            >
+              <RefreshCw size={15} className={loadingOperadores ? 'spin' : ''} /> Refrescar Lista
+            </button>
+          </div>
+
+          <div className="glass-panel" style={{ padding: '0', overflowX: 'auto' }}>
+            <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '50px' }}>ID</th>
+                  <th>Operador / Brigadista</th>
+                  <th>Dispositivo Móvil</th>
+                  <th>Empresa Asignada</th>
+                  <th>Proyecto Asignado</th>
+                  <th style={{ textAlign: 'center' }}>Acceso a Campo (Check)</th>
+                  <th>Última Conexión</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {operadores.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '35px', color: 'var(--text-muted)' }}>
+                      No hay operadores de campo registrados aún. Los brigadistas aparecerán aquí al conectarse desde la aplicación móvil.
+                    </td>
+                  </tr>
+                ) : (
+                  operadores.map(op => {
+                    const isSavingThis = savingOperadorId === op.id;
+                    const opEmpresa = empresas.find(e => e.id === op.empresa_id);
+                    const projsForEmpresa = proyectosList.filter(p => !op.empresa_id || p.empresas_ids?.includes(op.empresa_id));
+
+                    return (
+                      <tr key={op.id}>
+                        <td data-label="ID" style={{ color: 'var(--text-muted)', fontWeight: '600' }}>#{op.id}</td>
+                        <td data-label="Operador">
+                          <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>{op.nombre_completo}</div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>UUID: {op.dispositivo_uuid ? op.dispositivo_uuid.slice(0, 12) + '...' : 'N/A'}</span>
+                        </td>
+                        <td data-label="Dispositivo">
+                          <div style={{ fontSize: '12.5px', fontWeight: '500' }}>{op.dispositivo_modelo || 'Android'}</div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>IP: {op.ip_registro || '0.0.0.0'}</span>
+                        </td>
+                        <td data-label="Empresa">
+                          <select
+                            value={op.empresa_id || ''}
+                            onChange={(e) => {
+                              const newEid = e.target.value ? parseInt(e.target.value) : null;
+                              setOperadores(prev => prev.map(o => o.id === op.id ? { ...o, empresa_id: newEid } : o));
+                            }}
+                            className="input-dynamic"
+                            style={{ padding: '6px 10px', fontSize: '12.5px', minWidth: '170px' }}
+                          >
+                            <option value="">Seleccionar Empresa...</option>
+                            {empresas.map(emp => (
+                              <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td data-label="Proyecto">
+                          <select
+                            value={op.proyecto_id || ''}
+                            onChange={(e) => {
+                              const newPid = e.target.value ? parseInt(e.target.value) : null;
+                              setOperadores(prev => prev.map(o => o.id === op.id ? { ...o, proyecto_id: newPid } : o));
+                            }}
+                            className="input-dynamic"
+                            style={{ padding: '6px 10px', fontSize: '12.5px', minWidth: '170px' }}
+                          >
+                            <option value="">Seleccionar Proyecto...</option>
+                            {projsForEmpresa.map(p => (
+                              <option key={p.id} value={p.id}>{p.nombre}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td data-label="Check Acceso" style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOperadorActivo(op)}
+                            disabled={isSavingThis}
+                            style={{
+                              border: 'none',
+                              background: op.activo ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                              color: op.activo ? 'var(--success)' : 'var(--danger)',
+                              border: `1px solid ${op.activo ? 'var(--success)' : 'var(--danger)'}`,
+                              padding: '6px 12px',
+                              borderRadius: '20px',
+                              cursor: 'pointer',
+                              fontWeight: '700',
+                              fontSize: '11.5px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title="Haz clic para habilitar o deshabilitar el acceso de este operador"
+                          >
+                            {isSavingThis ? (
+                              <Loader2 size={13} className="spin" />
+                            ) : op.activo ? (
+                              <CheckCircle2 size={14} />
+                            ) : (
+                              <X size={14} />
+                            )}
+                            {op.activo ? 'HABILITADO' : 'DESHABILITADO'}
+                          </button>
+                        </td>
+                        <td data-label="Último Acceso" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          {op.ultimo_acceso ? new Date(op.ultimo_acceso).toLocaleString() : 'Pendiente'}
+                        </td>
+                        <td data-label="Acciones" style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '8px' }}>
+                            <button
+                              onClick={() => handleUpdateOperadorAssignment(op.id, op.empresa_id, op.proyecto_id)}
+                              disabled={isSavingThis}
+                              style={{
+                                background: 'rgba(2, 132, 199, 0.15)',
+                                border: '1px solid var(--accent-color)',
+                                color: 'var(--accent-color)',
+                                cursor: 'pointer',
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
+                              title="Guardar Empresa y Proyecto asignados"
+                            >
+                              <Save size={14} /> Guardar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteOperador(op.id, op.nombre_completo)}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.2)',
+                                border: 'none',
+                                color: 'var(--danger)',
+                                cursor: 'pointer',
+                                padding: '6px 8px',
+                                borderRadius: '6px'
+                              }}
+                              title="Eliminar Operador"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {/* Modal para Crear Nuevo Rol */}
       {isCreatingRole && (
