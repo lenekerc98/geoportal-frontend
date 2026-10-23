@@ -922,6 +922,8 @@ export default function ReportePlanimetrico() {
       setTimeout(() => {
         setBatchLoading(false);
         setShowBatchModal(false);
+        window.__BATCH_READY__ = true;
+        window.__BATCH_DATA_COUNT__ = validResults.length;
         setTimeout(() => {
           window.print();
         }, 400);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { login } from '../../services/authService';
+import { safeDecodeJwt } from '../../services/api';
 import { Map, Lock, User, Loader2 } from 'lucide-react';
 
 export default function Login() {
@@ -11,15 +12,13 @@ export default function Login() {
   useEffect(() => {
     const token = localStorage.getItem('catastro_token');
     if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (Date.now() < payload.exp * 1000) {
+      const payload = safeDecodeJwt(token);
+      if (payload) {
+        if (!payload.exp || Date.now() < payload.exp * 1000) {
           window.location.href = '/geoportal';
         } else {
           localStorage.removeItem('catastro_token');
         }
-      } catch (e) {
-        localStorage.removeItem('catastro_token');
       }
     }
   }, []);

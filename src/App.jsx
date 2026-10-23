@@ -44,6 +44,15 @@ const reportErrorToBackend = async (errorMsg) => {
 };
 
 const ProtectedRoute = ({ children }) => {
+  // Permitir token vía query param (ej. para automatización o generación headless)
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    if (urlToken) {
+      localStorage.setItem('catastro_token', urlToken);
+    }
+  } catch (e) {}
+
   const token = localStorage.getItem('catastro_token');
   if (!token) {
     return <Navigate to="/" replace />;
