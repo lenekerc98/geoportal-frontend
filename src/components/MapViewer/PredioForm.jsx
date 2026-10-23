@@ -10,6 +10,7 @@ import proj4 from 'proj4';
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
 export default function PredioForm({ onSubmit, onCancel, initialData, onStartDrawing }) {
+  const { activeEmpresa, activeProyecto } = useContext(AppContext);
   const formatInitialCoords = (rawVal) => {
     if (!rawVal) return '';
 
@@ -63,7 +64,6 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   });
   const [colindantes, setColindantes] = useState([]);
   const [rumbosCustom, setRumbosCustom] = useState([]);
-  const [sectoresList, setSectoresList] = useState([]);
 
   useEffect(() => {
     if (initialData) {
@@ -101,30 +101,8 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     }
   }, [initialData]);
 
-  // Carga dinámica de sectores desde la base de datos
-  useEffect(() => {
-    const fetchSectores = async () => {
-      try {
-        const token = localStorage.getItem('catastro_token');
-        const empId = activeEmpresa?.id || selectedEmpresaId;
-        const url = empId ? `${API_URL}/api/gis/sectores?empresa_id=${empId}` : `${API_URL}/api/gis/sectores`;
-        const res = await fetch(url, {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setSectoresList(data);
-          }
-        }
-      } catch (err) {
-        console.error("Error cargando sectores desde BD:", err);
-      }
-    };
-    fetchSectores();
-  }, [activeEmpresa, selectedEmpresaId]);
 
-  const { activeEmpresa, activeProyecto } = useContext(AppContext);
+
   const [empresasList, setEmpresasList] = useState([]);
   const [proyectosList, setProyectosList] = useState([]);
   const [selectedEmpresaId, setSelectedEmpresaId] = useState(initialData?.empresa_id || activeEmpresa?.id || '');
@@ -689,29 +667,17 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
-                <span>Sector del Predio</span>
-                <span style={{ fontSize: '11px', color: 'var(--accent-color)', fontWeight: 'normal' }}>
-                  {sectoresList.length > 0 ? `${sectoresList.length} sectores en BD` : 'Base de datos'}
-                </span>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                Sector del Predio
               </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  list="sectores-predio-list"
-                  value={formData.sector || ''}
-                  onChange={e => setFormData({ ...formData, sector: e.target.value.toUpperCase() })}
-                  className="input-dynamic"
-                  placeholder="Seleccione o escriba el sector (ej. URBANO, SAN ANTONIO, LAS CAÑAS...)"
-                  style={{ width: '100%' }}
-                  autoComplete="off"
-                />
-                <datalist id="sectores-predio-list">
-                  {sectoresList.map((sec, idx) => (
-                    <option key={idx} value={sec} />
-                  ))}
-                </datalist>
-              </div>
+              <input
+                type="text"
+                value={formData.sector || ''}
+                onChange={e => setFormData({ ...formData, sector: e.target.value })}
+                className="input-dynamic"
+                placeholder="Escriba el sector (ej. URBANO, SAN ANTONIO...)"
+                style={{ width: '100%' }}
+              />
             </div>
 
             <div style={{ marginBottom: '25px' }}>
