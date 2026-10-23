@@ -59,9 +59,11 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     posesionario_id: initialData?.posesionario_id || '',
     cod_catastral: initialData?.cod_catastral || '',
     geom_geojson: formatInitialCoords(initialData?.geom_text || initialData?.geom_geojson || initialData?.geometry) || '',
+    sector: initialData?.sector || '',
   });
   const [colindantes, setColindantes] = useState([]);
   const [rumbosCustom, setRumbosCustom] = useState([]);
+  const [sectoresList, setSectoresList] = useState([]);
 
   useEffect(() => {
     if (initialData) {
@@ -70,7 +72,8 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         ...prev,
         posesionario_id: initialData.posesionario_id !== undefined ? initialData.posesionario_id : prev.posesionario_id,
         cod_catastral: initialData.cod_catastral !== undefined ? initialData.cod_catastral : prev.cod_catastral,
-        geom_geojson: coords || prev.geom_geojson || ''
+        geom_geojson: coords || prev.geom_geojson || '',
+        sector: initialData.sector !== undefined ? initialData.sector : prev.sector || ''
       }));
     }
   }, [initialData]);
@@ -83,15 +86,43 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       })
         .then(r => r.json())
         .then(data => {
-          if (data && data.linderos && data.linderos.length > 0) {
-            const sorted = data.linderos.sort((a, b) => a.id - b.id);
-            setColindantes(sorted.map(l => l.colindante || ''));
-            setRumbosCustom(sorted.map(l => l.rumbo || ''));
+          if (data) {
+            if (data.sector) {
+              setFormData(prev => ({ ...prev, sector: data.sector }));
+            }
+            if (data.linderos && data.linderos.length > 0) {
+              const sorted = data.linderos.sort((a, b) => a.id - b.id);
+              setColindantes(sorted.map(l => l.colindante || ''));
+              setRumbosCustom(sorted.map(l => l.rumbo || ''));
+            }
           }
         })
         .catch(e => console.error("Error cargando colindantes:", e));
     }
   }, [initialData]);
+
+  // Carga dinámica de sectores desde la base de datos
+  useEffect(() => {
+    const fetchSectores = async () => {
+      try {
+        const token = localStorage.getItem('catastro_token');
+        const empId = activeEmpresa?.id || selectedEmpresaId;
+        const url = empId ? `${API_URL}/api/gis/sectores?empresa_id=${empId}` : `${API_URL}/api/gis/sectores`;
+        const res = await fetch(url, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setSectoresList(data);
+          }
+        }
+      } catch (err) {
+        console.error("Error cargando sectores desde BD:", err);
+      }
+    };
+    fetchSectores();
+  }, [activeEmpresa, selectedEmpresaId]);
 
   const { activeEmpresa, activeProyecto } = useContext(AppContext);
   const [empresasList, setEmpresasList] = useState([]);
@@ -484,6 +515,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
     const finalData = {
       ...formData,
+      sector: formData.sector ? formData.sector.trim().toUpperCase() : null,
       cod_catastral: finalCod,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
       cedula_temporal: (!finalPosesionarioId && cedula) ? cedula : undefined,
@@ -510,7 +542,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
       <Draggable nodeRef={nodeRef} handle=".drag-handle" cancel="button, input, select, textarea, .no-drag">
-        <div ref={nodeRef} className="glass-panel" style={{ pointerEvents: 'auto', padding: '30px', maxWidth: '600px', width: '90%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div ref={nodeRef} className="predio-form-modal" style={{ pointerEvents: 'auto', padding: '25px 30px', maxWidth: '640px', width: '92%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card-bg, #ffffff)', opacity: 1, backdropFilter: 'none', WebkitBackdropFilter: 'none', borderRadius: '16px', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.45)' }}>
           <div className="drag-handle" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px', cursor: 'move' }}>
             <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{initialData && initialData.id ? 'Editar Predio' : 'Nuevo Predio (Coordenadas)'}</h2>
 
@@ -653,6 +685,32 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   style={{ opacity: isNewPosesionario ? 1 : 0.7 }}
                   required={isNewPosesionario}
                 />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                <span>Sector del Predio</span>
+                <span style={{ fontSize: '11px', color: 'var(--accent-color)', fontWeight: 'normal' }}>
+                  {sectoresList.length > 0 ? `${sectoresList.length} sectores en BD` : 'Base de datos'}
+                </span>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  list="sectores-predio-list"
+                  value={formData.sector || ''}
+                  onChange={e => setFormData({ ...formData, sector: e.target.value.toUpperCase() })}
+                  className="input-dynamic"
+                  placeholder="Seleccione o escriba el sector (ej. URBANO, SAN ANTONIO, LAS CAÑAS...)"
+                  style={{ width: '100%' }}
+                  autoComplete="off"
+                />
+                <datalist id="sectores-predio-list">
+                  {sectoresList.map((sec, idx) => (
+                    <option key={idx} value={sec} />
+                  ))}
+                </datalist>
               </div>
             </div>
 

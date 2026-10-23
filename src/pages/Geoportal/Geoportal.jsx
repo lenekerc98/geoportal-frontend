@@ -3342,6 +3342,7 @@ export default function Geoportal() {
                 posesionario_id: feature.properties.posesionario_id,
                 cod_catastral: feature.properties.cod_catastral,
                 geom_geojson: JSON.stringify(feature.geometry, null, 2),
+                sector: feature.properties.sector || '',
                 isOffline: feature.properties.isOffline,
                 offline_id: feature.properties.offline_id || feature.properties.id
               });
@@ -3539,6 +3540,7 @@ export default function Geoportal() {
           <button
             onClick={() => { setIsMeasuring(false); setIsDrawingPredio(false); setIsSnapped(false); setIsAddingPredio(false); setZoomMode(null); }}
             className={`dock-button navegar ${(!isMeasuring && !isAddingPredio && !isDrawingPredio && !zoomMode) ? 'active' : ''}`}
+            title="Navegar por el mapa (Modo estándar)"
           >
             <MousePointer2 size={18} /> <span className="dock-button-text">Navegar</span>
           </button>
@@ -3612,6 +3614,7 @@ export default function Geoportal() {
           <button
             onClick={() => { setIsMeasuring(!isMeasuring); setIsAddingPredio(false); setIsDrawingPredio(false); setIsSnapped(false); setMeasurePoints([]); setMousePos(null); }}
             className={`dock-button medir ${isMeasuring ? 'active' : ''}`}
+            title="Medir distancias en el mapa"
           >
             <Ruler size={18} /> <span className="dock-button-text">Medir</span>
           </button>
@@ -3636,6 +3639,7 @@ export default function Geoportal() {
               }
             }}
             className={`dock-button ubicacion ${userLocation ? 'active' : ''}`}
+            title="Mi Ubicación GPS (Rastreo en tiempo real)"
           >
             <Navigation size={18} /> <span className="dock-button-text">Mi Ubicación</span>
           </button>
@@ -4050,6 +4054,7 @@ export default function Geoportal() {
                                             posesionario_id: f.properties.posesionario_id,
                                             cod_catastral: f.properties.cod_catastral,
                                             geom_geojson: JSON.stringify(f.geometry, null, 2),
+                                            sector: f.properties.sector || '',
                                             isOffline: f.properties.isOffline,
                                             offline_id: f.properties.offline_id || f.properties.id
                                           });
