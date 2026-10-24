@@ -60,6 +60,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     posesionario_id: initialData?.posesionario_id || '',
     cod_catastral: initialData?.cod_catastral || '',
     geom_geojson: formatInitialCoords(initialData?.geom_text || initialData?.geom_geojson || initialData?.geometry) || '',
+    parroquia: initialData?.parroquia || '',
     sector: initialData?.sector || '',
   });
   const [colindantes, setColindantes] = useState([]);
@@ -73,6 +74,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         posesionario_id: initialData.posesionario_id !== undefined ? initialData.posesionario_id : prev.posesionario_id,
         cod_catastral: initialData.cod_catastral !== undefined ? initialData.cod_catastral : prev.cod_catastral,
         geom_geojson: coords || prev.geom_geojson || '',
+        parroquia: initialData.parroquia !== undefined ? initialData.parroquia : prev.parroquia || '',
         sector: initialData.sector !== undefined ? initialData.sector : prev.sector || ''
       }));
     }
@@ -87,6 +89,9 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         .then(r => r.json())
         .then(data => {
           if (data) {
+            if (data.parroquia) {
+              setFormData(prev => ({ ...prev, parroquia: data.parroquia }));
+            }
             if (data.sector) {
               setFormData(prev => ({ ...prev, sector: data.sector }));
             }
@@ -222,6 +227,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
             setFormData(prev => ({
               ...prev,
+              parroquia: prev.parroquia || activeEmpresa.ciudad || '',
               cod_catastral: (newCod + prev.cod_catastral.substring(newCod.length)).padEnd(19, ' ').substring(0, 19)
             }));
           }
@@ -493,6 +499,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
     const finalData = {
       ...formData,
+      parroquia: formData.parroquia ? formData.parroquia.trim().toUpperCase() : null,
       sector: formData.sector ? formData.sector.trim().toUpperCase() : null,
       cod_catastral: finalCod,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
@@ -581,7 +588,12 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   let val = e.target.value.replace(/\D/g, '');
                   let curr = formData.cod_catastral.padEnd(19, ' ');
                   let newCod = (curr.substring(0, 4) + val.padEnd(2, ' ') + curr.substring(6)).substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
+                  let currParr = formData.parroquia;
+                  if (!currParr) {
+                    if (val === '50') currParr = 'CATARAMA';
+                    else if (val === '51') currParr = 'RICAURTE';
+                  }
+                  setFormData({ ...formData, cod_catastral: newCod, parroquia: currParr });
                   if (val.length === 2) document.getElementById('cc-3')?.focus();
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
@@ -666,18 +678,46 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
               </div>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
-                Sector del Predio
-              </label>
-              <input
-                type="text"
-                value={formData.sector || ''}
-                onChange={e => setFormData({ ...formData, sector: e.target.value })}
-                className="input-dynamic"
-                placeholder="Escriba el sector (ej. URBANO, SAN ANTONIO...)"
-                style={{ width: '100%' }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                  Parroquia del Predio
+                </label>
+                <input
+                  type="text"
+                  value={formData.parroquia || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    let newCod = formData.cod_catastral;
+                    const norm = val.trim().toLowerCase();
+                    if (norm.includes('catarama')) {
+                      let curr = newCod.padEnd(19, ' ');
+                      newCod = (curr.substring(0, 4) + '50' + curr.substring(6)).substring(0, 19);
+                    } else if (norm.includes('ricaurte')) {
+                      let curr = newCod.padEnd(19, ' ');
+                      newCod = (curr.substring(0, 4) + '51' + curr.substring(6)).substring(0, 19);
+                    }
+                    setFormData({ ...formData, parroquia: val, cod_catastral: newCod });
+                  }}
+                  className="input-dynamic"
+                  placeholder="Escriba la parroquia (ej. CATARAMA, RICAURTE...)"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                  Sector del Predio
+                </label>
+                <input
+                  type="text"
+                  value={formData.sector || ''}
+                  onChange={e => setFormData({ ...formData, sector: e.target.value })}
+                  className="input-dynamic"
+                  placeholder="Escriba el sector (ej. URBANO, SAN ANTONIO...)"
+                  style={{ width: '100%' }}
+                />
+              </div>
             </div>
 
             <div style={{ marginBottom: '25px' }}>

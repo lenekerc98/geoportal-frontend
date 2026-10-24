@@ -737,7 +737,7 @@ export default function ReportePlanimetrico() {
   const currentDate = new Date().toLocaleDateString('es-ES');
   const dpaProvincia = activeEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
   const dpaCanton = activeEmpresa?.canton || predio?.canton || 'URDANETA';
-  const dpaParroquia = activeEmpresa?.ciudad || predio?.ciudad || 'CATARAMA';
+  const dpaParroquia = predio?.parroquia || predio?.ciudad || activeEmpresa?.ciudad || 'CATARAMA';
   const dpaSector = predio?.sector || activeEmpresa?.sector || 'URBANO';
 
   const displayScale = scale === 'custom' ? customScale : scale;

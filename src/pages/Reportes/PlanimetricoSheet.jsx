@@ -445,7 +445,7 @@ export default function PlanimetricoSheet({
   const currentEmpresa = empresaInfo || activeEmpresa;
   const dpaProvincia = currentEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
   const dpaCanton = currentEmpresa?.canton || predio?.canton || 'URDANETA';
-  const dpaParroquia = currentEmpresa?.ciudad || predio?.ciudad || 'CATARAMA';
+  const dpaParroquia = predio?.parroquia || predio?.ciudad || currentEmpresa?.ciudad || 'CATARAMA';
   const dpaSector = predio?.sector || currentEmpresa?.sector || 'URBANO';
   const displayScale = scale === 'custom' ? customScale : scale;
   const directorNombre = currentEmpresa?.nombre_director || ' ';
