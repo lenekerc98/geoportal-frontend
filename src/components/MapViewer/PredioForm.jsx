@@ -204,41 +204,61 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     }
   }, [formData.cod_catastral]);
 
-  // Auto-llenado de Provincia y Cantón basado en la Empresa activa
+  // Fase 2: Detección Espacial Automática por PostGIS (Provincia 12, Cantón 06, Parroquia 50/51/52, Sector)
   useEffect(() => {
-    if (!initialData?.id && activeEmpresa && formData.cod_catastral.replace(/\s/g, '').length === 0) {
-      const autoFillDPA = async () => {
-        try {
-          const provRes = await fetch(`${API_URL}/api/system/dpa/provincias`);
-          const provincias = await provRes.json();
-          const normalize = str => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+    if (!formData.geom_geojson || formData.geom_geojson.trim().length < 5) return;
 
-          const provMatch = provincias.find(p => normalize(p.nombre) === normalize(activeEmpresa.provincia));
+    const timer = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('catastro_token');
+        const res = await fetch(`${API_URL}/api/gis/detectar-ubicacion`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            geom_text: formData.geom_geojson,
+            es_utm: true
+          })
+        });
 
-          if (provMatch) {
-            let newCod = provMatch.codigo_dpa;
-            const cantRes = await fetch(`${API_URL}/api/system/dpa/cantones?provincia_id=${provMatch.id}`);
-            const cantones = await cantRes.json();
-            const cantMatch = cantones.find(c => normalize(c.nombre) === normalize(activeEmpresa.canton));
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.cod_parroquia) {
+            setFormData(prev => {
+              let currCod = prev.cod_catastral ? prev.cod_catastral.padEnd(19, ' ') : '                   ';
+              const prov = data.cod_provincia || '12';
+              const cant = data.cod_canton || '06';
+              const parr = data.cod_parroquia; // '50', '51', o '52'
 
-            if (cantMatch && cantMatch.codigo_dpa) {
-              // El código de cantón tiene 4 dígitos (ej: 1211), tomamos los dos últimos
-              newCod += cantMatch.codigo_dpa.substring(2, 4);
-            }
+              const prefix6 = currCod.substring(0, 6).trim();
+              let updatedCod = currCod;
 
-            setFormData(prev => ({
-              ...prev,
-              parroquia: prev.parroquia || activeEmpresa.ciudad || '',
-              cod_catastral: (newCod + prev.cod_catastral.substring(newCod.length)).padEnd(19, ' ').substring(0, 19)
-            }));
+              // Solo autocompletar o actualizar los 6 primeros dígitos si están vacíos, son temporales, o se detectó la parroquia
+              if (!prefix6 || prefix6.startsWith('0') || prefix6.startsWith('TE') || prefix6.length < 6) {
+                updatedCod = (prov + cant + parr + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
+              } else if (prefix6.substring(0, 4) === '1206') {
+                updatedCod = (prefix6.substring(0, 4) + parr + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
+              }
+
+              return {
+                ...prev,
+                parroquia: prev.parroquia || data.parroquia || '',
+                sector: prev.sector || (data.sector && data.sector !== 'RURAL' ? data.sector : (prev.sector || 'RURAL')),
+                cod_catastral: updatedCod
+              };
+            });
           }
-        } catch (e) {
-          console.error('Error auto-llenando DPA:', e);
         }
-      };
-      autoFillDPA();
-    }
-  }, [activeEmpresa, initialData]);
+      } catch (err) {
+        console.warn('Error en detección espacial de ubicación:', err);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.geom_geojson]);
+
 
   const buscarCodigo = async () => {
     setLoadingCodigo(true);

@@ -95,22 +95,33 @@
 
 .date-group label {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--text-muted, #475569);
 }
 
 .date-input {
   padding: 8px 12px;
-  border: 1px solid var(--border-color);
+  border: 1.5px solid #cbd5e1;
   border-radius: 8px;
   font-size: 13px;
-  color: var(--text-main);
+  font-weight: 500;
+  color: #1e293b;
   outline: none;
-  background: var(--bg-input);
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.date-input:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
 }
 
 .date-input:focus {
   border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18);
+  background-color: #ffffff !important;
 }
 
 .btn-filtrar {
