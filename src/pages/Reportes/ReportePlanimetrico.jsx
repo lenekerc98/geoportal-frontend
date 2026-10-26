@@ -497,9 +497,12 @@ export default function ReportePlanimetrico() {
       const token = localStorage.getItem('catastro_token');
 
       let url = '';
-      if (codigo) {
-        if (codigo.startsWith('offline_')) {
-          const localData = await getOfflinePredioById(codigo);
+      const isAlphanumericCode = !codigo && id && (isNaN(Number(id)) || String(id).length >= 10 || String(id).includes('TEMP') || String(id).includes('offline_'));
+      const effectiveCodigo = codigo || (isAlphanumericCode ? id : null);
+
+      if (effectiveCodigo) {
+        if (effectiveCodigo.startsWith('offline_')) {
+          const localData = await getOfflinePredioById(effectiveCodigo);
           if (localData) {
             // Reconstruct a format similar to what the API returns
             setData({
@@ -511,7 +514,7 @@ export default function ReportePlanimetrico() {
             return;
           }
         }
-        url = `${API_URL}/api/gis/predios/detalle/${codigo}`;
+        url = `${API_URL}/api/gis/predios/detalle/${encodeURIComponent(effectiveCodigo)}`;
       } else {
         url = `${API_URL}/api/gis/predios/detalle-id/${id}`;
       }

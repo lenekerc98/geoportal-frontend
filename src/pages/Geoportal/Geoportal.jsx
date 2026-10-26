@@ -6707,10 +6707,10 @@ export default function Geoportal() {
               <button
                 className="btn-primary"
                 onClick={() => {
-                  const targetCode = String(reporteLinderacionCode);
+                  const targetCode = String(reporteLinderacionCode).trim();
                   setReporteLinderacionCode(null);
-                  if (targetCode.length === 19 || targetCode.startsWith('TEMP-') || targetCode.startsWith('offline_')) {
-                    navigate(`/reporte/planimetrico/codigo/${targetCode}`);
+                  if (isNaN(Number(targetCode)) || targetCode.length >= 10 || targetCode.includes('TEMP') || targetCode.startsWith('offline_')) {
+                    navigate(`/reporte/planimetrico/codigo/${encodeURIComponent(targetCode)}`);
                   } else {
                     navigate(`/reporte/planimetrico/${targetCode}`);
                   }
