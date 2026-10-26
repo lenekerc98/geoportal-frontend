@@ -541,6 +541,27 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
   const nodeRef = useRef(null);
 
+  const isTemp = formData.cod_catastral && formData.cod_catastral.includes('TEMP');
+  const getBoxVal = (start, end) => {
+    if (isTemp && start >= 6) return '';
+    return (formData.cod_catastral || '').substring(start, end).trim();
+  };
+
+  const handleBoxChange = (start, end, val, nextId) => {
+    let curr = formData.cod_catastral ? formData.cod_catastral.padEnd(19, ' ') : '                   ';
+    // Si era un código temporal (ej: 120650-TEMP-...), limpiar la parte posterior a los 6 dígitos
+    if (isTemp) {
+      const prefix6 = curr.substring(0, 6).padEnd(6, ' ');
+      curr = prefix6 + '             '; // 6 + 13 = 19
+    }
+    const len = end - start;
+    let newCod = (curr.substring(0, start) + val.padEnd(len, ' ') + curr.substring(end)).substring(0, 19);
+    setFormData({ ...formData, cod_catastral: newCod });
+    if (val.length === len && nextId) {
+      document.getElementById(nextId)?.focus();
+    }
+  };
+
   return (
     <div style={{
       position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -584,79 +605,80 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           )}
 
           <form onSubmit={handleSubmit}>
+            {isTemp && (
+              <div style={{
+                background: '#fef3c7',
+                border: '1.5px solid #f59e0b',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                marginBottom: '15px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: '700', color: '#92400e' }}>
+                  <span>🟡 Código Temporal:</span>
+                  <span style={{ fontFamily: 'monospace', background: '#fde68a', padding: '2px 6px', borderRadius: '4px' }}>{formData.cod_catastral}</span>
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#b45309' }}>
+                  Los primeros 6 dígitos de la parroquia ya están asignados. Complete los casilleros de abajo para formalizar la clave catastral definitiva de 19 dígitos.
+                </div>
+              </div>
+            )}
+
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
                 <span>Clave Catastral (19 dígitos) *</span>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Prov-Cant-Parr-Zona-Sect-Pol-Pred-Div</span>
               </label>
               <div style={{ display: 'flex', gap: '4px', position: 'relative', width: '100%', overflowX: 'auto', paddingBottom: '5px' }}>
-                <input id="cc-0" type="text" maxLength="2" placeholder="Pr" title="Provincia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(0, 2).trim()} onChange={e => {
+                <input id="cc-0" type="text" maxLength="2" placeholder="Pr" title="Provincia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(0, 2)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let newCod = (val + formData.cod_catastral.substring(2)).padEnd(19, ' ').substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
-                  if (val.length === 2) document.getElementById('cc-1')?.focus();
+                  handleBoxChange(0, 2, val, 'cc-1');
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-1" type="text" maxLength="2" placeholder="Ca" title="Cantón (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(2, 4).trim()} onChange={e => {
+                <input id="cc-1" type="text" maxLength="2" placeholder="Ca" title="Cantón (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(2, 4)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let curr = formData.cod_catastral.padEnd(19, ' ');
-                  let newCod = (curr.substring(0, 2) + val.padEnd(2, ' ') + curr.substring(4)).substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
-                  if (val.length === 2) document.getElementById('cc-2')?.focus();
+                  handleBoxChange(2, 4, val, 'cc-2');
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-2" type="text" maxLength="2" placeholder="Pa" title="Parroquia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(4, 6).trim()} onChange={e => {
+                <input id="cc-2" type="text" maxLength="2" placeholder="Pa" title="Parroquia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(4, 6)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let curr = formData.cod_catastral.padEnd(19, ' ');
-                  let newCod = (curr.substring(0, 4) + val.padEnd(2, ' ') + curr.substring(6)).substring(0, 19);
                   let currParr = formData.parroquia;
                   if (!currParr) {
                     if (val === '50') currParr = 'CATARAMA';
                     else if (val === '51') currParr = 'RICAURTE';
                     else if (val === '52') currParr = 'PIJULLO';
                   }
-                  setFormData({ ...formData, cod_catastral: newCod, parroquia: currParr });
-                  if (val.length === 2) document.getElementById('cc-3')?.focus();
+                  if (currParr !== formData.parroquia) setFormData(prev => ({ ...prev, parroquia: currParr }));
+                  handleBoxChange(4, 6, val, 'cc-3');
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-3" type="text" maxLength="2" placeholder="Zo" title="Zona (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(6, 8).trim()} onChange={e => {
+                <input id="cc-3" type="text" maxLength="2" placeholder="Zo" title="Zona (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(6, 8)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let curr = formData.cod_catastral.padEnd(19, ' ');
-                  let newCod = (curr.substring(0, 6) + val.padEnd(2, ' ') + curr.substring(8)).substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
-                  if (val.length === 2) document.getElementById('cc-4')?.focus();
+                  handleBoxChange(6, 8, val, 'cc-4');
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-4" type="text" maxLength="2" placeholder="Se" title="Sector (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(8, 10).trim()} onChange={e => {
+                <input id="cc-4" type="text" maxLength="2" placeholder="Se" title="Sector (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(8, 10)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let curr = formData.cod_catastral.padEnd(19, ' ');
-                  let newCod = (curr.substring(0, 8) + val.padEnd(2, ' ') + curr.substring(10)).substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
-                  if (val.length === 2) document.getElementById('cc-5')?.focus();
+                  handleBoxChange(8, 10, val, 'cc-5');
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-5" type="text" maxLength="3" placeholder="Pol" title="Polígono (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(10, 13).trim()} onChange={e => {
+                <input id="cc-5" type="text" maxLength="3" placeholder="Pol" title="Polígono (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(10, 13)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let curr = formData.cod_catastral.padEnd(19, ' ');
-                  let newCod = (curr.substring(0, 10) + val.padEnd(3, ' ') + curr.substring(13)).substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
-                  if (val.length === 3) document.getElementById('cc-6')?.focus();
+                  handleBoxChange(10, 13, val, 'cc-6');
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-6" type="text" maxLength="3" placeholder="Pre" title="Predio (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(13, 16).trim()} onChange={e => {
+                <input id="cc-6" type="text" maxLength="3" placeholder="Pre" title="Predio (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(13, 16)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let curr = formData.cod_catastral.padEnd(19, ' ');
-                  let newCod = (curr.substring(0, 13) + val.padEnd(3, ' ') + curr.substring(16)).substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
-                  if (val.length === 3) document.getElementById('cc-7')?.focus();
+                  handleBoxChange(13, 16, val, 'cc-7');
                 }} required />
                 <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-7" type="text" maxLength="3" placeholder="Div" title="División (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={formData.cod_catastral.substring(16, 19).trim()} onChange={e => {
+                <input id="cc-7" type="text" maxLength="3" placeholder="Div" title="División (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(16, 19)} onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
-                  let curr = formData.cod_catastral.padEnd(19, ' ');
-                  let newCod = (curr.substring(0, 16) + val.padEnd(3, ' ') + curr.substring(19)).substring(0, 19);
-                  setFormData({ ...formData, cod_catastral: newCod });
+                  handleBoxChange(16, 19, val, null);
                 }} required />
+
 
                 <div style={{ position: 'absolute', right: '-25px', top: '50%', transform: 'translateY(-50%)' }}>
                   {loadingCodigo && <Loader2 size={16} className="spin" color="var(--accent-color)" />}
