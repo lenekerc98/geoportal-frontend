@@ -6,6 +6,7 @@ import { AppContext } from '../../context/AppContext';
 import { API_URL } from '../../services/api';
 import * as XLSX from 'xlsx';
 import proj4 from 'proj4';
+import { detectarUbicacionCliente } from '../../utils/geoDetection';
 
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
@@ -56,11 +57,23 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     return typeof rawVal === 'string' ? rawVal : '';
   };
 
+  const initialCoords = formatInitialCoords(initialData?.geom_text || initialData?.geom_geojson || initialData?.geometry) || '';
+  const detectedInitLoc = detectarUbicacionCliente(initialCoords || initialData?.geometry || initialData?.latlng);
+
+  let initCodCat = initialData?.cod_catastral || '';
+  let initParr = initialData?.parroquia || '';
+  if ((!initCodCat || initCodCat.trim().length < 6) && detectedInitLoc) {
+    initCodCat = (detectedInitLoc.prefijo_clave + (initCodCat.substring(6) || '')).padEnd(19, ' ');
+  }
+  if (!initParr && detectedInitLoc) {
+    initParr = detectedInitLoc.parroquia;
+  }
+
   const [formData, setFormData] = useState({
     posesionario_id: initialData?.posesionario_id || '',
-    cod_catastral: initialData?.cod_catastral || '',
-    geom_geojson: formatInitialCoords(initialData?.geom_text || initialData?.geom_geojson || initialData?.geometry) || '',
-    parroquia: initialData?.parroquia || '',
+    cod_catastral: initCodCat,
+    geom_geojson: initialCoords,
+    parroquia: initParr,
     sector: initialData?.sector || '',
   });
   const [colindantes, setColindantes] = useState([]);
@@ -69,14 +82,28 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   useEffect(() => {
     if (initialData) {
       const coords = formatInitialCoords(initialData.geom_text || initialData.geom_geojson || initialData.geometry) || '';
-      setFormData(prev => ({
-        ...prev,
-        posesionario_id: initialData.posesionario_id !== undefined ? initialData.posesionario_id : prev.posesionario_id,
-        cod_catastral: initialData.cod_catastral !== undefined ? initialData.cod_catastral : prev.cod_catastral,
-        geom_geojson: coords || prev.geom_geojson || '',
-        parroquia: initialData.parroquia !== undefined ? initialData.parroquia : prev.parroquia || '',
-        sector: initialData.sector !== undefined ? initialData.sector : prev.sector || ''
-      }));
+      const detectedLoc = detectarUbicacionCliente(coords || initialData.geometry || initialData.latlng);
+
+      setFormData(prev => {
+        let cod = initialData.cod_catastral !== undefined ? initialData.cod_catastral : prev.cod_catastral;
+        let parr = initialData.parroquia !== undefined ? initialData.parroquia : prev.parroquia;
+
+        if ((!cod || cod.trim().length < 6) && detectedLoc) {
+          cod = (detectedLoc.prefijo_clave + (cod ? cod.substring(6) : '')).padEnd(19, ' ');
+        }
+        if (!parr && detectedLoc) {
+          parr = detectedLoc.parroquia;
+        }
+
+        return {
+          ...prev,
+          posesionario_id: initialData.posesionario_id !== undefined ? initialData.posesionario_id : prev.posesionario_id,
+          cod_catastral: cod,
+          geom_geojson: coords || prev.geom_geojson || '',
+          parroquia: parr || '',
+          sector: initialData.sector !== undefined ? initialData.sector : prev.sector || ''
+        };
+      });
     }
   }, [initialData]);
 
@@ -204,10 +231,33 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     }
   }, [formData.cod_catastral]);
 
-  // Fase 2: Detección Espacial Automática por PostGIS (Provincia 12, Cantón 06, Parroquia 50/51/52, Sector)
+  // Fase 2: Detección Espacial Automática (Inmediata Local + Refinamiento PostGIS en backend)
   useEffect(() => {
     if (!formData.geom_geojson || formData.geom_geojson.trim().length < 5) return;
 
+    // 1. Detección territorial inmediata client-side (0ms, sin esperar red)
+    const clientLoc = detectarUbicacionCliente(formData.geom_geojson);
+    if (clientLoc) {
+      setFormData(prev => {
+        let currCod = prev.cod_catastral ? prev.cod_catastral.padEnd(19, ' ') : '                   ';
+        const prefix6 = currCod.substring(0, 6).trim();
+        let updatedCod = currCod;
+
+        if (!prefix6 || prefix6.startsWith('0') || prefix6.startsWith('TE') || prefix6.length < 6) {
+          updatedCod = (clientLoc.prefijo_clave + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
+        } else if (prefix6.substring(0, 4) === '1206' && prefix6.substring(4, 6) !== clientLoc.cod_parroquia) {
+          updatedCod = (prefix6.substring(0, 4) + clientLoc.cod_parroquia + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
+        }
+
+        return {
+          ...prev,
+          parroquia: prev.parroquia || clientLoc.parroquia,
+          cod_catastral: updatedCod
+        };
+      });
+    }
+
+    // 2. Refinamiento espacial preciso por PostGIS (Sector de predios cercanos y confirmación)
     const timer = setTimeout(async () => {
       try {
         const token = localStorage.getItem('catastro_token');
@@ -254,7 +304,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       } catch (err) {
         console.warn('Error en detección espacial de ubicación:', err);
       }
-    }, 400);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [formData.geom_geojson]);
@@ -732,17 +782,17 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   value={formData.parroquia || ''}
                   onChange={e => {
                     const val = e.target.value;
-                    let newCod = formData.cod_catastral;
+                    let curr = formData.cod_catastral ? formData.cod_catastral.padEnd(19, ' ') : '                   ';
                     const norm = val.trim().toLowerCase();
-                    if (norm.includes('catarama')) {
-                      let curr = newCod.padEnd(19, ' ');
-                      newCod = (curr.substring(0, 4) + '50' + curr.substring(6)).substring(0, 19);
-                    } else if (norm.includes('ricaurte')) {
-                      let curr = newCod.padEnd(19, ' ');
-                      newCod = (curr.substring(0, 4) + '51' + curr.substring(6)).substring(0, 19);
-                    } else if (norm.includes('pijullo')) {
-                      let curr = newCod.padEnd(19, ' ');
-                      newCod = (curr.substring(0, 4) + '52' + curr.substring(6)).substring(0, 19);
+                    let parrCode = '';
+                    if (norm.includes('catarama')) parrCode = '50';
+                    else if (norm.includes('ricaurte')) parrCode = '51';
+                    else if (norm.includes('pijullo')) parrCode = '52';
+
+                    let newCod = curr;
+                    if (parrCode) {
+                      const prefix4 = curr.substring(0, 4).trim().length === 4 ? curr.substring(0, 4) : '1206';
+                      newCod = (prefix4 + parrCode + curr.substring(6)).padEnd(19, ' ').substring(0, 19);
                     }
                     setFormData({ ...formData, parroquia: val, cod_catastral: newCod });
                   }}

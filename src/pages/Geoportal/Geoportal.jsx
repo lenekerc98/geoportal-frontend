@@ -23,6 +23,7 @@ import S3BrowserModal from '../../components/S3BrowserModal';
 import ShapefileUploader from '../../components/MapViewer/ShapefileUploader';
 import SplitPolygonTool from '../../components/MapViewer/SplitPolygonTool';
 import SplitPredioModal from '../../components/MapViewer/SplitPredioModal';
+import { detectarUbicacionCliente } from '../../utils/geoDetection';
 
 const getGeometryIcon = (tipo) => {
   if (!tipo) return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
@@ -2819,13 +2820,16 @@ export default function Geoportal() {
       coordsText += `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}\n`;
     });
 
+    const detected = detectarUbicacionCliente(points);
     setIsDrawingPredio(false);
     setDrawPoints([]);
     setMousePos(null);
     setTempPredioFormData(prev => ({
       ...prev,
       geom_text: coordsText,
-      es_utm: true
+      es_utm: true,
+      parroquia: detected ? detected.parroquia : (prev?.parroquia || ''),
+      cod_catastral: detected ? (detected.prefijo_clave + '             ') : (prev?.cod_catastral || '')
     }));
     setIsAddingPredio(true);
   };
@@ -2909,9 +2913,12 @@ export default function Geoportal() {
     ];
     const coordsText = coords.map(c => `${c[0].toFixed(2)} ${c[1].toFixed(2)}`).join('\n');
 
+    const detected = detectarUbicacionCliente([[utmX, utmY]]);
     setTempPredioFormData({
       geom_text: coordsText,
-      es_utm: true
+      es_utm: true,
+      parroquia: detected ? detected.parroquia : '',
+      cod_catastral: detected ? (detected.prefijo_clave + '             ') : ''
     });
     setIsAddingPredio(true);
     setIsDrawingPredio(false);
@@ -5699,12 +5706,15 @@ export default function Geoportal() {
                     coordsText += `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}\n`;
                   });
 
+                  const detected = detectarUbicacionCliente(coordsText);
                   setTempPredioFormData({
                     geometry: feature,
                     latlng: selectionContextMenu.latlng,
                     geom_text: coordsText,
                     geom_geojson: coordsText,
-                    es_utm: true
+                    es_utm: true,
+                    parroquia: detected ? detected.parroquia : '',
+                    cod_catastral: detected ? (detected.prefijo_clave + '             ') : ''
                   });
                   setIsAddingPredio(true);
                   setSelectionContextMenu(null);
