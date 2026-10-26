@@ -44,8 +44,11 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
+  const { activeEmpresa, activeProyecto } = useContext(AppContext);
+  const isModoManual = activeEmpresa?.parametros?.modo_historico === 'manual';
+
   const [empresas, setEmpresas] = useState([]);
-  const [selectedEmpresa, setSelectedEmpresa] = useState('');
+  const [selectedEmpresa, setSelectedEmpresa] = useState(activeEmpresa?.id ? String(activeEmpresa.id) : (user?.id_empresa ? String(user.id_empresa) : ''));
   
   const isSuperAdmin = user?.role?.toLowerCase() === 'superadministrador' || user?.role?.toLowerCase() === 'superadmin';
 
@@ -87,9 +90,12 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   
   // Historical Cadastre 4D
   const [fechaVigencia, setFechaVigencia] = useState('');
-  
-  const { activeEmpresa, activeProyecto } = useContext(AppContext);
-  const isModoManual = activeEmpresa?.parametros?.modo_historico === 'manual';
+
+  useEffect(() => {
+    if (activeEmpresa?.id && !selectedEmpresa) {
+      setSelectedEmpresa(String(activeEmpresa.id));
+    }
+  }, [activeEmpresa?.id, selectedEmpresa]);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -98,11 +104,22 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       })
       .then(res => res.json())
       .then(data => {
-        setEmpresas(data);
+        if (Array.isArray(data)) {
+          setEmpresas(data);
+          if (!selectedEmpresa) {
+            if (activeEmpresa?.id) {
+              setSelectedEmpresa(String(activeEmpresa.id));
+            } else if (data.length > 0) {
+              setSelectedEmpresa(String(data[0].id));
+            }
+          }
+        }
       })
       .catch(err => console.error("Error fetching empresas", err));
+    } else if (user?.id_empresa && !selectedEmpresa) {
+      setSelectedEmpresa(String(user.id_empresa));
     }
-  }, [isSuperAdmin, authToken]);
+  }, [isSuperAdmin, authToken, activeEmpresa?.id, selectedEmpresa, user?.id_empresa]);
 
   // Sincronizar asignaciones de DPA si el usuario cambia el tipo de límite
   useEffect(() => {

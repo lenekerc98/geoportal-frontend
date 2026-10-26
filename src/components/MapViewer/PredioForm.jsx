@@ -89,11 +89,12 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         .then(r => r.json())
         .then(data => {
           if (data) {
-            if (data.parroquia) {
-              setFormData(prev => ({ ...prev, parroquia: data.parroquia }));
+            const p = data.predio || data;
+            if (p.parroquia) {
+              setFormData(prev => ({ ...prev, parroquia: p.parroquia }));
             }
-            if (data.sector) {
-              setFormData(prev => ({ ...prev, sector: data.sector }));
+            if (p.sector) {
+              setFormData(prev => ({ ...prev, sector: p.sector }));
             }
             if (data.linderos && data.linderos.length > 0) {
               const sorted = data.linderos.sort((a, b) => a.id - b.id);

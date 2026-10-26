@@ -4181,6 +4181,7 @@ export default function Geoportal() {
                 cod_catastral: feature.properties.cod_catastral,
                 geom_geojson: JSON.stringify(feature.geometry, null, 2),
                 sector: feature.properties.sector || '',
+                parroquia: feature.properties.parroquia || '',
                 isOffline: feature.properties.isOffline,
                 offline_id: feature.properties.offline_id || feature.properties.id
               });
@@ -4952,6 +4953,7 @@ export default function Geoportal() {
                                                   cod_catastral: f.properties.cod_catastral,
                                                   geom_geojson: JSON.stringify(f.geometry, null, 2),
                                                   sector: f.properties.sector || '',
+                                                  parroquia: f.properties.parroquia || '',
                                                   isOffline: f.properties.isOffline,
                                                   offline_id: f.properties.offline_id || f.properties.id
                                                 });

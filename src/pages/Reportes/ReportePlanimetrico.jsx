@@ -354,6 +354,8 @@ export default function ReportePlanimetrico() {
   const [codigoCarta, setCodigoCarta] = useState('');
   const [nombreCarta, setNombreCarta] = useState('');
   const [nombreCuadricula, setNombreCuadricula] = useState('ZONA 17S');
+  const [sectorCarta, setSectorCarta] = useState('');
+  const [parroquiaCarta, setParroquiaCarta] = useState('');
   const [cartasCatalog, setCartasCatalog] = useState([]);
   const [isSavingCarta, setIsSavingCarta] = useState(false);
 
@@ -527,6 +529,8 @@ export default function ReportePlanimetrico() {
           setCodigoCarta(cod);
           setNombreCarta(nom);
           setNombreCuadricula(cuad);
+          setSectorCarta(json.predio.sector || '');
+          setParroquiaCarta(json.predio.parroquia || '');
 
           // Si viene carta detectada automáticamente por intersección espacial, buscar archivo CAD
           if (nom || cod) {
@@ -643,19 +647,32 @@ export default function ReportePlanimetrico() {
         body: JSON.stringify({
           codigo_carta: codigoCarta,
           nombre_carta: nombreCarta,
-          cuadricula_carta: nombreCuadricula
+          cuadricula_carta: nombreCuadricula,
+          sector: sectorCarta,
+          parroquia: parroquiaCarta
         })
       });
       if (res.ok) {
-        showSuccess('Carta topográfica guardada en la base de datos');
+        setData(prev => prev ? {
+          ...prev,
+          predio: {
+            ...prev.predio,
+            codigo_carta: codigoCarta,
+            nombre_carta: nombreCarta,
+            cuadricula_carta: nombreCuadricula,
+            sector: sectorCarta,
+            parroquia: parroquiaCarta
+          }
+        } : prev);
+        showSuccess('Carta topográfica, Sector y Parroquia guardados en la base de datos');
         fetchCartasCatalog();
         setShowTextModal(false);
       } else {
         const err = await res.json();
-        showError(err.detail || 'Error al guardar carta topográfica');
+        showError(err.detail || 'Error al guardar datos');
       }
     } catch (e) {
-      showError('Error de conexión al guardar carta topográfica');
+      showError('Error de conexión al guardar datos');
     } finally {
       setIsSavingCarta(false);
     }
@@ -737,8 +754,8 @@ export default function ReportePlanimetrico() {
   const currentDate = new Date().toLocaleDateString('es-ES');
   const dpaProvincia = activeEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
   const dpaCanton = activeEmpresa?.canton || predio?.canton || 'URDANETA';
-  const dpaParroquia = predio?.parroquia || predio?.ciudad || activeEmpresa?.ciudad || 'CATARAMA';
-  const dpaSector = predio?.sector || activeEmpresa?.sector || 'URBANO';
+  const dpaParroquia = parroquiaCarta || predio?.parroquia || predio?.ciudad || activeEmpresa?.ciudad || 'CATARAMA - URDANETA - PIJULLO';
+  const dpaSector = sectorCarta || predio?.sector || activeEmpresa?.sector || 'RURAL';
 
   const displayScale = scale === 'custom' ? customScale : scale;
 
@@ -1302,7 +1319,7 @@ export default function ReportePlanimetrico() {
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
+                <div style={{ marginBottom: '14px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Cuadrícula / Zona:</label>
                   <input
                     type="text"
@@ -1311,6 +1328,29 @@ export default function ReportePlanimetrico() {
                     style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
                     placeholder="Ej: ZONA 17S, MALLA 1"
                   />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                  <div style={{ flex: 1.2 }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Parroquia del Predio:</label>
+                    <input
+                      type="text"
+                      value={parroquiaCarta}
+                      onChange={(e) => setParroquiaCarta(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                      placeholder="Ej: CATARAMA, RICAURTE, PIJULLO"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Sector del Predio:</label>
+                    <input
+                      type="text"
+                      value={sectorCarta}
+                      onChange={(e) => setSectorCarta(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                      placeholder="Ej: RURAL, ASUNCION"
+                    />
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>

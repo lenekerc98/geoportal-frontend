@@ -771,7 +771,7 @@ export default function PlanimetricoSheet({
               <div className="sidebar-box">
                 <div className="box-title">PARROQUIA:</div>
                 <div className="box-content" style={{ textAlign: 'center', textTransform: 'uppercase' }}>
-                  CATARAMA - URDANETA - PIJULLO {/*dpaParroquia11*/}
+                  {predio?.parroquia || dpaParroquia || 'CATARAMA - URDANETA - PIJULLO'}
                 </div>
               </div>
 
