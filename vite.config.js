@@ -153,6 +153,30 @@ export default defineConfig({
       }
     }
   },
+  build: {
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('leaflet') || id.includes('proj4')) {
+              return 'vendor-leaflet';
+            }
+            if (id.includes('@turf') || id.includes('shpjs') || id.includes('@mapbox/shp-write')) {
+              return 'vendor-spatial';
+            }
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'vendor-react';
+            }
+            if (id.includes('sweetalert2') || id.includes('lucide-react') || id.includes('xlsx')) {
+              return 'vendor-ui';
+            }
+            return 'vendor-misc';
+          }
+        }
+      }
+    }
+  },
   define: {
     'process.env': {}
   }

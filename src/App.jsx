@@ -1,22 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login/Login';
-import Geoportal from './pages/Geoportal/Geoportal';
-import AnalyticsDashboard from './pages/Dashboard/AnalyticsDashboard';
-import SystemLogs from './pages/System/SystemLogs';
-import ReporteriaDashboard from './pages/Reportes/ReporteriaDashboard';
-import SystemParams from './pages/System/SystemParams';
-import GestionDPA from './pages/System/GestionDPA';
-import EmpresasManager from './pages/System/EmpresasManager';
-import ProjectsManager from './pages/System/ProjectsManager';
-import Users from './pages/Users/Users';
-import CartasTopograficas from './pages/Cartas/CartasTopograficas';
 import SidebarLayout from './components/Layout/SidebarLayout';
 import { AppProvider } from './context/AppContext';
-import ReportePlanimetrico from './pages/Reportes/ReportePlanimetrico';
-import ReporteLinderacion from './pages/Reportes/ReporteLinderacion';
 import ErrorBoundary from './components/ErrorBoundary';
 import { API_URL } from './services/api';
+
+// Code-splitting diferido de páginas para carga ultrarrápida y menor consumo de memoria
+const Geoportal = lazy(() => import('./pages/Geoportal/Geoportal'));
+const AnalyticsDashboard = lazy(() => import('./pages/Dashboard/AnalyticsDashboard'));
+const SystemLogs = lazy(() => import('./pages/System/SystemLogs'));
+const ReporteriaDashboard = lazy(() => import('./pages/Reportes/ReporteriaDashboard'));
+const SystemParams = lazy(() => import('./pages/System/SystemParams'));
+const GestionDPA = lazy(() => import('./pages/System/GestionDPA'));
+const EmpresasManager = lazy(() => import('./pages/System/EmpresasManager'));
+const ProjectsManager = lazy(() => import('./pages/System/ProjectsManager'));
+const Users = lazy(() => import('./pages/Users/Users'));
+const CartasTopograficas = lazy(() => import('./pages/Cartas/CartasTopograficas'));
+const ReportePlanimetrico = lazy(() => import('./pages/Reportes/ReportePlanimetrico'));
+const ReporteLinderacion = lazy(() => import('./pages/Reportes/ReporteLinderacion'));
 
 const reportErrorToBackend = async (errorMsg) => {
   try {
@@ -132,31 +134,56 @@ export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Login />} />
-          
-          {/* Rutas protegidas/envueltas en el Sidebar */}
-          <Route element={<SidebarLayout />}>
-            <Route path="/geoportal" element={<Geoportal />} />
-            <Route path="/dashboard" element={<AnalyticsDashboard />} />
-            <Route path="/predios" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
-            <Route path="/reporteria" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
-            <Route path="/cartas-topograficas" element={<CartasTopograficas />} />
-            <Route path="/usuarios" element={<Users />} />
-            <Route path="/localizacion/dpa" element={<GestionDPA />} />
-            <Route path="/sistema/parametros" element={<SystemParams />} />
-            <Route path="/sistema/logs" element={<SystemLogs />} />
-            <Route path="/empresas" element={<EmpresasManager />} />
-            <Route path="/proyectos" element={<ProjectsManager />} />
-          </Route>
-          
-          <Route path="/reporte/planimetrico/:id" element={<ProtectedRoute><ReportePlanimetrico /></ProtectedRoute>} />
-          <Route path="/reporte/planimetrico/codigo/:codigo" element={<ProtectedRoute><ReportePlanimetrico /></ProtectedRoute>} />
-          
-          <Route path="/reporte/linderacion/codigo/:codigo" element={<ProtectedRoute><ReporteLinderacion /></ProtectedRoute>} />
-          
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100vh',
+            width: '100vw',
+            background: 'var(--bg-main, #0f172a)',
+            color: 'var(--text-main, #ffffff)',
+            gap: '16px'
+          }}>
+            <div className="spin" style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              border: '3px solid rgba(56, 189, 248, 0.2)',
+              borderTopColor: 'var(--accent-color, #38bdf8)'
+            }} />
+            <span style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '0.5px' }}>
+              Cargando Sistema Catastral...
+            </span>
+          </div>
+        }>
+          <Routes>
+            <Route path="/" element={<Login />} />
+            
+            {/* Rutas protegidas/envueltas en el Sidebar */}
+            <Route element={<SidebarLayout />}>
+              <Route path="/geoportal" element={<Geoportal />} />
+              <Route path="/dashboard" element={<AnalyticsDashboard />} />
+              <Route path="/predios" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
+              <Route path="/reporteria" element={<ErrorBoundary><ReporteriaDashboard /></ErrorBoundary>} />
+              <Route path="/cartas-topograficas" element={<CartasTopograficas />} />
+              <Route path="/usuarios" element={<Users />} />
+              <Route path="/localizacion/dpa" element={<GestionDPA />} />
+              <Route path="/sistema/parametros" element={<SystemParams />} />
+              <Route path="/sistema/logs" element={<SystemLogs />} />
+              <Route path="/empresas" element={<EmpresasManager />} />
+              <Route path="/proyectos" element={<ProjectsManager />} />
+            </Route>
+            
+            <Route path="/reporte/planimetrico/:id" element={<ProtectedRoute><ReportePlanimetrico /></ProtectedRoute>} />
+            <Route path="/reporte/planimetrico/codigo/:codigo" element={<ProtectedRoute><ReportePlanimetrico /></ProtectedRoute>} />
+            
+            <Route path="/reporte/linderacion/codigo/:codigo" element={<ProtectedRoute><ReporteLinderacion /></ProtectedRoute>} />
+            
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AppProvider>
   );

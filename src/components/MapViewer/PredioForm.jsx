@@ -592,6 +592,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   if (!currParr) {
                     if (val === '50') currParr = 'CATARAMA';
                     else if (val === '51') currParr = 'RICAURTE';
+                    else if (val === '52') currParr = 'PIJULLO';
                   }
                   setFormData({ ...formData, cod_catastral: newCod, parroquia: currParr });
                   if (val.length === 2) document.getElementById('cc-3')?.focus();
@@ -696,13 +697,22 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                     } else if (norm.includes('ricaurte')) {
                       let curr = newCod.padEnd(19, ' ');
                       newCod = (curr.substring(0, 4) + '51' + curr.substring(6)).substring(0, 19);
+                    } else if (norm.includes('pijullo')) {
+                      let curr = newCod.padEnd(19, ' ');
+                      newCod = (curr.substring(0, 4) + '52' + curr.substring(6)).substring(0, 19);
                     }
                     setFormData({ ...formData, parroquia: val, cod_catastral: newCod });
                   }}
                   className="input-dynamic"
-                  placeholder="Escriba la parroquia (ej. CATARAMA, RICAURTE...)"
+                  list="parroquias-urdaneta-list"
+                  placeholder="Escriba la parroquia (CATARAMA, RICAURTE, PIJULLO...)"
                   style={{ width: '100%' }}
                 />
+                <datalist id="parroquias-urdaneta-list">
+                  <option value="CATARAMA" />
+                  <option value="RICAURTE" />
+                  <option value="PIJULLO" />
+                </datalist>
               </div>
 
               <div>

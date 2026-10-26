@@ -1,15 +1,46 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { 
   UploadCloud, CheckCircle2, AlertCircle, Loader2, X, Eye, 
-  ArrowRight, ArrowLeft, CheckSquare, Square, RefreshCw, Slash, AlertTriangle, Layers
+  ArrowRight, ArrowLeft, CheckSquare, Square, RefreshCw, Slash, AlertTriangle, Layers,
+  MapPin, Compass, Check
 } from 'lucide-react';
+import { MapContainer, TileLayer, Polygon, Tooltip, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { API_URL } from '../../services/api';
 import shp from 'shpjs';
 import { showSuccess } from '../../utils/swal';
 import { AppContext } from '../../context/AppContext';
 import './ShapefileUploader.css';
 
-export default function ShapefileUploader({ onClose, onSuccess, authToken, user, onAddTemporalLayer }) {
+// Helper para ajustar automáticamente el zoom del mapa a los polígonos
+function MapBoundsUpdater({ bounds }) {
+  const map = useMap();
+  useEffect(() => {
+    if (bounds && typeof bounds.isValid === 'function' && bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [25, 25], maxZoom: 16 });
+    }
+  }, [bounds, map]);
+  return null;
+}
+
+// Helper para convertir geometrías GeoJSON a coordenadas compatibles con Leaflet [lat, lng]
+const extractLeafletPositions = (geom) => {
+  if (!geom || !geom.coordinates) return [];
+  try {
+    if (geom.type === 'Polygon') {
+      return geom.coordinates.map(ring => ring.map(coord => [coord[1], coord[0]]));
+    } else if (geom.type === 'MultiPolygon') {
+      return geom.coordinates.map(polygon => 
+        polygon.map(ring => ring.map(coord => [coord[1], coord[0]]))
+      );
+    }
+  } catch (err) {
+    console.warn("Error extrayendo posiciones Leaflet:", err);
+  }
+  return [];
+};
+
+export default function ShapefileUploader({ onClose, onSuccess, authToken, user, onAddTemporalLayer, initialImportType = 'catastro_base' }) {
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
@@ -36,6 +67,11 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   const [isParsing, setIsParsing] = useState(false);
   const [parsedGeoJson, setParsedGeoJson] = useState(null);
 
+  // Límites visualizer state
+  const [limitePolygons, setLimitePolygons] = useState([]);
+  const [limiteAssignments, setLimiteAssignments] = useState({});
+  const [selectedPolyIdx, setSelectedPolyIdx] = useState(0);
+
   // Analysis & Conflict state
   const [analysisData, setAnalysisData] = useState(null);
   const [conflictActions, setConflictActions] = useState({}); // { [temp_id]: 'reemplazar' | 'omitir' }
@@ -43,8 +79,11 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   const [importProgress, setImportProgress] = useState({ percent: 0, current: 0, total: 0, message: '' });
 
   // Custom Layer state
-  const [importType, setImportType] = useState('catastro_base');
-  const [nombreCapa, setNombreCapa] = useState('');
+  const [importType, setImportType] = useState(initialImportType || 'catastro_base');
+  const [nombreCapa, setNombreCapa] = useState(
+    initialImportType === 'limite_cantonal' ? 'Límite Cantonal' :
+    initialImportType === 'limite_parroquial' ? 'Límite Parroquial' : ''
+  );
   
   // Historical Cadastre 4D
   const [fechaVigencia, setFechaVigencia] = useState('');
@@ -65,6 +104,35 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     }
   }, [isSuperAdmin, authToken]);
 
+  // Sincronizar asignaciones de DPA si el usuario cambia el tipo de límite
+  useEffect(() => {
+    if (limitePolygons && limitePolygons.length > 0) {
+      const updated = {};
+      limitePolygons.forEach((p, i) => {
+        if (importType === 'limite_cantonal') {
+          updated[i] = p.matchedDpa || '1206';
+        } else if (importType === 'limite_parroquial') {
+          updated[i] = p.matchedDpa || (i === 0 ? '120650' : i === 1 ? '120651' : i === 2 ? '120652' : '');
+        } else {
+          updated[i] = '';
+        }
+      });
+      setLimiteAssignments(updated);
+    }
+  }, [importType]);
+
+  const parsedMapBounds = useMemo(() => {
+    try {
+      if (parsedGeoJson) {
+        const b = L.geoJSON(parsedGeoJson).getBounds();
+        return b && typeof b.isValid === 'function' && b.isValid() ? b : null;
+      }
+    } catch (e) {
+      console.warn("Error calculando bounds:", e);
+    }
+    return null;
+  }, [parsedGeoJson]);
+
   const [isDragOverBox, setIsDragOverBox] = useState(false);
 
   const processSelectedFile = (selected) => {
@@ -79,6 +147,8 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       setRenames({});
       setIsParsing(true);
       setParsedGeoJson(null);
+      setLimitePolygons([]);
+      setLimiteAssignments({});
       setStep('config');
       setAnalysisData(null);
       
@@ -87,8 +157,11 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
         try {
           const buffer = evt.target.result;
           const geojson = await shp(buffer);
-          if (geojson && geojson.features && geojson.features.length > 0) {
-            const props = geojson.features[0].properties;
+          const normalizedGeoJson = Array.isArray(geojson) ? geojson[0] : geojson;
+          const rawFeatures = (normalizedGeoJson && normalizedGeoJson.features) ? normalizedGeoJson.features : [];
+
+          if (rawFeatures.length > 0) {
+            const props = rawFeatures[0].properties || {};
             const cols = Object.keys(props).map(key => ({
               original: key,
               sample: props[key]
@@ -130,7 +203,61 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                }
             });
             setMapping(newMap);
-            setParsedGeoJson(geojson);
+            setParsedGeoJson(normalizedGeoJson);
+
+            // Extraer lista de polígonos para el visualizador de límites
+            const detectedPolys = rawFeatures.map((feat, idx) => {
+              const fProps = feat.properties || {};
+              let detectedName = '';
+              let matchedDpa = '';
+
+              const strVals = Object.entries(fProps).map(([k, v]) => `${k}:${v}`).join(' ').toUpperCase();
+
+              if (strVals.includes('CATARAMA') || strVals.includes('120650')) {
+                detectedName = 'Catarama';
+                matchedDpa = '120650';
+              } else if (strVals.includes('RICAURTE') || strVals.includes('120651')) {
+                detectedName = 'Ricaurte';
+                matchedDpa = '120651';
+              } else if (strVals.includes('PIJULLO') || strVals.includes('120652')) {
+                detectedName = 'Pijullo';
+                matchedDpa = '120652';
+              } else if (strVals.includes('URDANETA') || strVals.includes('1206')) {
+                detectedName = 'Urdaneta';
+                matchedDpa = '1206';
+              }
+
+              if (!detectedName) {
+                const textEntry = Object.entries(fProps).find(([k, v]) => 
+                  typeof v === 'string' && v.trim().length > 1 && !/^\d+$/.test(v.trim())
+                );
+                detectedName = textEntry ? `${textEntry[1]}` : `Polígono ${idx + 1}`;
+              }
+
+              return {
+                index: idx,
+                feature: feat,
+                detectedName,
+                matchedDpa,
+                properties: fProps,
+                positions: extractLeafletPositions(feat.geometry)
+              };
+            });
+
+            setLimitePolygons(detectedPolys);
+
+            const initialAssign = {};
+            detectedPolys.forEach((p, i) => {
+              if (importType === 'limite_cantonal') {
+                initialAssign[i] = p.matchedDpa || '1206';
+              } else if (importType === 'limite_parroquial') {
+                initialAssign[i] = p.matchedDpa || (i === 0 ? '120650' : i === 1 ? '120651' : i === 2 ? '120652' : '');
+              } else {
+                initialAssign[i] = '';
+              }
+            });
+            setLimiteAssignments(initialAssign);
+            setSelectedPolyIdx(0);
           }
         } catch (err) {
           console.error("Error parsing SHP", err);
@@ -194,8 +321,8 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       return;
     }
 
-    // Caso Capa Adicional o CAD DXF: Subida directa sin resolución de predios
-    if (importType === 'capa_adicional' || file.name.toLowerCase().endsWith('.dxf')) {
+    // Caso Capa Adicional, Límites o CAD DXF: Subida directa sin resolución de predios
+    if (importType === 'capa_adicional' || importType === 'limite_cantonal' || importType === 'limite_parroquial' || file.name.toLowerCase().endsWith('.dxf')) {
       handleDirectUpload();
       return;
     }
@@ -369,6 +496,11 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     formData.append("import_type", importType);
     if (nombreCapa) formData.append("nombre_capa", nombreCapa);
     
+    // Inyectar asignaciones manuales del visualizador si aplican
+    if ((importType === 'limite_cantonal' || importType === 'limite_parroquial') && Object.keys(limiteAssignments).length > 0) {
+      formData.append("limite_assignments", JSON.stringify(limiteAssignments));
+    }
+
     const empId = isSuperAdmin ? selectedEmpresa : (user?.empresa_id || 0);
     let url = `${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}&renames=${encodeURIComponent(JSON.stringify(renames))}`;
     if (fechaVigencia) url += `&fecha_creacion=${fechaVigencia}T00:00:00`;
@@ -382,8 +514,12 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       });
       const data = await response.json();
       if (response.ok) {
-        showSuccess('Capa importada correctamente.');
-        setUploadStatus({ type: 'success', message: 'Importación completada con éxito.' });
+        const isLimits = importType === 'limite_cantonal' || importType === 'limite_parroquial';
+        const msg = isLimits 
+          ? `Límites territoriales (${importType === 'limite_cantonal' ? 'Cantonal' : 'Parroquial'}) guardados y vinculados a la DPA con éxito.`
+          : 'Capa importada correctamente.';
+        showSuccess(msg);
+        setUploadStatus({ type: 'success', message: msg });
         setStep('completed');
         if (onSuccess) onSuccess();
       } else {
@@ -451,7 +587,10 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     >
       <div 
         className="shapefile-uploader-modal"
-        style={{ maxWidth: step === 'resolution' ? '1100px' : '900px', transition: 'max-width 0.3s ease' }}
+        style={{ 
+          maxWidth: (step === 'resolution' || ((importType === 'limite_cantonal' || importType === 'limite_parroquial') && limitePolygons.length > 0)) ? '1180px' : '900px', 
+          transition: 'max-width 0.3s ease' 
+        }}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
       >
@@ -459,11 +598,16 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
 
         {/* HEADER */}
         <h2>
-          {step === 'resolution' ? 'Comparativa y Selección de Predios' : 'Importar Shapefile de Polígonos'}
+          {step === 'resolution' ? 'Comparativa y Selección de Predios' : 
+           ((importType === 'limite_cantonal' || importType === 'limite_parroquial') && limitePolygons.length > 0)
+            ? 'Previsualización y Asignación de Límites'
+            : 'Importar Shapefile de Polígonos'}
         </h2>
         <p className="subtitle">
           {step === 'resolution' 
             ? 'Revisa los predios que coinciden en el mismo polígono (conflictos) y selecciona qué predios nuevos deseas crear en la base de datos.'
+            : ((importType === 'limite_cantonal' || importType === 'limite_parroquial') && limitePolygons.length > 0)
+            ? 'Verifica los polígonos detectados en el mapa y selecciona a qué cantón o parroquia DPA corresponde cada uno antes de guardarlo.'
             : 'Sube un archivo .zip que contenga el shapefile (.shp, .shx, .dbf, .prj) para generar Predios, Posesionarios, Vértices y Linderos.'
           }
         </p>
@@ -490,11 +634,21 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
               <select 
                 className="input-dynamic" 
                 value={importType} 
-                onChange={(e) => setImportType(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setImportType(val);
+                  if (val === 'limite_cantonal' && (!nombreCapa || nombreCapa === 'Límite Parroquial' || nombreCapa === 'Capa Sin Nombre')) {
+                    setNombreCapa('Límite Cantonal');
+                  } else if (val === 'limite_parroquial' && (!nombreCapa || nombreCapa === 'Límite Cantonal' || nombreCapa === 'Capa Sin Nombre')) {
+                    setNombreCapa('Límite Parroquial');
+                  }
+                }}
                 style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
               >
                 <option value="catastro_base">Módulo Catastral Base (Predios, Linderos, Vértices)</option>
                 <option value="capa_adicional">Capa Adicional (Visualización genérica)</option>
+                <option value="limite_cantonal">Límite Cantonal (Límites)</option>
+                <option value="limite_parroquial">Límite Parroquial (Límites)</option>
               </select>
             </div>
 
@@ -546,17 +700,242 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
 
             {isParsing && <div style={{textAlign: 'center', margin: '20px 0'}}><Loader2 className="spin" size={24} /> Analizando Shapefile...</div>}
 
-            {importType === 'capa_adicional' && file && !isParsing && (
+            {(importType === 'capa_adicional' || importType === 'limite_cantonal' || importType === 'limite_parroquial') && file && !isParsing && (
               <div className="form-group" style={{marginBottom: '20px', background: 'var(--bg-lighter)', padding: '15px', borderRadius: '8px'}}>
                 <label style={{display: 'block', marginBottom: '8px', fontWeight: 'bold'}}>Nombre de la Capa:</label>
                 <input 
                   type="text" 
                   className="input-dynamic" 
-                  placeholder="Ej: Postes de Luz, Vías Principales..." 
+                  placeholder={
+                    importType === 'limite_cantonal' ? "Ej: Límite Cantonal Urdaneta" :
+                    importType === 'limite_parroquial' ? "Ej: Límites Parroquiales (Catarama / Ricaurte)" :
+                    "Ej: Postes de Luz, Vías Principales..."
+                  } 
                   value={nombreCapa}
                   onChange={(e) => setNombreCapa(e.target.value)}
                   style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
                 />
+              </div>
+            )}
+
+            {/* VISUALIZADOR INTERACTIVO Y ASIGNACIÓN MANUAL DE LÍMITES */}
+            {(importType === 'limite_cantonal' || importType === 'limite_parroquial') && file && !isParsing && parsedGeoJson && limitePolygons.length > 0 && (
+              <div className="limites-visualizer-container" style={{ marginBottom: '20px' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.25fr 1fr',
+                  gap: '16px',
+                  alignItems: 'stretch'
+                }}>
+                  {/* PANEL IZQUIERDO: MAPA LEAFLET */}
+                  <div style={{
+                    position: 'relative',
+                    borderRadius: '10px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--card-border)',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: '380px'
+                  }}>
+                    <div style={{
+                      background: 'var(--bg-panel)',
+                      padding: '10px 14px',
+                      fontSize: '0.85rem',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderBottom: '1px solid var(--card-border)'
+                    }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                        <Compass size={16} color="var(--primary)" />
+                        Mapa Interactivo de Polígonos
+                      </span>
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        padding: '2px 8px', 
+                        borderRadius: '10px', 
+                        background: 'rgba(37, 99, 235, 0.12)', 
+                        color: 'var(--primary)', 
+                        fontWeight: '600' 
+                      }}>
+                        {limitePolygons.length} polígono{limitePolygons.length > 1 ? 's' : ''} cargado{limitePolygons.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    <div style={{ flex: 1, minHeight: '340px', position: 'relative' }}>
+                      <MapContainer
+                        style={{ width: '100%', height: '100%', minHeight: '340px' }}
+                        zoom={11}
+                        center={[-1.58, -79.48]}
+                        scrollWheelZoom={true}
+                      >
+                        <TileLayer
+                          attribution='&copy; OpenStreetMap'
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        {parsedMapBounds && <MapBoundsUpdater bounds={parsedMapBounds} />}
+                        {limitePolygons.map((poly, idx) => {
+                          const isSelected = selectedPolyIdx === idx;
+                          const assignedCode = limiteAssignments[idx];
+
+                          let fillColor = '#06b6d4';
+                          if (importType === 'limite_cantonal') {
+                            fillColor = '#ef4444';
+                          } else if (assignedCode === '120650') {
+                            fillColor = '#06b6d4'; // Catarama (Cyan)
+                          } else if (assignedCode === '120651') {
+                            fillColor = '#10b981'; // Ricaurte (Verde)
+                          } else if (assignedCode === '120652') {
+                            fillColor = '#8b5cf6'; // Pijullo (Violeta)
+                          } else {
+                            fillColor = '#64748b'; // Sin asignar (Gris)
+                          }
+
+                          return (
+                            <Polygon
+                              key={`lim_poly_${idx}_${assignedCode}_${isSelected}`}
+                              positions={poly.positions}
+                              pathOptions={{
+                                color: isSelected ? '#f59e0b' : fillColor,
+                                weight: isSelected ? 4 : 2,
+                                fillColor: fillColor,
+                                fillOpacity: isSelected ? 0.65 : 0.35
+                              }}
+                              eventHandlers={{
+                                click: () => setSelectedPolyIdx(idx)
+                              }}
+                            >
+                              <Tooltip sticky>
+                                <div style={{ fontSize: '0.85rem', lineHeight: '1.4' }}>
+                                  <strong style={{ color: '#0f172a' }}>Polígono #{idx + 1}: {poly.detectedName}</strong>
+                                  <br />
+                                  <span style={{ color: '#334155' }}>
+                                    Asignado: {
+                                      assignedCode === '120650' ? 'Catarama (120650)' :
+                                      assignedCode === '120651' ? 'Ricaurte (120651)' :
+                                      assignedCode === '120652' ? 'Pijullo (120652)' :
+                                      assignedCode === '1206' ? 'Cantón Urdaneta (1206)' :
+                                      'Sin asignar'
+                                    }
+                                  </span>
+                                </div>
+                              </Tooltip>
+                            </Polygon>
+                          );
+                        })}
+                      </MapContainer>
+                    </div>
+                  </div>
+
+                  {/* PANEL DERECHO: ASIGNACIÓN MANUAL Y PROPIEDADES */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    maxHeight: '410px',
+                    border: '1px solid var(--card-border)',
+                    borderRadius: '10px',
+                    background: 'var(--bg-lighter)',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      padding: '10px 14px',
+                      background: 'var(--bg-panel)',
+                      borderBottom: '1px solid var(--card-border)',
+                      fontWeight: 'bold',
+                      fontSize: '0.88rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <span>Asignación DPA por Polígono</span>
+                      <small style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                        Click en fila para resaltar en mapa
+                      </small>
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {limitePolygons.map((poly, idx) => {
+                        const isSelected = selectedPolyIdx === idx;
+                        const assignedCode = limiteAssignments[idx] || '';
+
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => setSelectedPolyIdx(idx)}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: isSelected ? '2px solid var(--primary)' : '1px solid var(--card-border)',
+                              background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'var(--card-bg)',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '0.88rem', color: isSelected ? 'var(--primary)' : 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <MapPin size={15} color={isSelected ? 'var(--primary)' : 'var(--text-muted)'} />
+                                Polígono #{idx + 1}
+                              </span>
+                              <span style={{
+                                fontSize: '0.72rem',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                background: poly.matchedDpa ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)',
+                                color: poly.matchedDpa ? '#10b981' : '#64748b',
+                                fontWeight: '600'
+                              }}>
+                                {poly.matchedDpa ? 'Detectado en DBF' : 'Asignación manual'}
+                              </span>
+                            </div>
+
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                              Atributo en archivo: <strong style={{ color: 'var(--text-main)' }}>{poly.detectedName}</strong>
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '3px', color: 'var(--text-muted)' }}>
+                                {importType === 'limite_cantonal' ? 'Cantón Oficial (DPA):' : 'Parroquia Oficial (DPA):'}
+                              </label>
+                              {importType === 'limite_cantonal' ? (
+                                <select
+                                  value={assignedCode}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    setLimiteAssignments(prev => ({ ...prev, [idx]: e.target.value }));
+                                  }}
+                                  className="input-dynamic"
+                                  style={{ width: '100%', padding: '6px 8px', fontSize: '0.82rem', borderRadius: '4px' }}
+                                >
+                                  <option value="1206">🏛️ 1206 - Urdaneta (Los Ríos)</option>
+                                  <option value="">-- Sin asignar a DPA (Solo Capa Visual) --</option>
+                                </select>
+                              ) : (
+                                <select
+                                  value={assignedCode}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    setLimiteAssignments(prev => ({ ...prev, [idx]: e.target.value }));
+                                  }}
+                                  className="input-dynamic"
+                                  style={{ width: '100%', padding: '6px 8px', fontSize: '0.82rem', borderRadius: '4px' }}
+                                >
+                                  <option value="120650">📍 120650 - Catarama (Cabecera Cantonal)</option>
+                                  <option value="120651">📍 120651 - Ricaurte (Parroquia Rural)</option>
+                                  <option value="120652">📍 120652 - Pijullo (Parroquia Rural)</option>
+                                  <option value="">-- Sin asignar a DPA (Solo Capa Visual) --</option>
+                                </select>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1061,9 +1440,26 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                 className="btn-dynamic" 
                 onClick={handleStartAnalysis} 
                 disabled={!file || isUploading || isParsing} 
-                style={{padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px'}}
+                style={{
+                  padding: '10px 22px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  background: (importType === 'limite_cantonal' || importType === 'limite_parroquial') 
+                    ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' 
+                    : undefined,
+                  boxShadow: (importType === 'limite_cantonal' || importType === 'limite_parroquial') 
+                    ? '0 4px 14px rgba(16, 185, 129, 0.35)' 
+                    : undefined
+                }}
               >
-                {isUploading ? <><Loader2 size={16} className="spin" /> Analizando...</> : <>Continuar <ArrowRight size={16} /></>}
+                {isUploading ? (
+                  <><Loader2 size={16} className="spin" /> Guardando en Base de Datos...</>
+                ) : (importType === 'limite_cantonal' || importType === 'limite_parroquial') ? (
+                  <><Check size={18} /> Confirmar y Guardar Límites en BD</>
+                ) : (
+                  <>Continuar <ArrowRight size={16} /></>
+                )}
               </button>
             )}
 
