@@ -5,6 +5,16 @@ export const AppContext = createContext();
 export const AppProvider = ({ children }) => {
   const [activeEmpresa, setActiveEmpresa] = useState(null);
   const [activeProyecto, setActiveProyecto] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('catastro_user');
+      if (savedUser) return JSON.parse(savedUser);
+      const role = localStorage.getItem('catastro_role');
+      const username = localStorage.getItem('catastro_username');
+      if (role || username) return { role, rol: role, username };
+    } catch (e) {}
+    return null;
+  });
   
   useEffect(() => {
     const savedEmpresa = localStorage.getItem('catastro_active_empresa');
@@ -37,7 +47,7 @@ export const AppProvider = ({ children }) => {
   };
 
   return (
-    <AppContext.Provider value={{ activeEmpresa, setGlobalEmpresa, activeProyecto, setGlobalProyecto }}>
+    <AppContext.Provider value={{ activeEmpresa, setGlobalEmpresa, activeProyecto, setGlobalProyecto, user, setUser }}>
       {children}
     </AppContext.Provider>
   );

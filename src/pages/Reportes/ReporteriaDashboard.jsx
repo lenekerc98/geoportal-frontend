@@ -31,8 +31,8 @@ const ReporteriaDashboard = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem('catastro_token');
   const { activeEmpresa, activeProyecto, user } = useContext(AppContext);
-  const userRole = user?.role || user?.rol?.nombre || user?.rol || '';
-  const isSuperAdmin = ['superadmin', 'superadministrador', 'admin'].includes(String(userRole).toLowerCase());
+  const userRole = user?.role || user?.rol?.nombre || user?.rol || localStorage.getItem('catastro_role') || '';
+  const isSuperAdmin = ['superadmin', 'superadministrador', 'admin', 'administrador'].includes(String(userRole).toLowerCase());
   const [isStrictSuperAdmin, setIsStrictSuperAdmin] = useState(false);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [data, setData] = useState([]);

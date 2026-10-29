@@ -169,6 +169,7 @@ export default function CadUploaderModal({ onClose, onSuccess, authToken }) {
       };
 
       xhr.open('POST', `${API_URL}/api/gis/import-dxf`, true);
+      xhr.setRequestHeader('X-Database-Env', localStorage.getItem('catastro_db_env') || 'prod');
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       }

@@ -40,7 +40,8 @@ export default function ProyectosManager() {
       map_lat: p.map_lat,
       map_lng: p.map_lng,
       map_zoom: p.map_zoom,
-      map_basemap: p.map_basemap
+      map_basemap: p.map_basemap,
+      empresas_ids: Array.isArray(p.empresas_ids) && p.empresas_ids.length > 0 ? p.empresas_ids : [activeEmpresa.id]
     });
   };
 
@@ -52,7 +53,8 @@ export default function ProyectosManager() {
       map_lat: -1.5833,
       map_lng: -79.4667,
       map_zoom: 14,
-      map_basemap: 'osm'
+      map_basemap: 'osm',
+      empresas_ids: [activeEmpresa.id]
     });
   };
 
@@ -63,9 +65,12 @@ export default function ProyectosManager() {
       const token = localStorage.getItem('catastro_token');
       const method = editingId === 'new' ? 'POST' : 'PUT';
       const url = editingId === 'new' ? `${API_URL}/api/proyectos` : `${API_URL}/api/proyectos/${editingId}`;
+      const existingEmpresas = Array.isArray(formData.empresas_ids) && formData.empresas_ids.length > 0
+        ? Array.from(new Set([...formData.empresas_ids, activeEmpresa.id]))
+        : [activeEmpresa.id];
       const payload = {
           ...formData,
-          empresas_ids: [activeEmpresa.id]
+          empresas_ids: editingId === 'new' ? [activeEmpresa.id] : existingEmpresas
       };
 
       const res = await fetch(url, {

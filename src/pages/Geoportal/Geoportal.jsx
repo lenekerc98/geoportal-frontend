@@ -24,6 +24,7 @@ import ShapefileUploader from '../../components/MapViewer/ShapefileUploader';
 import SplitPolygonTool from '../../components/MapViewer/SplitPolygonTool';
 import SplitPredioModal from '../../components/MapViewer/SplitPredioModal';
 import { detectarUbicacionCliente } from '../../utils/geoDetection';
+import { buildTransientPredioReportData } from '../../utils/geometryUtils';
 
 const getGeometryIcon = (tipo) => {
   if (!tipo) return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
@@ -358,7 +359,11 @@ const getFeatureDisplayName = (f, i = 0) => {
 
   // 2. Nombres explícitos de Parroquia o Cantón
   if (p.nombre && p.codigo_dpa) return `${p.nombre} (${p.codigo_dpa})`;
-  if (p.nombre) return p.nombre;
+  if (p.nombre && String(p.nombre).trim()) return String(p.nombre).trim();
+  const fullNom = [p.nombres, p.apellidos].filter(Boolean).map(v => String(v).trim()).join(' ').trim();
+  if (fullNom) return fullNom;
+  if (p.nombre_posesionario) return p.nombre_posesionario;
+  if (p.propietario) return p.propietario;
   if (p.parroquia && p.codigo_dpa) return `${p.parroquia} (${p.codigo_dpa})`;
   if (p.parroquia) return p.parroquia;
   if (p.canton && p.codigo_dpa) return `${p.canton} (${p.codigo_dpa})`;
@@ -368,7 +373,12 @@ const getFeatureDisplayName = (f, i = 0) => {
   if (p.name) return p.name;
   if (p.etiqueta) return p.etiqueta;
   if (p.cod_catastral) return p.cod_catastral;
+  if (p.cod_cat) return p.cod_cat;
   if (p.codigo) return p.codigo;
+  if (p.recinto) {
+    const mzPred = [p.num_manz ? `Mz ${p.num_manz}` : '', p.num_predio ? `Lote ${p.num_predio}` : ''].filter(Boolean).join(' ');
+    return mzPred ? `${p.recinto} (${mzPred})` : p.recinto;
+  }
 
   return `Elemento ${i + 1}`;
 };
@@ -1668,6 +1678,33 @@ export default function Geoportal() {
     });
   };
 
+  const handlePrintTransientLayerOrFeature = (featuresArray, targetIndex = 0, layerName = 'Capa Adicional', batchAll = false) => {
+    const rawList = Array.isArray(featuresArray) ? featuresArray : (featuresArray ? [featuresArray] : []);
+    const builtList = rawList
+      .map((f, idx) => buildTransientPredioReportData(f, {}, idx, layerName))
+      .filter(Boolean);
+
+    if (builtList.length === 0) {
+      showError('El elemento o capa seleccionada no contiene polígonos válidos para imprimir.');
+      return;
+    }
+
+    const safeIdx = Math.min(Math.max(0, targetIndex), builtList.length - 1);
+    try {
+      sessionStorage.setItem('catastro_transient_batch_list', JSON.stringify(builtList));
+      sessionStorage.setItem('catastro_transient_print', JSON.stringify(builtList[safeIdx]));
+    } catch (e) {
+      sessionStorage.removeItem('catastro_transient_batch_list');
+      sessionStorage.setItem('catastro_transient_print', JSON.stringify(builtList[safeIdx]));
+    }
+
+    if (batchAll && builtList.length > 1) {
+      navigate(`/reporte/planimetrico/codigo/TEMP_PRINT_0?batch=true&from=1&to=${builtList.length}`);
+    } else {
+      navigate(`/reporte/planimetrico/codigo/TEMP_PRINT_${safeIdx}`);
+    }
+  };
+
   // Exportar ÚNICAMENTE el elemento seleccionado al Asistente Atlas (1 de 1)
   const handleExportSingleFeatureToAtlas = (feature, index = 0, layerName = '') => {
     if (!feature || !feature.geometry) {
@@ -1919,7 +1956,7 @@ export default function Geoportal() {
 
   const { activeEmpresa, activeProyecto } = useContext(AppContext);
 
-  const fetchMapData = async () => {
+  const fetchMapData = async (isBackground = false) => {
     let url = `${API_URL}/api/gis/predios`;
     const params = new URLSearchParams();
     if (fechaInicio) params.append('fecha_inicio', fechaInicio + ' 00:00:00');
@@ -1932,7 +1969,7 @@ export default function Geoportal() {
       url += `?${params.toString()}`;
     }
 
-    setLoadingPredios(true);
+    if (!isBackground) setLoadingPredios(true);
     try {
       const prediosRes = await fetch(url, {
         headers: { 'Authorization': `Bearer ${authToken}` }
@@ -1947,25 +1984,36 @@ export default function Geoportal() {
 
         const apiFeatures = Array.isArray(prediosGeoJSON.features) ? prediosGeoJSON.features : [];
         prediosGeoJSON.features = [...apiFeatures, ...offlineFeatures];
-        prediosGeoJSON._key = Date.now();
-        setPrediosData(prediosGeoJSON);
+        setPrediosData(prev => {
+          if (isBackground && prev && Array.isArray(prev.features) && prev.features.length === prediosGeoJSON.features.length) {
+            const prevSig = prev.features.map(f => `${f.properties?.id || ''}:${f.properties?.cod_catastral || ''}:${f.properties?.area_ha || ''}:${f.properties?.nombre_posesionario || ''}`).join('|');
+            const nextSig = prediosGeoJSON.features.map(f => `${f.properties?.id || ''}:${f.properties?.cod_catastral || ''}:${f.properties?.area_ha || ''}:${f.properties?.nombre_posesionario || ''}`).join('|');
+            if (prevSig === nextSig) {
+              return prev;
+            }
+          }
+          prediosGeoJSON._key = Date.now();
+          return prediosGeoJSON;
+        });
       } else {
         console.error("Error fetching predios:", await prediosRes.text());
-        setPrediosData({ type: "FeatureCollection", features: [] });
+        if (!isBackground) setPrediosData({ type: "FeatureCollection", features: [] });
       }
     } catch (err) {
       console.error("Network error fetching predios:", err);
       // Si hay error de red, cargar al menos los offline
-      try {
-        const offlinePredios = await getOfflinePredios();
-        setOfflineCount(offlinePredios.length);
-        const offlineFeatures = offlinePredios.map(mapOfflineFeature);
-        setPrediosData({ type: "FeatureCollection", features: offlineFeatures, _key: Date.now() });
-      } catch (e) {
-        setPrediosData({ type: "FeatureCollection", features: [] });
+      if (!isBackground) {
+        try {
+          const offlinePredios = await getOfflinePredios();
+          setOfflineCount(offlinePredios.length);
+          const offlineFeatures = offlinePredios.map(mapOfflineFeature);
+          setPrediosData({ type: "FeatureCollection", features: offlineFeatures, _key: Date.now() });
+        } catch (e) {
+          setPrediosData({ type: "FeatureCollection", features: [] });
+        }
       }
     } finally {
-      setLoadingPredios(false);
+      if (!isBackground) setLoadingPredios(false);
     }
   };
 
@@ -1981,7 +2029,7 @@ export default function Geoportal() {
     if (!authToken || !showPredios) return;
     const intervalId = setInterval(() => {
       if (!isDrawingPredio && !editingPredio) {
-        fetchMapData();
+        fetchMapData(true);
       }
     }, 15000);
     return () => clearInterval(intervalId);
@@ -3139,7 +3187,7 @@ export default function Geoportal() {
   ]);
 
 
-  const capasGenericas = capasAdicionales.filter(c => !c.tipo_capa || c.tipo_capa === 'adicional');
+  const capasGenericas = capasAdicionales.filter(c => !c.tipo_capa || c.tipo_capa === 'adicional' || c.tipo_capa === 'capa_adicional');
   const capasCantonales = capasAdicionales.filter(c => c.tipo_capa === 'limite_cantonal');
   const capasParroquiales = capasAdicionales.filter(c => c.tipo_capa === 'limite_parroquial');
 
@@ -3971,6 +4019,23 @@ export default function Geoportal() {
                   >
                     <Sparkles size={16} color="var(--accent-color)" /> Abrir en Asistente Atlas
                   </div>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const capa = sidebarContextMenu.capaObj;
+                      setSidebarContextMenu(null);
+                      if (capa && capa.geojson && capa.geojson.features && capa.geojson.features.length > 0) {
+                        handlePrintTransientLayerOrFeature(capa.geojson.features, 0, capa.name || 'Capa Temporal', false);
+                      } else {
+                        showError('No se encontraron polígonos en esta capa temporal.');
+                      }
+                    }}
+                    style={{ padding: '9px 15px', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '600' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <FileText size={16} color="#8b5cf6" /> Imprimir Planimetría (Sin BD)
+                  </div>
                   <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
                   <div
                     onClick={async (e) => {
@@ -4047,6 +4112,36 @@ export default function Geoportal() {
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       >
                         <Sparkles size={16} color="var(--accent-color)" /> Exportar capa a Base de Datos
+                      </div>
+                      <div
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const tabla = sidebarContextMenu.layerType;
+                          const capaObj = capasAdicionales.find(c => c.tabla_db === tabla);
+                          setSidebarContextMenu(null);
+                          let geojsonData = geoJsonCacheAdicionales[tabla];
+                          if (!geojsonData) {
+                            try {
+                              const res = await fetch(`${API_URL}/api/gis/capa-adicional/${tabla}`, {
+                                headers: { 'Authorization': `Bearer ${authToken}` }
+                              });
+                              if (res.ok) {
+                                geojsonData = await res.json();
+                                setGeoJsonCacheAdicionales(prev => ({ ...prev, [tabla]: geojsonData }));
+                              }
+                            } catch (err) { }
+                          }
+                          if (geojsonData?.features?.length > 0) {
+                            handlePrintTransientLayerOrFeature(geojsonData.features, 0, capaObj?.nombre_capa || tabla, false);
+                          } else {
+                            showError('No se encontraron polígonos válidos en esta capa.');
+                          }
+                        }}
+                        style={{ padding: '9px 15px', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '600' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <FileText size={16} color="#8b5cf6" /> Imprimir Planimetría (Sin subir a Catastro)
                       </div>
 
                       <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
@@ -4199,8 +4294,28 @@ export default function Geoportal() {
                 setHiddenFeatureIds(prev => prev.includes(featId) ? prev.filter(x => x !== featId) : [...prev, featId]);
               }
             } else if (action === 'report_linderacion') {
-              const cod = feature.properties?.cod_catastral || feature.properties?.codigo || feature.properties?.codigo_dpa || feature.properties?.id;
-              setReporteLinderacionCode(cod);
+              const isGenericOrTemp = featureContextMenu?.type === 'generico' || Boolean(featureContextMenu?.temporalLayerId);
+              const cod = feature.properties?.cod_catastral || feature.properties?.codigo;
+              const existsInPredios = cod && (prediosData?.features || []).some(f => (f.properties?.cod_catastral || f.properties?.codigo) === cod);
+
+              if (isGenericOrTemp || !existsInPredios) {
+                let allLayerFeatures = [feature];
+                let targetIdx = 0;
+                const lName = featureContextMenu?.layerName || 'Capa Adicional';
+                if (featureContextMenu?.temporalLayerId) {
+                  const tCapa = temporalLayers.find(c => c.id === featureContextMenu.temporalLayerId);
+                  if (tCapa?.geojson?.features?.length > 0) {
+                    allLayerFeatures = tCapa.geojson.features;
+                    targetIdx = featureContextMenu.featureIndex || 0;
+                  }
+                } else if (featureContextMenu?.layerType && geoJsonCacheAdicionales[featureContextMenu.layerType]?.features?.length > 0) {
+                  allLayerFeatures = geoJsonCacheAdicionales[featureContextMenu.layerType].features;
+                  targetIdx = featureContextMenu.featureIndex || 0;
+                }
+                handlePrintTransientLayerOrFeature(allLayerFeatures, targetIdx, lName, false);
+              } else {
+                setReporteLinderacionCode(cod || feature.properties?.id);
+              }
             } else if (action === 'export') {
               proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
               const featProps = feature.properties || {};
@@ -6575,6 +6690,13 @@ export default function Geoportal() {
           authToken={authToken}
           user={currentUser}
           onAddTemporalLayer={handleAddTemporalLayer}
+          onOpenAtlasWithoutDB={(geojson, layerTitle) => {
+            setAtlasInitialIndex(0);
+            setAtlasFileName(layerTitle || 'Capa Temporal');
+            setImportedShapes(geojson);
+            setShowImportedShapes(true);
+            setShowAtlasModal(true);
+          }}
           onSuccess={() => {
             setShowShapefileUploader(false);
             setPrediosData(null);

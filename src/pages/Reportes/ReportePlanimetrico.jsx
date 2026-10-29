@@ -465,6 +465,25 @@ export default function ReportePlanimetrico() {
   }, []);
 
   useEffect(() => {
+    const effectiveCod = codigo || id || '';
+    if (String(effectiveCod).startsWith('TEMP_PRINT')) {
+      try {
+        const rawList = sessionStorage.getItem('catastro_transient_batch_list');
+        if (rawList) {
+          const parsedList = JSON.parse(rawList);
+          if (Array.isArray(parsedList) && parsedList.length > 0) {
+            setAllPredios(parsedList.map((item, idx) => ({
+              id: `TEMP_PRINT_${idx}`,
+              codigo: `TEMP_PRINT_${idx}`,
+              labelCodigo: item.predio?.cod_catastral || `CAPA-${idx + 1}`,
+              nombre_posesionario: item.predio?.nombre_posesionario || `Polígono #${idx + 1}`
+            })));
+            return;
+          }
+        }
+      } catch (e) { }
+    }
+
     const fetchAllPredios = async () => {
       try {
         const token = searchParams.get('token') || localStorage.getItem('catastro_token');
@@ -484,7 +503,7 @@ export default function ReportePlanimetrico() {
       } catch (e) { }
     };
     fetchAllPredios();
-  }, [activeEmpresa, activeProyecto]);
+  }, [activeEmpresa, activeProyecto, codigo, id]);
 
   useEffect(() => {
     fetchReportData();
@@ -501,6 +520,38 @@ export default function ReportePlanimetrico() {
       const effectiveCodigo = codigo || (isAlphanumericCode ? id : null);
 
       if (effectiveCodigo) {
+        if (String(effectiveCodigo).startsWith('TEMP_PRINT')) {
+          try {
+            let transientData = null;
+            const idxMatch = String(effectiveCodigo).match(/TEMP_PRINT_(\d+)/);
+            const targetIdx = idxMatch ? parseInt(idxMatch[1], 10) : 0;
+            const rawBatch = sessionStorage.getItem('catastro_transient_batch_list');
+            if (rawBatch) {
+              const parsedBatch = JSON.parse(rawBatch);
+              if (Array.isArray(parsedBatch) && parsedBatch[targetIdx]) {
+                transientData = parsedBatch[targetIdx];
+              }
+            }
+            if (!transientData) {
+              const rawSingle = sessionStorage.getItem('catastro_transient_print');
+              if (rawSingle) {
+                transientData = JSON.parse(rawSingle);
+              }
+            }
+            if (transientData && transientData.predio) {
+              setData(transientData);
+              setCodigoCarta(transientData.predio.codigo_carta || '');
+              setNombreCarta(transientData.predio.nombre_carta || '');
+              setNombreCuadricula(transientData.predio.cuadricula_carta || 'ZONA 17S');
+              setSectorCarta(transientData.predio.sector || '');
+              setParroquiaCarta(transientData.predio.parroquia || '');
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error('Error leyendo datos de impresión efímera:', err);
+          }
+        }
         if (effectiveCodigo.startsWith('offline_')) {
           const localData = await getOfflinePredioById(effectiveCodigo);
           if (localData) {
@@ -633,6 +684,22 @@ export default function ReportePlanimetrico() {
   }, [nombreCuadricula, selectedCadFile, cartasCatalog, cadArchivosList]);
 
   const handleSaveCartaToDB = async () => {
+    if (predio?.isTransient) {
+      setData(prev => prev ? {
+        ...prev,
+        predio: {
+          ...prev.predio,
+          codigo_carta: codigoCarta,
+          nombre_carta: nombreCarta,
+          cuadricula_carta: nombreCuadricula,
+          sector: sectorCarta,
+          parroquia: parroquiaCarta
+        }
+      } : prev);
+      showSuccess('Datos de Carta Topográfica, Sector y Parroquia aplicados a la lámina (Modo sin BD)');
+      setShowTextModal(false);
+      return;
+    }
     const targetIdOrCod = predio?.id || predio?.cod_catastral || codigo || id;
     if (!targetIdOrCod) {
       showError('No se encontró el identificador del predio para guardar');
@@ -803,12 +870,11 @@ export default function ReportePlanimetrico() {
   }, [predio, centerInfo?.mainAngle]);
 
   const handleSaveAngle = async () => {
-    if (!predio?.id && !predio?.offline_id) return;
-    if (predio?.offline_id) {
-      // Cannot save angle to API if it's offline
-      showSuccess('Ángulo actualizado solo en vista (predio offline)');
+    if (predio?.isTransient || predio?.offline_id) {
+      showSuccess('Ángulo actualizado en la lámina (Modo sin BD)');
       return;
     }
+    if (!predio?.id) return;
     try {
       const token = localStorage.getItem('catastro_token');
       const res = await fetch(`${API_URL}/api/gis/predios/${predio.id}/angulo`, {
@@ -863,17 +929,37 @@ export default function ReportePlanimetrico() {
       let loadedCount = 0;
 
       // Carga concurrente en grupos de 8 para máxima velocidad sin saturar
+      const isTransientBatch = String(codigo || id || '').startsWith('TEMP_PRINT');
+      let transientBatchItems = [];
+      if (isTransientBatch) {
+        try {
+          transientBatchItems = JSON.parse(sessionStorage.getItem('catastro_transient_batch_list') || '[]');
+        } catch (e) { }
+      }
+
       const concurrency = 8;
       for (let i = 0; i < targetList.length; i += concurrency) {
         const chunk = targetList.slice(i, i + concurrency);
         await Promise.all(chunk.map(async (item, chunkIdx) => {
           const globalIdx = i + chunkIdx;
           try {
-            const res = await fetch(`${API_URL}/api/gis/predios/detalle/${encodeURIComponent(item.codigo)}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-              const json = await res.json();
+            let json = null;
+            if (isTransientBatch) {
+              const rawIdx = parseInt(String(item.codigo || '').replace('TEMP_PRINT_', ''), 10);
+              const memItem = transientBatchItems[!isNaN(rawIdx) ? rawIdx : (fromIdx - 1 + globalIdx)];
+              if (memItem) {
+                json = JSON.parse(JSON.stringify(memItem));
+              }
+            } else {
+              const res = await fetch(`${API_URL}/api/gis/predios/detalle/${encodeURIComponent(item.codigo)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (res.ok) {
+                json = await res.json();
+              }
+            }
+
+            if (json) {
               // Determinar archivo CAD para este predio específico
               let targetCadFile = selectedCadFile;
               if (json.predio?.nombre_carta || json.predio?.codigo_carta) {
@@ -913,7 +999,7 @@ export default function ReportePlanimetrico() {
             setBatchProgress({
               current: loadedCount,
               total: targetList.length,
-              message: `Cargando Lote ${calcLoteNum} (${loadedCount} de ${targetList.length}): ${item.codigo || item.nombre_posesionario || ''}`
+              message: `Cargando Lote ${calcLoteNum} (${loadedCount} de ${targetList.length}): ${item.labelCodigo || item.codigo || item.nombre_posesionario || ''}`
             });
           }
         }));
@@ -985,12 +1071,12 @@ export default function ReportePlanimetrico() {
           </button>
           <select
             className="rh-select-predio"
-            value={codigo || predio?.codigo || ''}
+            value={codigo || predio?.id || predio?.codigo || ''}
             onChange={(e) => navigate(`/reporte/planimetrico/codigo/${e.target.value}`)}
           >
             {allPredios.map(p => (
               <option key={p.codigo} value={p.codigo}>
-                {p.codigo} - {p.nombre_posesionario || 'SIN NOMBRE'}
+                {p.labelCodigo || p.codigo} - {p.nombre_posesionario || 'SIN NOMBRE'}
               </option>
             ))}
           </select>

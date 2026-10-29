@@ -7,6 +7,7 @@ import { API_URL } from '../../services/api';
 import * as XLSX from 'xlsx';
 import proj4 from 'proj4';
 import { detectarUbicacionCliente } from '../../utils/geoDetection';
+import { validateVerticesWithinUrdaneta, showOutsideUrdanetaAlert, isPointInsideUrdaneta } from '../../utils/cantonValidation';
 
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
@@ -406,6 +407,11 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         const xStr = utm[0].toFixed(2);
         const yStr = utm[1].toFixed(2);
         
+        if (!isPointInsideUrdaneta({ x: utm[0], y: utm[1], lat: latitude, lng: longitude })) {
+          alert(`⚠️ Alerta: El punto GPS capturado (X=${xStr}, Y=${yStr}) se encuentra fuera de los límites territoriales del cantón Urdaneta.`);
+          return;
+        }
+
         const current = formData.geom_geojson ? formData.geom_geojson.trim() : '';
         const newLine = `${xStr} ${yStr}`;
         const updated = current ? `${current}\n${newLine}` : newLine;
@@ -433,6 +439,11 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         const utmX = utm[0];
         const utmY = utm[1];
         
+        if (!isPointInsideUrdaneta({ x: utmX, y: utmY, lat: latitude, lng: longitude })) {
+          alert("⚠️ Alerta: Tu ubicación GPS actual se encuentra fuera de los límites territoriales de Urdaneta.");
+          return;
+        }
+
         // P01: NO, P02: NE, P03: SE, P04: SO, P01: Cierre
         const coords = [
           [utmX - half, utmY + half],
@@ -460,6 +471,11 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     const finalCod = formData.cod_catastral.replace(/\s/g, '');
     if (finalCod.length !== 19) {
       alert('La Clave Catastral debe tener exactamente 19 dígitos.');
+      return;
+    }
+
+    if (finalCod.includes('999999') || finalCod.endsWith('9999999999999') || finalCod.startsWith('1206509999') || finalCod.startsWith('1206519999') || finalCod.startsWith('1206529999')) {
+      alert(`⚠️ Alerta: El predio con clave ${finalCod} se encuentra fuera del rango territorial o zona catastral válida. No se permite registrar esta clave ficticia.`);
       return;
     }
 
@@ -548,6 +564,20 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
           if (coords.length < 3) {
             alert('Se necesitan al menos 3 coordenadas para formar un polígono.');
+            return;
+          }
+
+          // Validar que todas las coordenadas pertenezcan al cantón Urdaneta
+          const valUrdaneta = validateVerticesWithinUrdaneta(coords.map((c, i) => ({
+            x: isUtmCoords ? c[0] : null,
+            y: isUtmCoords ? c[1] : null,
+            lng: !isUtmCoords ? c[0] : null,
+            lat: !isUtmCoords ? c[1] : null,
+            codigo: `P${String(i + 1).padStart(2, '0')}`
+          })));
+
+          if (!valUrdaneta.isValid) {
+            showOutsideUrdanetaAlert(valUrdaneta, '⚠️ Coordenadas Fuera del Cantón Urdaneta');
             return;
           }
 

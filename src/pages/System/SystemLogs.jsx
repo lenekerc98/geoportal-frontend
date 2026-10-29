@@ -119,14 +119,14 @@ export default function SystemLogs() {
                   <td className="log-email">
                     {log.correo_enviado === true ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                        <MailCheck size={14} /> Enviado
+                        <MailCheck size={14} /> Alerta enviada
                       </span>
-                    ) : log.correo_enviado === false ? (
+                    ) : (log.correo_enviado === false && ['ERROR', 'CRITICAL'].includes(log.tipo?.toUpperCase())) ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#ef4444', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                        <MailX size={14} /> No enviado
+                        <MailX size={14} /> Alerta no enviada
                       </span>
                     ) : (
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', paddingLeft: '8px' }}>—</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', paddingLeft: '8px', whiteSpace: 'nowrap' }}>No requiere alerta</span>
                     )}
                   </td>
                   <td className="log-user">

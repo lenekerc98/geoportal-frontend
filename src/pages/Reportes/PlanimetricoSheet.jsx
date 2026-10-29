@@ -6,6 +6,7 @@ import { API_URL } from '../../services/api';
 import { escapeHtml } from '../../utils/sanitize';
 import { normalizeVerticesAndLinderos, parseWktPolygonCoords, parseWktPointCoords, parseWktLineCoords, fetchCadGeoJsonForCenter } from '../../utils/geometryUtils';
 import defaultLogoGad from '../../assets/logo_gad.png';
+import defaultLogoEcc from '../../assets/logo_ecc.png';
 
 const getImageUrl = (url) => {
   if (!url) return '';
@@ -456,42 +457,71 @@ export default function PlanimetricoSheet({
       <div className="print-page">
         <div className="report-border">
 
-          {/* HEADER OFICIAL CON LOGO GAD Y NOMBRE DE EMPRESA */}
-          <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '10px 0', borderBottom: '2px solid black', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img
-              src={currentEmpresa?.logo_url ? getImageUrl(currentEmpresa.logo_url) : defaultLogoGad}
-              alt="Logo Empresa"
-              style={{ position: 'absolute', top: '50%', left: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
-              onError={(e) => {
-                if (e.target.src !== defaultLogoGad) {
-                  e.target.src = defaultLogoGad;
-                } else {
-                  e.target.style.display = 'none';
-                }
-              }}
-            />
+          {/* HEADER OFICIAL CON LOGO GAD / ECC Y NOMBRE DE EMPRESA */}
+          {(() => {
+            const isEcc = Boolean(currentEmpresa?.nombre && currentEmpresa.nombre.toLowerCase().includes('ecc'));
+            if (isEcc) {
+              return (
+                <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '12px 0', borderBottom: '2px solid black', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img
+                    src={currentEmpresa?.logo_url ? getImageUrl(currentEmpresa.logo_url) : defaultLogoEcc}
+                    alt="Logo ECC"
+                    style={{ position: 'absolute', top: '50%', left: '18px', transform: 'translateY(-50%)', height: '65px', maxWidth: '100px', objectFit: 'contain' }}
+                    onError={(e) => {
+                      if (e.target.src !== defaultLogoEcc) {
+                        e.target.src = defaultLogoEcc;
+                      } else {
+                        e.target.style.display = 'none';
+                      }
+                    }}
+                  />
+                  <div className="report-header-text" style={{ display: 'inline-block', textAlign: 'center', padding: '0 110px' }}>
+                    <h1 style={{ margin: '0', fontSize: '26px', fontWeight: '900', color: '#000000', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                      LEVANTAMIENTO PLANIMÉTRICO
+                    </h1>
+                  </div>
+                </div>
+              );
+            }
 
-            <div className="report-header-text" style={{ display: 'inline-block', textAlign: 'center', padding: '0 90px' }}>
-              <div style={{ fontSize: '25px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
-                {currentEmpresa?.nombre}
+            return (
+              <div className="report-header" style={{ position: 'relative', textAlign: 'center', padding: '10px 0', borderBottom: '2px solid black', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img
+                  src={currentEmpresa?.logo_url ? getImageUrl(currentEmpresa.logo_url) : defaultLogoGad}
+                  alt="Logo Empresa"
+                  style={{ position: 'absolute', top: '50%', left: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
+                  onError={(e) => {
+                    if (e.target.src !== defaultLogoGad) {
+                      e.target.src = defaultLogoGad;
+                    } else {
+                      e.target.style.display = 'none';
+                    }
+                  }}
+                />
+
+                <div className="report-header-text" style={{ display: 'inline-block', textAlign: 'center', padding: '0 90px' }}>
+                  <div style={{ fontSize: '25px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    {currentEmpresa?.nombre}
+                  </div>
+                  <h1 style={{ margin: '0', fontSize: '10px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                    LEVANTAMIENTO PLANIMÉTRICO
+                  </h1>
+                </div>
+
+                {currentEmpresa?.bandera_url && (
+                  <img
+                    src={getImageUrl(currentEmpresa.bandera_url)}
+                    alt="Bandera Empresa"
+                    style={{ position: 'absolute', top: '50%', right: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
+                    onError={(e) => {
+                      console.warn('Error al cargar bandera de empresa:', e.target.src);
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                )}
               </div>
-              <h1 style={{ margin: '0', fontSize: '10px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                LEVANTAMIENTO PLANIMÉTRICO
-              </h1>
-            </div>
-
-            {currentEmpresa?.bandera_url && (
-              <img
-                src={getImageUrl(currentEmpresa.bandera_url)}
-                alt="Bandera Empresa"
-                style={{ position: 'absolute', top: '50%', right: '15px', transform: 'translateY(-50%)', height: '65px', width: 'auto', objectFit: 'contain' }}
-                onError={(e) => {
-                  console.warn('Error al cargar bandera de empresa:', e.target.src);
-                  e.target.style.display = 'none';
-                }}
-              />
-            )}
-          </div>
+            );
+          })()}
 
           <div className="report-body" style={{ display: 'flex', flex: 1 }}>
             {/* COLUMNA IZQUIERDA: Mapa + Escala Gráfica + Footer Datos */}

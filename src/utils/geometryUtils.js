@@ -1,6 +1,9 @@
 /**
  * Utilidades geométricas y cartográficas para levantamientos planimétricos y catastro.
  */
+import proj4 from 'proj4';
+
+proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
 // Helper: Función para calcular rumbo sexagesimal estándar catastral
 export function calcularRumboTopografico(x1, y1, x2, y2) {
@@ -288,8 +291,12 @@ export async function fetchCadGeoJsonForCenter(apiUrl, token, archivo, centerPoi
   }
 
   try {
+    const headers = {};
+    if (token && token !== 'null' && token !== 'undefined' && !token.startsWith('offline_')) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
     const res = await fetch(`${apiUrl}/api/gis/cad-layers/geojson?${archivoParam}simplify=1.5${bboxQuery}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers
     });
     if (res.ok) {
       const json = await res.json();
@@ -301,5 +308,207 @@ export async function fetchCadGeoJsonForCenter(apiUrl, token, archivo, centerPoi
   }
   return null;
 }
+
+/**
+ * Construye en memoria la estructura completa { predio, vertices, linderos } a partir de cualquier
+ * Feature GeoJSON (o elemento normalizado del Asistente Atlas) sin tocar la base de datos.
+ */
+export function buildTransientPredioReportData(featureOrNormalized, customDraft = {}, index = 0, layerName = '') {
+  if (!featureOrNormalized) return null;
+
+  const latToUtm = (lat, lng) => proj4('EPSG:4326', 'EPSG:32717', [lng, lat]);
+  const utmToLatLng = (x, y) => {
+    const pt = proj4('EPSG:32717', 'EPSG:4326', [x, y]);
+    return [pt[1], pt[0]];
+  };
+
+  let uniqueUtm = [];
+  let closedLatLngs = [];
+  let props = {};
+
+  if (Array.isArray(featureOrNormalized.utmCoords) && featureOrNormalized.utmCoords.length >= 4 && Array.isArray(featureOrNormalized.latLngs)) {
+    // Viene ya normalizado desde ShapefileAtlasModal
+    uniqueUtm = featureOrNormalized.utmCoords.slice(0, -1);
+    closedLatLngs = featureOrNormalized.latLngs;
+    props = featureOrNormalized.originalProperties || {};
+  } else {
+    // Viene como Feature GeoJSON crudo
+    const geom = featureOrNormalized.geometry || featureOrNormalized;
+    props = featureOrNormalized.properties || {};
+    let ring = null;
+
+    if (geom.type === 'Polygon' && Array.isArray(geom.coordinates?.[0])) {
+      ring = geom.coordinates[0];
+    } else if (geom.type === 'MultiPolygon' && Array.isArray(geom.coordinates?.[0]?.[0])) {
+      ring = geom.coordinates[0][0];
+    } else if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 3) {
+      ring = geom.coordinates;
+    } else if (geom.type === 'MultiLineString' && Array.isArray(geom.coordinates?.[0]) && geom.coordinates[0].length >= 3) {
+      ring = geom.coordinates[0];
+    }
+
+    if (!ring || ring.length < 3) return null;
+
+    let closedRing = [...ring];
+    const first = closedRing[0];
+    const last = closedRing[closedRing.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      closedRing.push(first);
+    }
+
+    const isUtm = Math.abs(closedRing[0][0]) > 180 || Math.abs(closedRing[0][1]) > 90;
+    const rawUtm = isUtm ? closedRing : closedRing.map(pt => latToUtm(pt[1], pt[0]));
+
+    for (let i = 0; i < rawUtm.length - 1; i++) {
+      const pt = rawUtm[i];
+      if (uniqueUtm.length === 0) {
+        uniqueUtm.push(pt);
+      } else {
+        const prev = uniqueUtm[uniqueUtm.length - 1];
+        if (Math.abs(pt[0] - prev[0]) > 1e-4 || Math.abs(pt[1] - prev[1]) > 1e-4) {
+          uniqueUtm.push(pt);
+        }
+      }
+    }
+    if (uniqueUtm.length > 2) {
+      const fPt = uniqueUtm[0];
+      const lPt = uniqueUtm[uniqueUtm.length - 1];
+      if (Math.abs(fPt[0] - lPt[0]) < 1e-4 && Math.abs(fPt[1] - lPt[1]) < 1e-4) {
+        uniqueUtm.pop();
+      }
+    }
+    if (uniqueUtm.length < 3) return null;
+
+    // Asegurar sentido horario (Clockwise: signedArea < 0)
+    let signedArea = 0;
+    for (let i = 0; i < uniqueUtm.length; i++) {
+      const p1 = uniqueUtm[i];
+      const p2 = uniqueUtm[(i + 1) % uniqueUtm.length];
+      signedArea += (p1[0] * p2[1]) - (p2[0] * p1[1]);
+    }
+    if (signedArea > 0) {
+      uniqueUtm.reverse();
+    }
+
+    // Buscar P01 más al Noroeste (maximiza normY - normX)
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    uniqueUtm.forEach(([x, y]) => {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    });
+    const spanX = (maxX - minX) || 1;
+    const spanY = (maxY - minY) || 1;
+
+    let nwIdx = 0;
+    let bestScore = -Infinity;
+    uniqueUtm.forEach(([x, y], idx) => {
+      const score = ((y - minY) / spanY) - ((x - minX) / spanX);
+      if (score > bestScore + 1e-4) {
+        bestScore = score;
+        nwIdx = idx;
+      }
+    });
+
+    if (nwIdx > 0) {
+      uniqueUtm = uniqueUtm.slice(nwIdx).concat(uniqueUtm.slice(0, nwIdx));
+    }
+
+    const closedUtm = [...uniqueUtm, uniqueUtm[0]];
+    closedLatLngs = closedUtm.map(pt => utmToLatLng(pt[0], pt[1]));
+  }
+
+  const n = uniqueUtm.length;
+  let areaAccum = 0;
+  let perimetro = 0;
+  const vertices = [];
+  const linderos = [];
+
+  for (let i = 0; i < n; i++) {
+    const p1 = uniqueUtm[i];
+    const p2 = uniqueUtm[(i + 1) % n];
+    areaAccum += (p1[0] * p2[1]) - (p2[0] * p1[1]);
+    const dx = p2[0] - p1[0];
+    const dy = p2[1] - p1[1];
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    perimetro += dist;
+
+    const latLng = closedLatLngs[i] || utmToLatLng(p1[0], p1[1]);
+    const codigoVert = `P${String(i + 1).padStart(2, '0')}`;
+    const nextCodigoVert = `P${String(((i + 1) % n) + 1).padStart(2, '0')}`;
+
+    vertices.push({
+      id: i + 1,
+      codigo: codigoVert,
+      coord_x: Number(p1[0].toFixed(2)),
+      coord_y: Number(p1[1].toFixed(2)),
+      geom_wkt: `POINT(${latLng[1]} ${latLng[0]})`
+    });
+
+    const draftLindero = Array.isArray(customDraft.linderos) ? customDraft.linderos[i] : null;
+    linderos.push({
+      id: i + 1,
+      tramo: `${codigoVert} - ${nextCodigoVert}`,
+      longitud: Number((draftLindero?.distancia ?? draftLindero?.longitud ?? dist).toFixed ? (draftLindero?.distancia ?? draftLindero?.longitud ?? dist) : parseFloat(draftLindero?.distancia ?? draftLindero?.longitud ?? dist) || dist),
+      rumbo: draftLindero?.rumbo || calcularRumboTopografico(p1[0], p1[1], p2[0], p2[1]),
+      colindante: draftLindero?.colindante || ''
+    });
+  }
+
+  const areaM2 = Math.abs(areaAccum) / 2.0;
+  const areaHa = areaM2 / 10000.0;
+
+  // Extraer metadatos automáticos de las propiedades del DBF/GeoJSON si no vienen en customDraft
+  let autoCod = '';
+  let autoNombre = '';
+  let autoCedula = '';
+  let autoSector = '';
+  let autoParroquia = '';
+
+  Object.keys(props).forEach(k => {
+    const val = String(props[k] ?? '').trim();
+    if (!val || val === 'null' || val === 'undefined') return;
+    const upper = k.toUpperCase();
+    if (!autoCod && (upper.includes('CLAVE') || upper.includes('CATAST') || upper.includes('COD_CAT') || upper === 'CODIGO')) autoCod = val;
+    if (!autoCedula && (upper.includes('CEDULA') || upper.includes('RUC') || upper.includes('IDENT') || upper === 'DNI')) autoCedula = val;
+    if (!autoNombre && (upper.includes('NOMBRE') || upper.includes('PROPIETARIO') || upper.includes('POSESION') || upper.includes('TITULAR'))) autoNombre = val;
+    if (!autoSector && (upper.includes('SECTOR') || upper.includes('RECINTO') || upper.includes('BARRIO'))) autoSector = val;
+    if (!autoParroquia && (upper.includes('PARROQ') || upper.includes('CIUDAD') || upper.includes('DPA_DESPAR'))) autoParroquia = val;
+  });
+
+  const combinedNomApe = [props.nombres || props.NOMBRES, props.apellidos || props.APELLIDOS].filter(Boolean).map(v => String(v).trim()).join(' ').trim();
+  if (combinedNomApe) autoNombre = combinedNomApe;
+
+  const cleanDraftCod = (customDraft.cod_catastral || '').replace(/\s/g, '');
+  const finalCodigo = cleanDraftCod || autoCod || `CAPA-${String(index + 1).padStart(3, '0')}`;
+  const finalNombre = (customDraft.nombre_posesionario || '').trim() || autoNombre || layerName || `Polígono #${index + 1}`;
+  const finalCedula = (customDraft.cedula || '').trim() || autoCedula || 'S/N';
+  const finalSector = (customDraft.sector || '').trim() || autoSector || '';
+  const finalParroquia = (customDraft.parroquia || '').trim() || autoParroquia || '';
+
+  const wktPairs = closedLatLngs.map(pt => `${pt[1]} ${pt[0]}`).join(', ');
+  const geom_wkt = `POLYGON((${wktPairs}))`;
+
+  return {
+    predio: {
+      id: `TEMP_PRINT_${index}`,
+      codigo: finalCodigo,
+      cod_catastral: finalCodigo,
+      cedula: finalCedula,
+      nombre_posesionario: finalNombre,
+      area_ha: Number(areaHa.toFixed(4)),
+      area_m2: Number(areaM2.toFixed(2)),
+      perimetro: Number(perimetro.toFixed(2)),
+      sector: finalSector,
+      parroquia: finalParroquia,
+      geom_wkt,
+      isTransient: true
+    },
+    vertices,
+    linderos
+  };
+}
+
 
 

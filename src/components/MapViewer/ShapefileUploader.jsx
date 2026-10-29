@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { 
   UploadCloud, CheckCircle2, AlertCircle, Loader2, X, Eye, 
   ArrowRight, ArrowLeft, CheckSquare, Square, RefreshCw, Slash, AlertTriangle, Layers,
-  MapPin, Compass, Check
+  MapPin, Compass, Check, Printer
 } from 'lucide-react';
 import { MapContainer, TileLayer, Polygon, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -40,7 +40,7 @@ const extractLeafletPositions = (geom) => {
   return [];
 };
 
-export default function ShapefileUploader({ onClose, onSuccess, authToken, user, onAddTemporalLayer, initialImportType = 'catastro_base' }) {
+export default function ShapefileUploader({ onClose, onSuccess, authToken, user, onAddTemporalLayer, onOpenAtlasWithoutDB, initialImportType = 'catastro_base' }) {
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
@@ -203,7 +203,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                if (k.includes('NOMBRE') || k === 'NOMBRE_PRO' || k.includes('PROP') || k.includes('TITUL') || k.includes('DUENO')) {
                  newMap.nombre_posesionario = c.original;
                }
-               if (k.includes('CLAVE') || k.includes('CATAST') || k.includes('NUMERO_PRO') || k === 'COD_PREDIO' || k === 'PREDIO') {
+               if (k.includes('CLAVE') || k.includes('CATAST') || k.includes('COD_CAT') || k.includes('NUMERO_PRO') || k === 'COD_PREDIO' || k === 'PREDIO' || k === 'CODIGO') {
                  newMap.cod_catastral = c.original;
                }
                if (k.includes('FECHA_ADJU') || k.includes('FECHA_ADJ') || k.includes('ADJUDIC')) {
@@ -1423,16 +1423,32 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
 
         {/* MODAL ACTIONS FOOTER */}
         <div className="modal-actions" style={{display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '20px'}}>
-          <div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {step === 'config' && onAddTemporalLayer && (
               <button 
                 className="btn-secondary" 
                 onClick={handleVisualizarTemporal} 
                 disabled={!parsedGeoJson || isUploading || isParsing} 
-                style={{padding: '10px 20px', background: 'var(--card-bg)', border: '1px solid var(--accent-color)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'}}
+                style={{padding: '10px 16px', background: 'var(--card-bg)', border: '1px solid var(--accent-color)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'}}
                 title="Mostrar esta capa en el mapa sin guardarla en la Base de Datos"
               >
                 <Eye size={16} /> Visualizar Temporalmente
+              </button>
+            )}
+            {step === 'config' && onOpenAtlasWithoutDB && (
+              <button 
+                className="btn-secondary" 
+                onClick={() => {
+                  if (parsedGeoJson) {
+                    onOpenAtlasWithoutDB(parsedGeoJson, nombreCapa || (file ? file.name.replace(/\.zip$/i, '') : 'Capa Temporal'));
+                    onClose();
+                  }
+                }} 
+                disabled={!parsedGeoJson || isUploading || isParsing} 
+                style={{padding: '10px 16px', background: 'rgba(139, 92, 246, 0.12)', border: '1px solid #8b5cf6', color: '#8b5cf6', fontWeight: 600, borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'}}
+                title="Abrir directamente en el Asistente Atlas para editar o imprimir las 2 hojas sin subir a la Base de Datos"
+              >
+                <Printer size={16} /> Abrir e Imprimir sin Subir a BD
               </button>
             )}
             {step === 'resolution' && (

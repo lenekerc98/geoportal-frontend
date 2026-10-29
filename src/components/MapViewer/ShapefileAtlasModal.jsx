@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
   Save, Check, AlertCircle, Loader2, Sparkles, Database,
-  Layers, MapPin, Compass, Trash2
+  Layers, MapPin, Compass, Trash2, Printer
 } from 'lucide-react';
 import { MapContainer, TileLayer, Polygon, CircleMarker, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -10,6 +11,7 @@ import proj4 from 'proj4';
 import Swal from 'sweetalert2';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
+import { buildTransientPredioReportData } from '../../utils/geometryUtils';
 import './ShapefileAtlasModal.css';
 
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
@@ -116,6 +118,7 @@ export default function ShapefileAtlasModal({
   fileName = "Shapefile" 
 }) {
   const { activeEmpresa, activeProyecto, user } = useContext(AppContext);
+  const navigate = useNavigate();
   const token = localStorage.getItem('catastro_token');
 
   const [baseMap, setBaseMap] = useState('google-sat'); // 'google-sat' | 'osm' | 'hybrid' | 'esri'
@@ -371,11 +374,14 @@ export default function ShapefileAtlasModal({
 
       Object.keys(props).forEach(k => {
         const val = String(props[k] || '').trim();
+        if (!val) return;
         const upper = k.toUpperCase();
         if (upper.includes('CEDULA') || upper.includes('RUC') || upper.includes('IDENTIFIC')) initCedula = val;
         if (upper.includes('NOMBRE') || upper.includes('PROPIETARIO') || upper.includes('POSESION')) initNombre = val;
-        if ((upper.includes('CLAVE') || upper.includes('CATAST') || upper.includes('CODIGO')) && val.length >= 5) initClave = val;
+        if ((upper.includes('CLAVE') || upper.includes('CATAST') || upper.includes('COD_CAT') || upper.includes('CODIGO')) && val.length >= 5) initClave = val;
       });
+      const combinedNomApe = [props.nombres || props.NOMBRES, props.apellidos || props.APELLIDOS].filter(Boolean).map(v => String(v).trim()).join(' ').trim();
+      if (combinedNomApe) initNombre = combinedNomApe;
 
       const linderos = [];
       const n = (feat.vertexLabels || []).length;
@@ -706,6 +712,35 @@ export default function ShapefileAtlasModal({
       });
     }
     onClose();
+  };
+
+  const handlePrintWithoutDB = (batchAll = false) => {
+    if (!normalizedFeatures || normalizedFeatures.length === 0) return;
+
+    const batchList = normalizedFeatures
+      .map((feat, idx) => buildTransientPredioReportData(feat, drafts[idx] || {}, idx, fileName))
+      .filter(Boolean);
+
+    if (batchList.length === 0) {
+      Swal.fire('Atención', 'No se pudo preparar la geometría para impresión.', 'warning');
+      return;
+    }
+
+    const safeIdx = Math.min(currentIndex, batchList.length - 1);
+    try {
+      sessionStorage.setItem('catastro_transient_batch_list', JSON.stringify(batchList));
+      sessionStorage.setItem('catastro_transient_print', JSON.stringify(batchList[safeIdx]));
+    } catch (e) {
+      console.warn('sessionStorage límite excedido, guardando hoja actual:', e);
+      sessionStorage.removeItem('catastro_transient_batch_list');
+      sessionStorage.setItem('catastro_transient_print', JSON.stringify(batchList[safeIdx]));
+    }
+
+    if (batchAll) {
+      navigate(`/reporte/planimetrico/codigo/TEMP_PRINT_0?batch=true&from=1&to=${batchList.length}`);
+    } else {
+      navigate(`/reporte/planimetrico/codigo/TEMP_PRINT_${safeIdx}`);
+    }
   };
 
   const handleCloseModal = (force = false) => {
@@ -1279,6 +1314,50 @@ export default function ShapefileAtlasModal({
             <button className="atlas-btn-close" onClick={() => handleCloseModal()} title="Cerrar ventana pero mantener polígonos en el mapa">
               Cerrar
             </button>
+
+            <button
+              type="button"
+              onClick={() => handlePrintWithoutDB(false)}
+              style={{
+                padding: '9px 14px',
+                borderRadius: '8px',
+                border: '1px solid #8b5cf6',
+                background: 'rgba(139, 92, 246, 0.14)',
+                color: '#c4b5fd',
+                fontWeight: 600,
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title="Generar e imprimir las 2 hojas del Reporte Planimétrico de este polígono sin guardarlo en la Base de Datos"
+            >
+              <Printer size={16} /> Imprimir Hoja (Sin BD)
+            </button>
+
+            {totalPolygons > 1 && (
+              <button
+                type="button"
+                onClick={() => handlePrintWithoutDB(true)}
+                style={{
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #7c3aed',
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="Imprimir en lote las 2 hojas de todos los polígonos del archivo sin subirlos a la Base de Datos"
+              >
+                <Printer size={16} /> Imprimir Lote ({totalPolygons}) Sin BD
+              </button>
+            )}
 
             <button 
               className={`atlas-btn-save ${currentDraft.status === 'saved' ? 'atlas-btn-saved' : ''}`} 

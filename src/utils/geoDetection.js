@@ -3,6 +3,8 @@
  * Parroquias: 50 Catarama, 51 Ricaurte, 52 Pijullo
  */
 
+import { isPointInsideUrdaneta } from './cantonValidation';
+
 export function detectarUbicacionCliente(rawCoords) {
   if (!rawCoords) return null;
 
@@ -83,6 +85,23 @@ export function detectarUbicacionCliente(rawCoords) {
 
   // Si no se extrajeron coordenadas válidas
   if (x === null && lng === null) return null;
+
+  // Validación territorial de límites de Urdaneta
+  const dentroUrdaneta = isPointInsideUrdaneta({ x, y, lat, lng });
+  if (!dentroUrdaneta) {
+    return {
+      fuera_de_urdaneta: true,
+      fuera_de_rango: true,
+      mensaje: '⚠️ Coordenada fuera de los límites territoriales del cantón Urdaneta',
+      cod_provincia: '12',
+      provincia: 'LOS RÍOS',
+      cod_canton: '06',
+      canton: 'URDANETA',
+      cod_parroquia: null,
+      parroquia: null,
+      prefijo_clave: null
+    };
+  }
 
   let cod_parroquia = '50';
   let parroquia = 'CATARAMA';

@@ -62,7 +62,8 @@ export default function EditLinderosModal({ predio, isOpen, onClose, onSaved }) 
   };
 
   const handleSave = async () => {
-    if (!detalle || !detalle.id) {
+    const predioId = detalle?.predio?.id || detalle?.id || predio?.id;
+    if (!predioId) {
       showError('No se encontró el ID del predio para actualizar sus linderos');
       return;
     }
@@ -78,7 +79,7 @@ export default function EditLinderosModal({ predio, isOpen, onClose, onSaved }) 
         }))
       };
 
-      const res = await fetch(`${API_URL}/api/gis/predios/${detalle.id}/linderos`, {
+      const res = await fetch(`${API_URL}/api/gis/predios/${predioId}/linderos`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
