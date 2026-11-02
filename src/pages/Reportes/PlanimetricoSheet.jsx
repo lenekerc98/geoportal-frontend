@@ -383,15 +383,15 @@ export default function PlanimetricoSheet({
     });
   }, [linderos, center]);
 
-  // Capacidad de filas por hoja
-  const ROWS_PER_PAGE = 28;
-  const LINDEROS_CAPACITY_NORMAL = 38;
-  const LINDEROS_CAPACITY_LAST = 28;
+  // Capacidad de filas por hoja (ajustado para encajar 100% dentro del marco A4 de 209mm)
+  const ROWS_PER_PAGE = 24;
+  const LINDEROS_CAPACITY_NORMAL = 32;
+  const LINDEROS_CAPACITY_LAST = 22;
 
   const totalSheets = useMemo(() => {
     const totalVerts = vertices.length;
     const totalLins = orderedLinderosForReport.length;
-    if (totalVerts <= 24 && totalLins <= 24) return 1;
+    if (totalVerts <= 22 && totalLins <= 22) return 1;
 
     const sheetsVerts = Math.max(1, Math.ceil(totalVerts / ROWS_PER_PAGE));
     let sheetsLins = 1;
@@ -890,25 +890,25 @@ export default function PlanimetricoSheet({
                 {/* LADO IZQUIERDO: TABLA VERTICES */}
                 <div className="page2-col-left">
                   <div className="page2-title">INFORME DE LINDERACIÓN{sheetTitleSuffix}</div>
-                  <div className="dpa-grid" style={{ border: '1px solid black', marginBottom: '10px' }}>
-                    <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>PROVINCIA:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaProvincia}</div></div>
-                    <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>CANTÓN:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaCanton}</div></div>
-                    <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>PARROQUIA:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaParroquia}</div></div>
-                    <div className="dpa-col" style={{ padding: '4px' }}><div style={{ fontWeight: 'bold', fontSize: '9px' }}>SECTOR:</div><div style={{ textAlign: 'center', fontSize: '11px' }}>{dpaSector}</div></div>
+                  <div className="dpa-grid" style={{ border: '1px solid black', marginBottom: '6px', flexShrink: 0 }}>
+                    <div className="dpa-col" style={{ padding: '3px 4px' }}><div style={{ fontWeight: 'bold', fontSize: '8.5px' }}>PROVINCIA:</div><div style={{ textAlign: 'center', fontSize: '10px' }}>{dpaProvincia}</div></div>
+                    <div className="dpa-col" style={{ padding: '3px 4px' }}><div style={{ fontWeight: 'bold', fontSize: '8.5px' }}>CANTÓN:</div><div style={{ textAlign: 'center', fontSize: '10px' }}>{dpaCanton}</div></div>
+                    <div className="dpa-col" style={{ padding: '3px 4px' }}><div style={{ fontWeight: 'bold', fontSize: '8.5px' }}>PARROQUIA:</div><div style={{ textAlign: 'center', fontSize: '10px' }}>{dpaParroquia}</div></div>
+                    <div className="dpa-col" style={{ padding: '3px 4px' }}><div style={{ fontWeight: 'bold', fontSize: '8.5px' }}>SECTOR:</div><div style={{ textAlign: 'center', fontSize: '10px' }}>{dpaSector}</div></div>
                   </div>
 
-                  <div style={{ display: 'flex', border: '1px solid black', marginBottom: '10px' }}>
-                    <div style={{ flex: 1, padding: '4px', borderRight: '1px solid black' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '9px' }}>NOMBRES DEL POSESIONARIO</div>
-                      <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '5px' }}>{predio.nombre_posesionario || 'SIN NOMBRE'}<br />C.C.: {predio.cedula || 'S/D'}</div>
+                  <div style={{ display: 'flex', border: '1px solid black', marginBottom: '6px', flexShrink: 0 }}>
+                    <div style={{ flex: 1, padding: '3px 4px', borderRight: '1px solid black' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '8.5px' }}>NOMBRES DEL POSESIONARIO</div>
+                      <div style={{ textAlign: 'center', fontSize: '9.5px', marginTop: '2px' }}>{predio.nombre_posesionario || 'SIN NOMBRE'}<br />C.C.: {predio.cedula || 'S/D'}</div>
                     </div>
-                    <div style={{ flex: .5, padding: '2px', borderRight: '1px solid black' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '9px' }}>NOMBRE DEL PREDIO</div>
-                      <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '5px' }}>{predio?.nombre_predio || predio?.nombre || 'SIN NOMBRE'}</div>
+                    <div style={{ flex: .5, padding: '2px 3px', borderRight: '1px solid black' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '8.5px' }}>NOMBRE DEL PREDIO</div>
+                      <div style={{ textAlign: 'center', fontSize: '9.5px', marginTop: '2px' }}>{predio?.nombre_predio || predio?.nombre || 'SIN NOMBRE'}</div>
                     </div>
-                    <div style={{ flex: .5, padding: '2px' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '9px' }}>CÓDIGO CATASTRAL</div>
-                      <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '5px' }}>{predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
+                    <div style={{ flex: .5, padding: '2px 3px' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '8.5px' }}>CÓDIGO CATASTRAL</div>
+                      <div style={{ textAlign: 'center', fontSize: '9.5px', marginTop: '2px' }}>{predio?.codigo || predio?.cod_catastral || 'S/D'}</div>
                     </div>
                   </div>
 
