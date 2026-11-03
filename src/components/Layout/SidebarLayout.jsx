@@ -6,7 +6,7 @@ import { API_URL, safeDecodeJwt } from '../../services/api';
 import SandboxBanner from '../SandboxBanner';
 
 const SystemHealthIndicator = ({ collapsed }) => {
-  const [health, setHealth] = useState({ api: 'PENDING', database: 'PENDING', storage: 'PENDING' });
+  const [health, setHealth] = useState({ api: 'PENDING', database: 'PENDING', storage: 'PENDING', storage_mode: (import.meta.env.VITE_STORAGE_MODE || 's3').toLowerCase() });
   const [isOpen, setIsOpen] = useState(false);
   const [userRole, setUserRole] = useState('');
 
@@ -76,9 +76,22 @@ const SystemHealthIndicator = ({ collapsed }) => {
             <span>Base de Datos:</span>
             <span style={{ color: health.database === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.database === 'OK' ? 'OK' : 'ERROR'}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.storage !== 'OK' ? health.storage : undefined}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.database !== 'OK' ? health.database : undefined}>
             <span>Almacenamiento:</span>
-            <span style={{ color: health.storage === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.storage === 'OK' ? 'OK' : 'ERROR'}</span>
+            <span style={{ color: health.storage === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>{health.database === 'OK' ? 'OK' : 'ERROR'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }} title={userRole === 'superadmin' && health.database !== 'OK' ? health.database : undefined}>
+            <span>Tipo de almacenamiento:</span>
+            <span style={{ color: health.storage === 'OK' ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              {(() => {
+                const isS3 = health.storage_mode ? String(health.storage_mode).toLowerCase() === 's3' : String(import.meta.env.VITE_STORAGE_MODE || '').toLowerCase() === 's3';
+                return (
+                  <span >
+                    {isS3 ? 'S3' : 'Local'}
+                  </span>
+                );
+              })()}
+            </span>
           </div>
         </div>
       )}
@@ -122,12 +135,12 @@ export default function SidebarLayout() {
       .then(data => {
         if (Array.isArray(data)) {
           setEmpresasList(data);
-          
+
           // Recuperar empresa previamente seleccionada y guardada en la sesión
           const savedEmpresaStr = localStorage.getItem('catastro_active_empresa');
           let targetEmpId = activeEmpresa?.id;
           if (!targetEmpId && savedEmpresaStr) {
-            try { targetEmpId = JSON.parse(savedEmpresaStr)?.id; } catch(e){}
+            try { targetEmpId = JSON.parse(savedEmpresaStr)?.id; } catch (e) { }
           }
 
           if (targetEmpId) {
@@ -162,7 +175,7 @@ export default function SidebarLayout() {
           const savedProyectoStr = localStorage.getItem('catastro_active_proyecto');
           let targetProjId = activeProyecto?.id;
           if (!targetProjId && savedProyectoStr) {
-            try { targetProjId = JSON.parse(savedProyectoStr)?.id; } catch(e){}
+            try { targetProjId = JSON.parse(savedProyectoStr)?.id; } catch (e) { }
           }
 
           if (targetProjId) {

@@ -247,8 +247,20 @@ const InteractiveSelectionHandler = ({ mode, freeDrawings, setSelectedFeatureIds
   return null;
 };
 
-function MapContextMenu({ onAction }) {
+function MapContextMenu({ onAction, isFeatureMenuOpen }) {
   const [contextMenu, setContextMenu] = React.useState(null);
+
+  React.useEffect(() => {
+    const handleClose = () => setContextMenu(null);
+    window.addEventListener('closeMapContextMenu', handleClose);
+    return () => window.removeEventListener('closeMapContextMenu', handleClose);
+  }, []);
+
+  React.useEffect(() => {
+    if (isFeatureMenuOpen && contextMenu) {
+      setContextMenu(null);
+    }
+  }, [isFeatureMenuOpen]);
 
   React.useEffect(() => {
     const handleKeyDown = (e) => {
@@ -260,6 +272,14 @@ function MapContextMenu({ onAction }) {
 
   useMapEvents({
     contextmenu(e) {
+      // Si el clic fue en un predio o capa, o si ya hay un menú de predio, NO abrir menú general
+      if (
+        e.originalEvent?._featureHandled ||
+        isFeatureMenuOpen ||
+        (window._lastFeatureContextTime && Date.now() - window._lastFeatureContextTime < 500)
+      ) {
+        return;
+      }
       setContextMenu({
         mouseX: e.originalEvent.clientX,
         mouseY: e.originalEvent.clientY,
@@ -340,7 +360,11 @@ function MapInteractionHandler({ onInteraction }) {
   useMapEvents({
     click: onInteraction,
     dragstart: onInteraction,
-    contextmenu: onInteraction,
+    contextmenu: (e) => {
+      if (!e.originalEvent?._featureHandled) {
+        onInteraction();
+      }
+    },
   });
   return null;
 }
@@ -669,17 +693,22 @@ function FreeDrawHandler({ drawingMode, setDrawingMode, currentDrawing, setCurre
     return snapped;
   };
 
+  const freeDrawRaf = useRef(null);
   useMapEvents({
     mousemove(e) {
       if (!drawingMode) return;
-      const snapped = getSnappedPoint(e.latlng);
-      if (snapped) {
-        setIsSnapped(true);
-        setMousePos(snapped);
-      } else {
-        setIsSnapped(false);
-        setMousePos(e.latlng);
-      }
+      if (freeDrawRaf.current) return;
+      freeDrawRaf.current = requestAnimationFrame(() => {
+        freeDrawRaf.current = null;
+        const snapped = getSnappedPoint(e.latlng);
+        if (snapped) {
+          setIsSnapped(true);
+          setMousePos(snapped);
+        } else {
+          setIsSnapped(false);
+          setMousePos(e.latlng);
+        }
+      });
     },
     click(e) {
       if (!drawingMode) return;
@@ -772,6 +801,148 @@ const FeatureEditor = ({ feature, onUpdate }) => {
   );
 };
 
+
+const PredioVertexEditor = ({ positions, onUpdate }) => {
+  const map = useMap();
+  const polygonRef = useRef(null);
+  const currentPositionsRef = useRef(positions);
+
+  useEffect(() => {
+    currentPositionsRef.current = positions;
+    if (polygonRef.current) {
+      polygonRef.current.setLatLngs(positions.map(p => [p.lat, p.lng]));
+    }
+  }, [positions]);
+
+  const handleDrag = (idx, e) => {
+    const newLatLng = e.target.getLatLng();
+    const updated = [...currentPositionsRef.current];
+    updated[idx] = { lat: newLatLng.lat, lng: newLatLng.lng };
+    currentPositionsRef.current = updated;
+
+    // Actualizar el polígono en vivo sin re-renderizar React
+    if (polygonRef.current) {
+      polygonRef.current.setLatLngs(updated.map(p => [p.lat, p.lng]));
+    }
+  };
+
+  const handleDragEnd = (idx, e) => {
+    if (map && map.dragging) map.dragging.enable();
+    const newLatLng = e.target.getLatLng();
+    const updated = [...currentPositionsRef.current];
+    updated[idx] = { lat: newLatLng.lat, lng: newLatLng.lng };
+    currentPositionsRef.current = updated;
+    onUpdate(updated);
+  };
+
+  return (
+    <>
+      <Polygon
+        ref={polygonRef}
+        positions={positions.map(p => [p.lat, p.lng])}
+        interactive={false}
+        pathOptions={{
+          color: '#3b82f6',
+          weight: 3.5,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.25,
+          dashArray: '6, 6'
+        }}
+      />
+      {positions.map((pos, idx) => (
+        <Marker
+          key={`vert-marker-${idx}`}
+          position={[pos.lat, pos.lng]}
+          draggable={true}
+          autoPan={true}
+          zIndexOffset={10000}
+          icon={L.divIcon({
+            className: 'draggable-predio-vertex',
+            html: `<div style="
+              width: 28px;
+              height: 28px;
+              background: #2563eb;
+              border: 3px solid #ffffff;
+              border-radius: 50%;
+              box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #ffffff;
+              font-size: 13px;
+              font-weight: 800;
+              cursor: grab;
+              user-select: none;
+              touch-action: none;
+            ">${idx + 1}</div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+          })}
+          eventHandlers={{
+            add: (e) => {
+              const marker = e.target;
+              if (marker.dragging) {
+                marker.dragging.enable();
+              }
+              const el = marker.getElement();
+              if (el) {
+                el.addEventListener('touchstart', (ev) => {
+                  ev.stopPropagation();
+                  if (map && map.dragging) map.dragging.disable();
+                }, { passive: false });
+                el.addEventListener('touchend', () => {
+                  if (map && map.dragging) map.dragging.enable();
+                }, { passive: true });
+                el.addEventListener('touchcancel', () => {
+                  if (map && map.dragging) map.dragging.enable();
+                }, { passive: true });
+              }
+            },
+            dragstart: () => {
+              if (map && map.dragging) map.dragging.disable();
+            },
+            drag: (e) => handleDrag(idx, e),
+            dragend: (e) => handleDragEnd(idx, e)
+          }}
+        />
+      ))}
+    </>
+  );
+};
+
+// Funciones optimizadas para popups bajo demanda (Lazy Popups) para reducir uso de RAM
+const buildPredioPopupHtml = (properties = {}) => {
+  const { id, cod_catastral, area_ha, nombre_posesionario, isOffline } = properties;
+  return `
+    <div style="font-family: Inter, sans-serif;">
+      ${isOffline ? `
+        <div style="background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-bottom: 8px; display: inline-block;">
+          ⚠️ PREDIO OFFLINE (Memoria Teléfono)
+        </div>
+      ` : ''}
+      <h4 style="margin:0 0 5px 0; color: #1e293b;">Código: ${cod_catastral || 'Pendiente'}</h4>
+      <p style="margin:0 0 5px 0; font-size: 13px;"><b>Área:</b> ${area_ha ? Number(area_ha).toFixed(2) + ' ha' : 'Calculando...'}</p>
+      <p style="margin:0; font-size: 13px;"><b>Propietario:</b> ${nombre_posesionario || 'Sin registrar'}</p>
+      ${isOffline ? `<p style="margin: 6px 0 0 0; font-size: 11px; color: #d97706; font-weight: 500;">Se subirá a la base de datos central al recuperar internet.</p>` : ''}
+      <button
+        type="button"
+        onclick="window.openPredioAttributeTable('${id}')"
+        style="margin-top: 8px; width: 100%; background: #2563eb; color: #ffffff; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 2px 4px rgba(37,99,235,0.25);"
+      >
+        📋 Ver Tabla de Atributos
+      </button>
+    </div>
+  `;
+};
+
+const ensurePredioPopup = (layer, feature) => {
+  if (!layer || !feature) return;
+  if (layer.getPopup && layer.getPopup()) return;
+  if (layer.bindPopup && feature.properties) {
+    layer.bindPopup(buildPredioPopupHtml(feature.properties));
+  }
+};
+
 export default function Geoportal() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -779,6 +950,10 @@ export default function Geoportal() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null);
   const [map, setMap] = useState(null);
+  const mapRef = useRef(null);
+  useEffect(() => {
+    mapRef.current = map;
+  }, [map]);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
   const [showShapefileUploader, setShowShapefileUploader] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1408,8 +1583,25 @@ export default function Geoportal() {
   const [fechaHistorica, setFechaHistorica] = useState('');
   const [hiddenFeatureIds, setHiddenFeatureIds] = useState([]);
   const [loadingPredios, setLoadingPredios] = useState(false);
-  const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo' o 'nombre'
+  const [listDisplayMode, setListDisplayMode] = useState('codigo'); // 'codigo', 'nombre', 'sector', 'agrupado'
   const [selectedYear, setSelectedYear] = useState('Todos');
+  const [colorBySector, setColorBySector] = useState(true);
+  const [customSectorColors, setCustomSectorColors] = useState(() => {
+    try {
+      const saved = localStorage.getItem('geoportal_sector_colors');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [predioViewTab, setPredioViewTab] = useState('sectores'); // 'sectores' | 'predios'
+  const [disabledSectors, setDisabledSectors] = useState(new Set());
+  const [sectorSearchTerm, setSectorSearchTerm] = useState('');
+  const [expandedSectors, setExpandedSectors] = useState({});
+  const [selectedSectorFilter, setSelectedSectorFilter] = useState('Todos');
+  const [isEditingPredioVertices, setIsEditingPredioVertices] = useState(false);
+  const [editingVerticesPositions, setEditingVerticesPositions] = useState([]);
+  const [editingVerticesOriginalText, setEditingVerticesOriginalText] = useState('');
 
   // Visibilidades
   const [showFootprints, setShowFootprints] = useState(false);
@@ -1459,6 +1651,10 @@ export default function Geoportal() {
   const hiddenFeatureSet = useMemo(() => new Set(hiddenFeatureIds.map(String)), [hiddenFeatureIds]);
   const searchResultSet = useMemo(() => searchResults ? new Set(searchResults.map(String)) : null, [searchResults]);
 
+  const disabledSectorsHash = useMemo(() => {
+    return Array.from(disabledSectors).sort().join('|');
+  }, [disabledSectors]);
+
   const filteredPrediosGeoJSON = useMemo(() => {
     if (!prediosData || !prediosData.features) return null;
     const filtered = (prediosData.features || []).filter(f => {
@@ -1467,10 +1663,13 @@ export default function Geoportal() {
       if (hiddenFeatureSet.has(pid)) return false;
       if (searchResultSet && !searchResultSet.has(pid)) return false;
       if (selectedYear !== 'Todos' && (!f.properties.fecha_creacion || !String(f.properties.fecha_creacion).startsWith(selectedYear))) return false;
+      // Filtro por sector desactivado (ojo apagado en la lista de sectores)
+      const sec = f.properties.sector ? f.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+      if (disabledSectors.has(sec)) return false;
       return true;
     });
     return { ...prediosData, features: filtered };
-  }, [prediosData, hiddenFeatureSet, searchResultSet, selectedYear]);
+  }, [prediosData, hiddenFeatureSet, searchResultSet, selectedYear, disabledSectors]);
 
   useEffect(() => {
     if (location.state?.selectPredioId) {
@@ -1538,6 +1737,16 @@ export default function Geoportal() {
   }, [location.search, prediosData, map]);
 
   const activePredioLayerRef = useRef(null);
+
+  useEffect(() => {
+    window.openPredioAttributeTable = (id) => {
+      setSelectedPredioId(id);
+      setActiveTableData('predios');
+    };
+    return () => {
+      delete window.openPredioAttributeTable;
+    };
+  }, []);
   const prediosGeoJsonRef = useRef(null);
 
   useEffect(() => {
@@ -1555,6 +1764,7 @@ export default function Geoportal() {
           activePredioLayerRef.current = targetLayer;
 
           if (targetLayer.openPopup) {
+            ensurePredioPopup(targetLayer, targetLayer.feature);
             targetLayer.openPopup();
           }
 
@@ -1986,10 +2196,29 @@ export default function Geoportal() {
         prediosGeoJSON.features = [...apiFeatures, ...offlineFeatures];
         setPrediosData(prev => {
           if (isBackground && prev && Array.isArray(prev.features) && prev.features.length === prediosGeoJSON.features.length) {
-            const prevSig = prev.features.map(f => `${f.properties?.id || ''}:${f.properties?.cod_catastral || ''}:${f.properties?.area_ha || ''}:${f.properties?.nombre_posesionario || ''}`).join('|');
-            const nextSig = prediosGeoJSON.features.map(f => `${f.properties?.id || ''}:${f.properties?.cod_catastral || ''}:${f.properties?.area_ha || ''}:${f.properties?.nombre_posesionario || ''}`).join('|');
-            if (prevSig === nextSig) {
-              return prev;
+            let changed = false;
+            const len = prediosGeoJSON.features.length;
+            if (len > 0) {
+              const pFirst = prev.features[0]?.properties;
+              const nFirst = prediosGeoJSON.features[0]?.properties;
+              const pLast = prev.features[len - 1]?.properties;
+              const nLast = prediosGeoJSON.features[len - 1]?.properties;
+              if (pFirst?.id !== nFirst?.id || pLast?.id !== nLast?.id || pFirst?.updated_at !== nFirst?.updated_at || pLast?.updated_at !== nLast?.updated_at) {
+                changed = true;
+              } else {
+                const step = Math.max(1, Math.floor(len / 35));
+                for (let i = 0; i < len; i += step) {
+                  const f1 = prev.features[i]?.properties;
+                  const f2 = prediosGeoJSON.features[i]?.properties;
+                  if (!f1 || !f2 || f1.id !== f2.id || f1.updated_at !== f2.updated_at || f1.cod_catastral !== f2.cod_catastral) {
+                    changed = true;
+                    break;
+                  }
+                }
+              }
+            }
+            if (!changed) {
+              return prev; // Mantiene misma referencia en memoria para no remontar capas Leaflet
             }
           }
           prediosGeoJSON._key = Date.now();
@@ -2024,14 +2253,15 @@ export default function Geoportal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPredios, prediosData, authToken]);
 
-  // Auto-recarga periódica de predios (cada 15s) para reflejar levantamientos móviles de campo sin recargar la página
+  // Auto-recarga periódica de predios optimizada: sólo si la pestaña está activa y con intervalo extendido
   useEffect(() => {
     if (!authToken || !showPredios) return;
     const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return; // Suspender si pestaña oculta
       if (!isDrawingPredio && !editingPredio) {
         fetchMapData(true);
       }
-    }, 15000);
+    }, 45000); // 45 segundos para liberar CPU y RAM
     return () => clearInterval(intervalId);
   }, [authToken, showPredios, isDrawingPredio, editingPredio, activeEmpresa?.id, activeProyecto?.id]);
 
@@ -2222,6 +2452,33 @@ export default function Geoportal() {
         showSuccess('Predio guardado y sincronizado con éxito');
         setIsAddingPredio(false);
         setEditingPredio(null);
+
+        // Actualización optimista inmediata en memoria de prediosData
+        setPrediosData(prev => {
+          if (!prev || !Array.isArray(prev.features)) return prev;
+          const editId = editingPredio?.id || predioData.id;
+          const updatedFeatures = prev.features.map(feat => {
+            const fid = feat.properties?.id ?? feat.id;
+            if (String(fid) === String(editId)) {
+              return {
+                ...feat,
+                properties: {
+                  ...feat.properties,
+                  ...predioData,
+                  sector: predioData.sector || '',
+                  parroquia: predioData.parroquia || feat.properties?.parroquia || '',
+                  cod_catastral: predioData.cod_catastral || feat.properties?.cod_catastral,
+                  nombre_posesionario: predioData.nombre_posesionario || feat.properties?.nombre_posesionario || '',
+                  cedula: predioData.cedula || predioData.cedula_temporal || feat.properties?.cedula || '',
+                  posesionario_id: predioData.posesionario_id ?? feat.properties?.posesionario_id
+                }
+              };
+            }
+            return feat;
+          });
+          return { ...prev, features: updatedFeatures, _key: Date.now() };
+        });
+
         if (showPredios) fetchMapData();
       } else {
         // Si el servidor falla (500, 502, 503, 504 Gateway Timeout por señal celular deficiente), respaldar en local
@@ -2527,7 +2784,7 @@ export default function Geoportal() {
       const tempGroup = L.geoJSON(feature);
       const bounds = tempGroup.getBounds();
       if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 1.5 });
+        map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 19, duration: 0.4 });
       }
 
       // Resaltar el elemento al hacer zoom desde la lista o tabla
@@ -2537,7 +2794,7 @@ export default function Geoportal() {
         setSelectedPredioId(featId);
       }
       if (feature._layer) {
-        if (feature._layer.fire) feature._layer.fire('click');
+        ensurePredioPopup(feature._layer, feature);
         if (feature._layer.openPopup) feature._layer.openPopup();
       }
     }
@@ -2608,6 +2865,188 @@ export default function Geoportal() {
     }));
   };
 
+  const availableSectors = useMemo(() => {
+    if (!prediosData?.features) return [];
+    const mapCounts = {};
+    prediosData.features.forEach(f => {
+      if (!f || !f.properties) return;
+      const sec = f.properties.sector ? f.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+      mapCounts[sec] = (mapCounts[sec] || 0) + 1;
+    });
+    const palette = [
+      '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2',
+      '#e11d48', '#0d9488', '#ea580c', '#4f46e5', '#65a30d',
+      '#c026d3', '#059669', '#dc2626', '#0284c7', '#7c3aed'
+    ];
+    return Object.entries(mapCounts)
+      .sort(([a, countA], [b, countB]) => {
+        if (a === 'SIN SECTOR') return 1;
+        if (b === 'SIN SECTOR') return -1;
+        return countB - countA;
+      })
+      .map(([name, count], index) => {
+        const isSinSector = name === 'SIN SECTOR';
+        const defaultColor = isSinSector ? '#94a3b8' : palette[index % palette.length];
+        const color = customSectorColors[name] || defaultColor;
+        const displayName = isSinSector ? 'Sin sector asignado' : name;
+        return { name, displayName, count, color, isSinSector };
+      });
+  }, [prediosData, customSectorColors]);
+
+  const customColorsKey = useMemo(() => {
+    return Object.entries(customSectorColors).map(([k, v]) => `${k}:${v}`).join('|');
+  }, [customSectorColors]);
+
+  const filteredAvailableSectors = useMemo(() => {
+    if (!sectorSearchTerm.trim()) return availableSectors;
+    const q = sectorSearchTerm.trim().toLowerCase();
+    return availableSectors.filter(s => s.displayName.toLowerCase().includes(q) || s.name.toLowerCase().includes(q));
+  }, [availableSectors, sectorSearchTerm]);
+
+  const prediosBySector = useMemo(() => {
+    if (!prediosData?.features) return {};
+    const map = {};
+    for (const f of prediosData.features) {
+      if (!f || !f.properties) continue;
+      const sec = f.properties.sector ? f.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+      if (!map[sec]) map[sec] = [];
+      map[sec].push(f);
+    }
+    return map;
+  }, [prediosData]);
+
+  const sectorColorMap = useMemo(() => {
+    const map = {};
+    availableSectors.forEach(s => {
+      map[s.name] = s.color;
+    });
+    return map;
+  }, [availableSectors]);
+
+  const toggleSectorVisibility = (sectorName) => {
+    setDisabledSectors(prev => {
+      const next = new Set(prev);
+      if (next.has(sectorName)) {
+        next.delete(sectorName);
+      } else {
+        next.add(sectorName);
+      }
+      return next;
+    });
+  };
+
+  const zoomToSector = (sectorName) => {
+    if ((!map && !mapRef.current) || !prediosData?.features) return;
+    const activeM = mapRef.current || map;
+    const sectorFeatures = prediosData.features.filter(f => {
+      if (!f || !f.properties) return false;
+      const sec = f.properties.sector ? f.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+      return sec === sectorName;
+    });
+    if (sectorFeatures.length > 0) {
+      try {
+        const bounds = L.geoJSON({ type: 'FeatureCollection', features: sectorFeatures }).getBounds();
+        if (bounds.isValid()) {
+          activeM.fitBounds(bounds, { padding: [50, 50], animate: true, duration: 1.5 });
+        }
+      } catch (err) {
+        console.warn('Error al hacer zoom al sector:', err);
+      }
+    }
+  };
+
+  const handleStartEditVerticesOnMap = (coordsText) => {
+    if (!coordsText) {
+      setToastMsg({ type: 'warning', title: 'Sin coordenadas', message: 'No hay coordenadas en el predio para editar en el mapa.' });
+      return;
+    }
+
+    const lines = coordsText.trim().split(/\r?\n/);
+    const latlngs = [];
+    lines.forEach(line => {
+      const parts = line.trim().split(/[\s,;\t]+/).filter(Boolean);
+      if (parts.length >= 2) {
+        const c0 = parseFloat(parts[0]);
+        const c1 = parseFloat(parts[1]);
+        if (!isNaN(c0) && !isNaN(c1)) {
+          if (Math.abs(c0) > 180 || Math.abs(c1) > 90) {
+            try {
+              const wgs = proj4('EPSG:32717', 'EPSG:4326', [c0, c1]);
+              latlngs.push({ lat: wgs[1], lng: wgs[0] });
+            } catch (err) {
+              console.warn('Error proyectando coord:', err);
+            }
+          } else {
+            latlngs.push({ lat: c1, lng: c0 });
+          }
+        }
+      }
+    });
+
+    if (latlngs.length === 0) {
+      setToastMsg({ type: 'error', title: 'Error', message: 'No se pudieron extraer coordenadas válidas.' });
+      return;
+    }
+
+    if (latlngs.length > 3) {
+      const pFirst = latlngs[0];
+      const pLast = latlngs[latlngs.length - 1];
+      if (Math.abs(pFirst.lat - pLast.lat) < 0.000001 && Math.abs(pFirst.lng - pLast.lng) < 0.000001) {
+        latlngs.pop();
+      }
+    }
+
+    setEditingVerticesOriginalText(coordsText);
+    setEditingVerticesPositions(latlngs);
+    setIsEditingPredioVertices(true);
+
+    const activeM = mapRef.current || map;
+    if (activeM && latlngs.length > 0) {
+      const bounds = L.latLngBounds(latlngs.map(p => [p.lat, p.lng]));
+      if (bounds.isValid()) {
+        activeM.fitBounds(bounds, { padding: [80, 80], maxZoom: 19 });
+      }
+    }
+  };
+
+  const handleApplyVertexEditing = () => {
+    if (editingVerticesPositions.length < 3) {
+      setToastMsg({ type: 'error', title: 'Vértices insuficientes', message: 'Se requieren al menos 3 vértices para formar un polígono.' });
+      return;
+    }
+
+    let newCoordsLines = [];
+    editingVerticesPositions.forEach(pt => {
+      const utm = proj4('EPSG:4326', 'EPSG:32717', [pt.lng, pt.lat]);
+      newCoordsLines.push(`${utm[0].toFixed(2)} ${utm[1].toFixed(2)}`);
+    });
+
+    const newCoordsText = newCoordsLines.join('\n');
+
+    if (editingPredio) {
+      setEditingPredio(prev => ({
+        ...prev,
+        geom_geojson: newCoordsText,
+        geom_text: newCoordsText
+      }));
+    } else if (tempPredioFormData) {
+      setTempPredioFormData(prev => ({
+        ...prev,
+        geom_geojson: newCoordsText,
+        geom_text: newCoordsText
+      }));
+    }
+
+    setIsEditingPredioVertices(false);
+    setEditingVerticesPositions([]);
+    setToastMsg({ type: 'success', title: 'Vértices actualizados', message: 'Las coordenadas han sido recalculadas con éxito.' });
+  };
+
+  const handleCancelVertexEditing = () => {
+    setIsEditingPredioVertices(false);
+    setEditingVerticesPositions([]);
+  };
+
   const zoomToVectorLayer = (data) => {
     if (map && data) {
       const bounds = L.geoJSON(data).getBounds();
@@ -2664,8 +3103,9 @@ export default function Geoportal() {
     const queryWords = query.split(/\s+/).filter(Boolean);
 
     const matches = dataToSearch.features.filter(f => {
-      const p = f.properties || {};
-      const cod = normalizeStr(p.cod_catastral || p.codigo || p.clave);
+      if (!f || !f.properties) return false;
+      const p = f.properties;
+      const cod = normalizeStr(p.cod_catastral || p.codigo || p.clave || f.id);
       const cedula = normalizeStr(p.cedula || p.identificacion || p.dni);
       const nombre = normalizeStr(
         p.nombre_posesionario ||
@@ -2675,14 +3115,20 @@ export default function Geoportal() {
         p.nombres ||
         `${p.nombres || ''} ${p.apellidos || ''}`.trim()
       );
+      const sector = normalizeStr(p.sector);
+      const parroquia = normalizeStr(p.parroquia);
+      const pid = normalizeStr(p.id ?? f.id);
 
-      // Coincidencia exacta o parcial directa
-      if (cod.includes(query) || cedula.includes(query) || nombre.includes(query)) {
+      // Cadena combinada de todos los atributos buscables
+      const fullSearchableText = `${cod} ${cedula} ${nombre} ${sector} ${parroquia} ${pid}`.trim();
+
+      // 1. Coincidencia directa con la frase completa
+      if (fullSearchableText.includes(query)) {
         return true;
       }
 
-      // Si el usuario escribió varias palabras (ej. "Juan Pérez"), buscar si todas las palabras aparecen en el nombre
-      if (queryWords.length > 1 && queryWords.every(w => nombre.includes(w))) {
+      // 2. Si el usuario escribió varias palabras (ej. "ABRIL SAGNAY ERMELAGILD"), verificar que todas coincidan en los datos del predio
+      if (queryWords.length > 0 && queryWords.every(w => fullSearchableText.includes(w))) {
         return true;
       }
 
@@ -2695,13 +3141,39 @@ export default function Geoportal() {
       return;
     }
 
-    setSearchResults(matches.map(m => m.properties.id));
+    // Asegurar que la capa de predios esté encendida
+    setShowPredios(true);
+
+    // Si hay un filtro de sector restrictivo, restablecer a 'Todos' para visualizar el resultado
+    if (selectedSectorFilter !== 'Todos') {
+      setSelectedSectorFilter('Todos');
+    }
+
+    // Si los predios encontrados pertenecen a sectores desactivados, reactivarlos automáticamente para que sean visibles
+    if (disabledSectors.size > 0) {
+      setDisabledSectors(prev => {
+        const next = new Set(prev);
+        matches.forEach(m => {
+          const sec = m.properties?.sector ? m.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+          next.delete(sec);
+        });
+        return next;
+      });
+    }
+
+    const matchIds = matches.map(m => m.properties.id);
+    setSearchResults(matchIds);
+
+    // Si es un solo resultado, seleccionarlo y enfocarlo de inmediato
+    if (matches.length === 1 && matches[0].properties?.id) {
+      setSelectedPredioId(matches[0].properties.id);
+    }
 
     const featureCollection = { type: "FeatureCollection", features: matches };
     const bounds = L.geoJSON(featureCollection).getBounds();
 
-    if (map) {
-      map.flyToBounds(bounds, { duration: 1.5, easeLinearity: 0.25, padding: [50, 50], maxZoom: 20 });
+    if (map && bounds.isValid()) {
+      map.flyToBounds(bounds, { duration: 1.5, easeLinearity: 0.25, padding: [50, 50], maxZoom: 19 });
     }
 
     if (window.innerWidth <= 768) {
@@ -3132,6 +3604,16 @@ export default function Geoportal() {
       hadAction = true;
     }
 
+    // 6. Cerrar popup de información de predio o capas si está abierto en el mapa
+    if (mapRef.current) {
+      try { mapRef.current.closePopup(); } catch (e) { }
+    }
+    const popupCloseBtn = document.querySelector('.leaflet-popup-close-button');
+    if (popupCloseBtn) {
+      try { popupCloseBtn.click(); } catch (e) { }
+      hadAction = true;
+    }
+
     if (hadAction) {
       setToastMsg({
         type: 'info',
@@ -3150,6 +3632,46 @@ export default function Geoportal() {
   useEffect(() => {
     const handleGlobalEscape = (e) => {
       if (e.key === 'Escape' || e.key === 'Esc') {
+        // Nivel 0: Cerrar popup emergente del mapa de forma inmediata
+        let closedPopup = false;
+        if (mapRef.current) {
+          try {
+            if (document.querySelector('.leaflet-popup')) {
+              mapRef.current.closePopup();
+              closedPopup = true;
+            }
+          } catch (err) { }
+        }
+        const popupCloseBtn = document.querySelector('.leaflet-popup-close-button');
+        if (popupCloseBtn) {
+          try {
+            popupCloseBtn.click();
+            closedPopup = true;
+          } catch (err) { }
+        }
+        if (activePredioLayerRef.current) {
+          try {
+            const prevDef = activePredioLayerRef.current._originalColor || '#3b82f6';
+            activePredioLayerRef.current.setStyle({ color: prevDef, weight: 2, fillColor: prevDef, fillOpacity: 0.15 });
+          } catch (err) { }
+          activePredioLayerRef.current = null;
+        }
+        if (selectedPredioId) {
+          setSelectedPredioId(null);
+        }
+        if (closedPopup) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // Nivel 0.5: Si está en modo de edición de vértices en el mapa, cancelarlo
+        if (isEditingPredioVertices) {
+          handleCancelVertexEditing();
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
         // Nivel 1: Si hay menús contextuales o popovers de estilo abiertos, cerrarlos únicamente
         if (featureContextMenu || sidebarContextMenu || selectionContextMenu || activeStylePopover || activeFeatureStylePopover) {
           setFeatureContextMenu(null);
@@ -3686,7 +4208,7 @@ export default function Geoportal() {
         />
       )}
 
-      {(isAddingPredio || editingPredio) && !isDrawingPredio && (
+      {(isAddingPredio || editingPredio) && !isDrawingPredio && !isEditingPredioVertices && (
         <PredioForm
           initialData={editingPredio || tempPredioFormData}
           onSubmit={handleSavePredio}
@@ -3697,7 +4219,71 @@ export default function Geoportal() {
             setIsSnapped(false);
             setDrawPoints([]);
           }}
+          onEditOnMap={handleStartEditVerticesOnMap}
         />
+      )}
+
+      {isEditingPredioVertices && (
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 1000,
+          background: 'var(--bg-panel, #ffffff)',
+          backdropFilter: 'blur(12px)',
+          padding: '10px 22px',
+          borderRadius: '30px',
+          border: '1.5px solid #3b82f6',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+          maxWidth: '96vw',
+          overflowX: 'auto'
+        }}>
+          <span style={{ color: 'var(--text-main)', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <MousePointer2 size={16} color="#3b82f6" />
+            Arrastra los puntos azules para ajustar los vértices ({editingVerticesPositions.length} puntos)
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handleApplyVertexEditing}
+              style={{
+                background: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 16px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)'
+              }}
+            >
+              <Check size={14} /> Aplicar y Volver a Ficha
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelVertexEditing}
+              style={{
+                background: 'var(--bg-main)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--card-border)',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
 
       {isDrawingPredio && (
@@ -4206,6 +4792,7 @@ export default function Geoportal() {
               }
             } else if (action === 'popup') {
               if (featureContextMenu?.layer && featureContextMenu.layer.openPopup) {
+                ensurePredioPopup(featureContextMenu.layer, featureContextMenu.feature);
                 featureContextMenu.layer.openPopup();
               }
             } else if (action === 'atlas_single') {
@@ -4268,6 +4855,9 @@ export default function Geoportal() {
                   });
               }
             } else if (action === 'table') {
+              const p = feature.properties || {};
+              const featId = p.id ?? feature.id ?? p.cod_catastral;
+              if (featId) setSelectedPredioId(featId);
               setActiveTableData('predios');
             } else if (action === 'split') {
               setIsSplittingPredio(true);
@@ -4277,15 +4867,27 @@ export default function Geoportal() {
               setIsDrawingPredio(false);
               setZoomMode(null);
             } else if (action === 'edit') {
+              const p = feature?.properties || {};
+              const featId = p.id ?? feature?.id ?? p.predio_id ?? p.OBJECTID ?? p.gid ?? p.fid;
+              const featCod = p.cod_catastral || p.codigo || '';
+              const featNombre = p.nombre_posesionario || (p.sector && p.sector.includes(' ') && !p.sector.toUpperCase().startsWith('SECTOR') ? p.sector : '') || '';
+              const featCedula = p.cedula || p.cedula_posesionario || '';
+              setIsAddingPredio(false);
+              setTempPredioFormData(null);
               setEditingPredio({
-                id: feature.properties.id,
-                posesionario_id: feature.properties.posesionario_id,
-                cod_catastral: feature.properties.cod_catastral,
-                geom_geojson: JSON.stringify(feature.geometry, null, 2),
-                sector: feature.properties.sector || '',
-                parroquia: feature.properties.parroquia || '',
-                isOffline: feature.properties.isOffline,
-                offline_id: feature.properties.offline_id || feature.properties.id
+                id: featId,
+                predio_id: featId,
+                posesionario_id: p.posesionario_id || null,
+                cod_catastral: featCod,
+                cedula: featCedula,
+                nombre_posesionario: featNombre,
+                empresa_id: p.empresa_id,
+                proyecto_id: p.proyecto_id,
+                sector: p.sector || '',
+                parroquia: p.parroquia || '',
+                geom_geojson: feature?.geometry ? JSON.stringify(feature.geometry, null, 2) : '',
+                isOffline: p.isOffline,
+                offline_id: p.offline_id || featId
               });
             } else if (action === 'hide') {
               const featProps = feature.properties || {};
@@ -4712,14 +5314,45 @@ export default function Geoportal() {
 
               {!collapsedCategories.buscar && (
                 <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-                  <input
-                    className="sidebar-input"
-                    type="text"
-                    placeholder="Cédula, Código o Propietario..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                  <button type="submit" style={{ padding: '5px 10px', background: 'var(--success)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Buscar</button>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      className="sidebar-input"
+                      type="text"
+                      placeholder="Cédula, Código, Nombre o Sector..."
+                      value={searchQuery}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setSearchQuery(val);
+                        if (!val.trim()) setSearchResults(null);
+                      }}
+                      style={{ width: '100%', paddingRight: '22px', boxSizing: 'border-box' }}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSearchResults(null);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          right: '6px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '2px',
+                          fontSize: '12px'
+                        }}
+                        title="Limpiar búsqueda"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <button type="submit" style={{ padding: '5px 12px', background: 'var(--success)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Buscar</button>
                 </form>
               )}
 
@@ -5007,120 +5640,515 @@ export default function Geoportal() {
                           </span>
                         </div>
 
-                        {expandedPredios && (
-                          <div style={{ padding: '5px 10px 10px 20px', backgroundColor: 'var(--bg-main)', borderLeft: '2px solid var(--card-border)', marginLeft: '12px' }}>
-                            <div style={{ marginBottom: '5px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                              <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mostrar por:</label>
-                              <select
-                                value={listDisplayMode}
-                                onChange={e => setListDisplayMode(e.target.value)}
-                                className="sidebar-input"
-                                style={{ padding: '2px 4px', fontSize: '0.75rem', height: 'auto' }}
+                        {expandedPredios && (() => {
+                          const renderPredioRow = (f) => {
+                            const isHidden = hiddenFeatureIds.includes(f.properties.id);
+                            let displayText = '';
+                            if (listDisplayMode === 'codigo') {
+                              displayText = f.properties.cod_catastral || `Predio ${f.properties.id}`;
+                            } else if (listDisplayMode === 'nombre') {
+                              displayText = f.properties.nombre_posesionario || 'Sin Nombre';
+                            } else if (listDisplayMode === 'sector') {
+                              displayText = f.properties.sector ? `${f.properties.sector} • ${f.properties.cod_catastral || ''}` : (f.properties.cod_catastral || `Predio ${f.properties.id}`);
+                            } else {
+                              displayText = f.properties.cod_catastral || `Predio ${f.properties.id}`;
+                            }
+
+                            return (
+                              <div
+                                key={f.properties.id}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.76rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
+                                onClick={() => zoomToFeature(f)}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setFeatureContextMenu({
+                                    feature: f,
+                                    mouseX: e.clientX,
+                                    mouseY: e.clientY
+                                  });
+                                }}
                               >
-                                <option value="codigo">Código Catastral</option>
-                                <option value="nombre">Nombre Propietario</option>
-                              </select>
-                            </div>
-
-                            <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '4px', padding: '4px' }}>
-                              {loadingPredios && (
-                                <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                                  Cargando predios...
+                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '72%' }}>
+                                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }} title={displayText}>
+                                    {displayText}
+                                  </div>
                                 </div>
-                              )}
-                              {!loadingPredios && (!prediosData?.features || prediosData.features.length === 0) && (
-                                <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                                  No hay predios en esta empresa.
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  <span
+                                    style={{ cursor: 'pointer', color: '#3b82f6' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingPredio({
+                                        id: f.properties.id,
+                                        predio_id: f.properties.id,
+                                        posesionario_id: f.properties.posesionario_id || null,
+                                        cod_catastral: f.properties.cod_catastral,
+                                        cedula: f.properties.cedula || '',
+                                        nombre_posesionario: f.properties.nombre_posesionario || '',
+                                        empresa_id: f.properties.empresa_id,
+                                        proyecto_id: f.properties.proyecto_id,
+                                        geom_geojson: f.geometry ? JSON.stringify(f.geometry, null, 2) : '',
+                                        sector: f.properties.sector || '',
+                                        parroquia: f.properties.parroquia || '',
+                                        isOffline: f.properties.isOffline,
+                                        offline_id: f.properties.offline_id || f.properties.id
+                                      });
+                                    }}
+                                    title="Editar predio"
+                                  >
+                                    <Edit size={14} />
+                                  </span>
+
+                                  <span
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isHidden) setHiddenFeatureIds(hiddenFeatureIds.filter(id => id !== f.properties.id));
+                                      else setHiddenFeatureIds([...hiddenFeatureIds, f.properties.id]);
+                                    }}
+                                    title={isHidden ? "Mostrar lote" : "Ocultar lote"}
+                                  >
+                                    {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                  </span>
                                 </div>
-                              )}
-                              {!loadingPredios && (() => {
-                                const filteredPredios = (prediosData?.features || [])
-                                  .filter(f => f && f.properties)
-                                  .filter(f => searchResults === null || searchResults.includes(f.properties.id))
-                                  .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)));
+                              </div>
+                            );
+                          };
 
-                                const limit = visibleCounts['predios'] || 20;
-                                const visibleItems = filteredPredios.slice(0, limit);
+                          const hasAnyExpandedSectors = Object.values(expandedSectors).some(Boolean);
 
-                                return (
-                                  <>
-                                    {visibleItems.map(f => {
-                                      const isHidden = hiddenFeatureIds.includes(f.properties.id);
-                                      const displayText = listDisplayMode === 'codigo'
-                                        ? (f.properties.cod_catastral || `Predio ${f.properties.id}`)
-                                        : (f.properties.nombre_posesionario || 'Sin Nombre');
-                                      return (
-                                        <div
-                                          key={f.properties.id}
-                                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.8rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
-                                          onClick={() => zoomToFeature(f)}
-                                          onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            setFeatureContextMenu({
-                                              feature: f,
-                                              mouseX: e.clientX,
-                                              mouseY: e.clientY
-                                            });
-                                          }}
-                                        >
-                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={displayText}>{displayText}</span>
-                                          <div style={{ display: 'flex', gap: '8px' }}>
-                                            <span
-                                              style={{ cursor: 'pointer', color: '#3b82f6' }}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingPredio({
-                                                  id: f.properties.id,
-                                                  posesionario_id: f.properties.posesionario_id,
-                                                  cod_catastral: f.properties.cod_catastral,
-                                                  geom_geojson: JSON.stringify(f.geometry, null, 2),
-                                                  sector: f.properties.sector || '',
-                                                  parroquia: f.properties.parroquia || '',
-                                                  isOffline: f.properties.isOffline,
-                                                  offline_id: f.properties.offline_id || f.properties.id
-                                                });
+                          return (
+                            <div style={{ padding: '6px 10px 10px 14px', backgroundColor: 'var(--bg-main)', borderLeft: '2px solid var(--card-border)', marginLeft: '12px' }}>
+                              {/* Pestañas de Navegación: Sectores vs Predios individuales */}
+                              <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', background: 'var(--bg-panel)', padding: '2px', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setPredioViewTab('sectores')}
+                                  style={{
+                                    flex: 1,
+                                    padding: '4px 6px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: predioViewTab === 'sectores' ? 600 : 400,
+                                    color: predioViewTab === 'sectores' ? 'var(--accent-color, #2563eb)' : 'var(--text-muted)',
+                                    background: predioViewTab === 'sectores' ? 'var(--bg-main)' : 'transparent',
+                                    border: predioViewTab === 'sectores' ? '1px solid var(--card-border)' : '1px solid transparent',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  Por Sectores ({availableSectors.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPredioViewTab('predios')}
+                                  style={{
+                                    flex: 1,
+                                    padding: '4px 6px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: predioViewTab === 'predios' ? 600 : 400,
+                                    color: predioViewTab === 'predios' ? 'var(--accent-color, #2563eb)' : 'var(--text-muted)',
+                                    background: predioViewTab === 'predios' ? 'var(--bg-main)' : 'transparent',
+                                    border: predioViewTab === 'predios' ? '1px solid var(--card-border)' : '1px solid transparent',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Lista Predios
+                                </button>
+                              </div>
+
+                              {predioViewTab === 'sectores' ? (
+                                /* VISTA POR SECTORES: SWITCHBOARD HUMANO Y ELEGANTE */
+                                <div>
+                                  {/* Fila 1: Resumen y Switch de Color */}
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.72rem' }}>
+                                    <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      <strong style={{ color: 'var(--text-main)' }}>{availableSectors.length - disabledSectors.size}</strong> de {availableSectors.length} activos
+                                    </span>
+                                    <label
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.71rem',
+                                        color: colorBySector ? 'var(--accent-color, #2563eb)' : 'var(--text-muted)',
+                                        fontWeight: colorBySector ? 600 : 400,
+                                        userSelect: 'none',
+                                        flexShrink: 0
+                                      }}
+                                      title="Colorear predios en el mapa según el color de su sector"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={colorBySector}
+                                        onChange={e => setColorBySector(e.target.checked)}
+                                        style={{ margin: 0, cursor: 'pointer', width: '12px', height: '12px' }}
+                                      />
+                                      <span>Color mapa</span>
+                                    </label>
+                                  </div>
+
+                                  {/* Fila 2: Acciones Rápidas (Grid Responsivo de 3 botones) */}
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', marginBottom: '6px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDisabledSectors(new Set())}
+                                      title="Mostrar todos los sectores en el mapa"
+                                      style={{
+                                        padding: '3px 4px',
+                                        fontSize: '0.69rem',
+                                        fontWeight: 500,
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--card-border)',
+                                        background: 'var(--bg-panel)',
+                                        color: 'var(--text-main)',
+                                        cursor: 'pointer',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      Ver todos
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDisabledSectors(new Set(availableSectors.map(s => s.name)))}
+                                      title="Ocultar todos los sectores del mapa"
+                                      style={{
+                                        padding: '3px 4px',
+                                        fontSize: '0.69rem',
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--card-border)',
+                                        background: 'var(--bg-panel)',
+                                        color: 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      Ocultar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (hasAnyExpandedSectors) {
+                                          setExpandedSectors({});
+                                        } else {
+                                          const allExp = {};
+                                          filteredAvailableSectors.forEach(s => { allExp[s.name] = true; });
+                                          setExpandedSectors(allExp);
+                                        }
+                                      }}
+                                      title={hasAnyExpandedSectors ? "Colapsar todos los sectores" : "Desplegar todos los sectores"}
+                                      style={{
+                                        padding: '3px 4px',
+                                        fontSize: '0.69rem',
+                                        fontWeight: 600,
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--card-border)',
+                                        background: 'var(--bg-panel)',
+                                        color: 'var(--accent-color, #2563eb)',
+                                        cursor: 'pointer',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      {hasAnyExpandedSectors ? 'Colapsar' : 'Desplegar'}
+                                    </button>
+                                  </div>
+
+                                  {/* Buscador de Sector */}
+                                  <div style={{ marginBottom: '6px' }}>
+                                    <input
+                                      type="text"
+                                      value={sectorSearchTerm}
+                                      onChange={e => setSectorSearchTerm(e.target.value)}
+                                      placeholder="Filtrar sectores por nombre..."
+                                      className="sidebar-input"
+                                      style={{ width: '100%', padding: '4px 8px', fontSize: '0.74rem', height: 'auto', boxSizing: 'border-box' }}
+                                    />
+                                  </div>
+
+                                  {/* Lista de Sectores con Ojo, Zoom y Acordeón Desplegable */}
+                                  <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '6px', background: 'var(--bg-panel)' }}>
+                                    {filteredAvailableSectors.length === 0 ? (
+                                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                                        No se encontraron sectores
+                                      </div>
+                                    ) : (
+                                      filteredAvailableSectors.map(s => {
+                                        const isVisible = !disabledSectors.has(s.name);
+                                        const isExp = !!expandedSectors[s.name];
+                                        const sectorPredios = (prediosBySector[s.name] || []).filter(f => {
+                                          if (searchResults && !searchResults.includes(f.properties?.id)) return false;
+                                          if (selectedYear !== 'Todos' && (!f.properties?.fecha_creacion || !String(f.properties.fecha_creacion).startsWith(selectedYear))) return false;
+                                          return true;
+                                        });
+                                        const secLimit = visibleCounts[`sec_${s.name}`] || 15;
+                                        const visibleFeats = sectorPredios.slice(0, secLimit);
+
+                                        return (
+                                          <div
+                                            key={s.name}
+                                            style={{
+                                              borderBottom: '1px solid var(--card-border)',
+                                              background: isVisible ? 'transparent' : 'rgba(0,0,0,0.03)',
+                                              opacity: isVisible ? 1 : 0.55,
+                                              transition: 'opacity 0.2s ease'
+                                            }}
+                                          >
+                                            <div
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                padding: '5px 8px',
+                                                cursor: 'pointer'
                                               }}
-                                              title="Editar predio"
+                                              onClick={() => setExpandedSectors(prev => ({ ...prev, [s.name]: !prev[s.name] }))}
                                             >
-                                              <Edit size={14} />
-                                            </span>
+                                              {/* Info del Sector: Flecha + Color Picker Interactivo + Nombre + Total Predios */}
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', flex: 1, minWidth: 0, marginRight: '4px' }}>
+                                                <span
+                                                  style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    color: 'var(--text-muted)',
+                                                    flexShrink: 0
+                                                  }}
+                                                >
+                                                  {isExp ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                </span>
+                                                <label
+                                                  style={{
+                                                    position: 'relative',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    cursor: 'pointer',
+                                                    margin: 0,
+                                                    padding: 0,
+                                                    flexShrink: 0
+                                                  }}
+                                                  title="Clic para cambiar color de este sector"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  <span
+                                                    style={{
+                                                      width: '12px',
+                                                      height: '12px',
+                                                      borderRadius: '3px',
+                                                      backgroundColor: isVisible ? s.color : '#94a3b8',
+                                                      border: '1px solid rgba(0,0,0,0.2)',
+                                                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                                                      display: 'inline-block'
+                                                    }}
+                                                  />
+                                                  <input
+                                                    type="color"
+                                                    value={s.color}
+                                                    onChange={(e) => {
+                                                      const val = e.target.value;
+                                                      setCustomSectorColors(prev => {
+                                                        const next = { ...prev, [s.name]: val };
+                                                        try {
+                                                          localStorage.setItem('geoportal_sector_colors', JSON.stringify(next));
+                                                        } catch (err) { }
+                                                        return next;
+                                                      });
+                                                    }}
+                                                    style={{
+                                                      position: 'absolute',
+                                                      top: 0,
+                                                      left: 0,
+                                                      width: '100%',
+                                                      height: '100%',
+                                                      opacity: 0,
+                                                      cursor: 'pointer',
+                                                      border: 'none',
+                                                      padding: 0
+                                                    }}
+                                                  />
+                                                </label>
+                                                <span
+                                                  style={{
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 600,
+                                                    color: isVisible ? 'var(--text-main)' : 'var(--text-muted)',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                  }}
+                                                  title={`${s.displayName} (${s.count} predios)`}
+                                                >
+                                                  {s.displayName}
+                                                </span>
+                                                <span
+                                                  style={{
+                                                    fontSize: '0.67rem',
+                                                    color: 'var(--text-muted)',
+                                                    background: 'var(--bg-main)',
+                                                    padding: '1px 5px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid var(--card-border)',
+                                                    flexShrink: 0
+                                                  }}
+                                                >
+                                                  {s.count}
+                                                </span>
+                                              </div>
 
-                                            <span
-                                              style={{ cursor: 'pointer' }}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (isHidden) setHiddenFeatureIds(hiddenFeatureIds.filter(id => id !== f.properties.id));
-                                                else setHiddenFeatureIds([...hiddenFeatureIds, f.properties.id]);
-                                              }}
-                                              title={isHidden ? "Mostrar lote" : "Ocultar lote"}
-                                            >
-                                              {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-                                            </span>
+                                              {/* Acciones: Enfocar (Zoom) y Toggle Ojo */}
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                                <span
+                                                  style={{ cursor: 'pointer', color: 'var(--accent-color, #2563eb)', display: 'flex', alignItems: 'center' }}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    zoomToSector(s.name);
+                                                  }}
+                                                  title={`Enfocar sector ${s.displayName}`}
+                                                >
+                                                  <Target size={14} />
+                                                </span>
+                                                <span
+                                                  style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSectorVisibility(s.name);
+                                                  }}
+                                                  title={isVisible ? `Ocultar sector ${s.displayName} en el mapa` : `Mostrar sector ${s.displayName} en el mapa`}
+                                                >
+                                                  {isVisible ? <Eye size={15} color="var(--accent-color, #2563eb)" /> : <EyeOff size={15} color="var(--text-muted)" />}
+                                                </span>
+                                              </div>
+                                            </div>
+
+                                            {/* Predios del Sector (Acordeón desplegable) */}
+                                            {isExp && (
+                                              <div style={{ padding: '2px 8px 6px 24px', backgroundColor: 'var(--bg-main)', borderTop: '1px solid var(--card-border)' }}>
+                                                {visibleFeats.length === 0 ? (
+                                                  <div style={{ padding: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                                    Sin predios coincidentes con filtros
+                                                  </div>
+                                                ) : (
+                                                  visibleFeats.map(renderPredioRow)
+                                                )}
+                                                {sectorPredios.length > secLimit && (
+                                                  <div style={{ padding: '4px 0', textAlign: 'center' }}>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setVisibleCounts(prev => ({
+                                                          ...prev,
+                                                          [`sec_${s.name}`]: (prev[`sec_${s.name}`] || 15) + 20
+                                                        }));
+                                                      }}
+                                                      style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                                    >
+                                                      Cargar más (+20) • {secLimit} de {sectorPredios.length}
+                                                    </button>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
-                                        </div>
-                                      );
-                                    })}
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                /* VISTA DE LISTA COMPLETA DE PREDIOS (ORIGINAL MEJORADA) */
+                                <div>
+                                  <div style={{ marginBottom: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '45px' }}>Sector:</label>
+                                    <select
+                                      value={selectedSectorFilter}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        setSelectedSectorFilter(val);
+                                        if (val !== 'Todos') {
+                                          zoomToSector(val);
+                                        }
+                                      }}
+                                      className="sidebar-input"
+                                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: 'auto', flex: 1 }}
+                                    >
+                                      <option value="Todos">Todos ({prediosData?.features?.length || 0})</option>
+                                      {availableSectors.map(s => (
+                                        <option key={s.name} value={s.name}>
+                                          {s.name} ({s.count})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
 
-                                    {filteredPredios.length > limit && (
-                                      <div style={{ padding: '6px 0', textAlign: 'center' }}>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setVisibleCounts(prev => ({ ...prev, predios: (prev['predios'] || 20) + 20 }));
-                                          }}
-                                          style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', cursor: 'pointer' }}
-                                        >
-                                          Cargar más (+20) • {limit} de {filteredPredios.length}
-                                        </button>
+                                  <div style={{ marginBottom: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '45px' }}>Mostrar:</label>
+                                    <select
+                                      value={listDisplayMode}
+                                      onChange={e => setListDisplayMode(e.target.value)}
+                                      className="sidebar-input"
+                                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: 'auto', flex: 1 }}
+                                    >
+                                      <option value="codigo">Código Catastral</option>
+                                      <option value="nombre">Nombre Propietario</option>
+                                      <option value="sector">Sector</option>
+                                    </select>
+                                  </div>
+
+                                  <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '4px', padding: '4px' }}>
+                                    {loadingPredios && (
+                                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                        Cargando predios...
                                       </div>
                                     )}
-                                  </>
-                                );
-                              })()}
+                                    {!loadingPredios && (!prediosData?.features || prediosData.features.length === 0) && (
+                                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                        No hay predios en esta empresa.
+                                      </div>
+                                    )}
+                                    {!loadingPredios && (() => {
+                                      const allFiltered = (prediosData?.features || [])
+                                        .filter(f => f && f.properties)
+                                        .filter(f => searchResults === null || searchResults.includes(f.properties.id))
+                                        .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
+                                        .filter(f => {
+                                          if (selectedSectorFilter === 'Todos') return true;
+                                          const sec = f.properties.sector ? f.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+                                          return sec === selectedSectorFilter;
+                                        });
+
+                                      const limit = visibleCounts['predios'] || 20;
+                                      const visibleList = allFiltered.slice(0, limit);
+
+                                      return (
+                                        <>
+                                          {visibleList.map(renderPredioRow)}
+                                          {allFiltered.length > limit && (
+                                            <div style={{ padding: '6px 0', textAlign: 'center' }}>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setVisibleCounts(prev => ({ ...prev, predios: (prev['predios'] || 20) + 20 }));
+                                                }}
+                                                style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', cursor: 'pointer' }}
+                                              >
+                                                Cargar más (+20) • {limit} de {allFiltered.length}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* Linderos (Líneas) */}
                         <div
@@ -5562,6 +6590,7 @@ export default function Geoportal() {
         zoom={defaultZoom}
         zoomSnap={0}
         maxZoom={32}
+        preferCanvas={true}
         ref={setMap}
         className={`map-container ${isMeasuring ? 'measuring-active' : ''}`}
         zoomControl={false}
@@ -5575,6 +6604,7 @@ export default function Geoportal() {
 
         {!isMeasuring && !isDrawingPredio && (
           <MapContextMenu
+            isFeatureMenuOpen={!!featureContextMenu}
             onAction={(action, latlng) => {
               if (action === 'generate_predio_at_point') {
                 handleGeneratePredioAtPoint(latlng);
@@ -5891,6 +6921,16 @@ export default function Geoportal() {
           );
         })()}
 
+        {/* Editor interactivo de vértices para Predio en Edición */}
+        {isEditingPredioVertices && editingVerticesPositions.length > 0 && (
+          <PredioVertexEditor
+            positions={editingVerticesPositions}
+            onUpdate={(newPos) => {
+              setEditingVerticesPositions(newPos);
+            }}
+          />
+        )}
+
         {/* Dibujo Libre en Progreso */}
         {drawingMode === 'Line' && currentFreeDrawing.length === 1 && mousePos && (
           <Polyline positions={[currentFreeDrawing[0], mousePos]} color="#0284c7" weight={3} dashArray="5, 8" />
@@ -5925,24 +6965,7 @@ export default function Geoportal() {
           <Polyline positions={[...measurePoints, mousePos]} color="#ef4444" weight={3} dashArray="5, 10" />
         )}
 
-        {/* Polígono temporal para dibujo hacia el cursor */}
-        {isDrawingPredio && drawPoints.length > 0 && mousePos && (
-          <Polyline positions={[drawPoints[drawPoints.length - 1], mousePos]} color="#0284c7" weight={2} dashArray="5, 5" />
-        )}
-        {isDrawingPredio && mousePos && (
-          isSnapped ? (
-            <Marker
-              position={mousePos}
-              icon={L.divIcon({
-                className: 'snap-icon',
-                html: '<div style="width: 14px; height: 14px; border: 2px solid #22c55e; background: rgba(34,197,94,0.4); transform: translate(-50%, -50%);"></div>',
-                iconSize: [0, 0]
-              })}
-            />
-          ) : (
-            <CircleMarker center={mousePos} radius={5} color="#fbbf24" fillColor="#fbbf24" fillOpacity={0.8} weight={2} />
-          )
-        )}
+        {/* Polígono temporal y cursor para dibujo gestionados de forma aislada y fluida en DrawPolygonTool */}
 
         {/* Marcador de Ubicación en Tiempo Real */}
         {userLocation && (
@@ -5966,6 +6989,9 @@ export default function Geoportal() {
             zIndex={1}
             maxNativeZoom={19}
             maxZoom={32}
+            keepBuffer={2}
+            updateWhenIdle={true}
+            updateWhenZooming={false}
           />
         )}
         {baseMap === 'esri' && (
@@ -5975,6 +7001,9 @@ export default function Geoportal() {
             zIndex={1}
             maxNativeZoom={17}
             maxZoom={32}
+            keepBuffer={2}
+            updateWhenIdle={true}
+            updateWhenZooming={false}
           />
         )}
         {baseMap === 'osm-hybrid' && (
@@ -5986,6 +7015,9 @@ export default function Geoportal() {
               zIndex={1}
               maxNativeZoom={17}
               maxZoom={32}
+              keepBuffer={2}
+              updateWhenIdle={true}
+              updateWhenZooming={false}
             />
             <TileLayer
               key="esri-trans-hybrid"
@@ -5993,6 +7025,9 @@ export default function Geoportal() {
               zIndex={2}
               maxNativeZoom={15}
               maxZoom={32}
+              keepBuffer={2}
+              updateWhenIdle={true}
+              updateWhenZooming={false}
             />
             <TileLayer
               key="esri-bound-hybrid"
@@ -6000,6 +7035,9 @@ export default function Geoportal() {
               zIndex={3}
               maxNativeZoom={15}
               maxZoom={32}
+              keepBuffer={2}
+              updateWhenIdle={true}
+              updateWhenZooming={false}
             />
           </LayerGroup>
         )}
@@ -6010,6 +7048,9 @@ export default function Geoportal() {
             zIndex={1}
             maxNativeZoom={19}
             maxZoom={32}
+            keepBuffer={2}
+            updateWhenIdle={true}
+            updateWhenZooming={false}
           />
         )}
         {showCartoLabels && (
@@ -6019,6 +7060,9 @@ export default function Geoportal() {
             zIndex={30}
             maxNativeZoom={19}
             maxZoom={32}
+            keepBuffer={2}
+            updateWhenIdle={true}
+            updateWhenZooming={false}
           />
         )}
 
@@ -6032,6 +7076,9 @@ export default function Geoportal() {
             maxNativeZoom={20}
             zIndex={10}
             opacity={ortofotoOpacity}
+            keepBuffer={2}
+            updateWhenIdle={true}
+            updateWhenZooming={false}
           />
         )}
 
@@ -6059,40 +7106,37 @@ export default function Geoportal() {
         {showPredios && filteredPrediosGeoJSON && filteredPrediosGeoJSON.features && (
           <GeoJSON
             ref={prediosGeoJsonRef}
-            key={`predios-${prediosData._key || 'init'}-${showPredios}-${hiddenFeatureIds.length}-${searchResults ? searchResults.length : 'all'}-${selectedYear}`}
+            key={`predios-${prediosData._key || 'init'}-${showPredios}-${hiddenFeatureIds.length}-${searchResults ? searchResults.length : 'all'}-${selectedYear}-${disabledSectorsHash}-${colorBySector}-${customColorsKey}`}
             data={filteredPrediosGeoJSON}
             style={(feature) => {
               const isSelected = (selectedPredioId && String(selectedPredioId) === String(feature.properties?.id)) || (searchResultSet && searchResultSet.has(String(feature.properties?.id)));
               const isOffline = feature.properties?.isOffline;
+              const sec = feature.properties?.sector ? feature.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+              const sectorColor = (colorBySector && sectorColorMap[sec]) ? sectorColorMap[sec] : '#3b82f6';
+              const baseColor = isOffline ? '#f59e0b' : sectorColor;
               return {
-                color: isSelected ? '#00ffff' : (isOffline ? '#f59e0b' : '#3b82f6'),
+                color: isSelected ? '#00ffff' : baseColor,
                 weight: isSelected ? 4 : (isOffline ? 3 : 2),
                 dashArray: isOffline ? '6, 6' : undefined,
-                fillColor: isSelected ? '#00ffff' : (isOffline ? '#f59e0b' : '#3b82f6'),
-                fillOpacity: isSelected ? 0.4 : (isOffline ? 0.3 : 0.15)
+                fillColor: isSelected ? '#00ffff' : baseColor,
+                fillOpacity: isSelected ? 0.4 : (isOffline ? 0.3 : 0.18)
               };
             }}
             onEachFeature={(feature, layer) => {
               if (feature.properties) {
-                const { cod_catastral, area_ha, nombre_posesionario, isOffline } = feature.properties;
+                const { isOffline } = feature.properties;
                 const defaultColor = isOffline ? '#f59e0b' : '#3b82f6';
                 layer._originalColor = defaultColor;
+                try {
+                  Object.defineProperty(feature, '_layer', { value: layer, writable: true, configurable: true });
+                } catch (e) {
+                  feature._layer = layer;
+                }
 
-                layer.bindPopup(`
-                  <div style="font-family: Inter, sans-serif;">
-                    ${isOffline ? `
-                      <div style="background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-bottom: 8px; display: inline-block;">
-                        ⚠️ PREDIO OFFLINE (Memoria Teléfono)
-                      </div>
-                    ` : ''}
-                    <h4 style="margin:0 0 5px 0; color: #1e293b;">Código: ${cod_catastral || 'Pendiente'}</h4>
-                    <p style="margin:0 0 5px 0; font-size: 13px;"><b>Área:</b> ${area_ha ? Number(area_ha).toFixed(2) + ' ha' : 'Calculando...'}</p>
-                    <p style="margin:0; font-size: 13px;"><b>Propietario:</b> ${nombre_posesionario || 'Sin registrar'}</p>
-                    ${isOffline ? `<p style="margin: 6px 0 0 0; font-size: 11px; color: #d97706; font-weight: 500;">Se subirá a la base de datos central al recuperar internet.</p>` : ''}
-                  </div>
-                `);
-
+                // Popup bajo demanda (lazy binding): evita 4,524 instancias DOM al montar
                 layer.on('click', () => {
+                  ensurePredioPopup(layer, feature);
+                  if (layer.openPopup) layer.openPopup();
                   setSelectedPredioId(prev => {
                     if (prev === feature.properties.id) {
                       layer.setStyle({ color: defaultColor, weight: isOffline ? 3 : 2, fillColor: defaultColor, fillOpacity: isOffline ? 0.3 : 0.15 });
@@ -6111,11 +7155,16 @@ export default function Geoportal() {
                 });
 
                 layer.on('contextmenu', (e) => {
-                  L.DomEvent.stopPropagation(e);
+                  if (e.originalEvent) {
+                    e.originalEvent._featureHandled = true;
+                    if (e.originalEvent.stopPropagation) e.originalEvent.stopPropagation();
+                  }
+                  e.originalEvent?.preventDefault();
                   setFeatureContextMenu({
                     feature,
-                    mouseX: e.originalEvent.clientX,
-                    mouseY: e.originalEvent.clientY
+                    layer,
+                    mouseX: e.originalEvent?.clientX || 400,
+                    mouseY: e.originalEvent?.clientY || 300
                   });
                 });
               }
@@ -6824,7 +7873,7 @@ export default function Geoportal() {
                 onClick={() => setReporteLinderacionCode(null)}
                 style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--card-border)', background: 'transparent', color: 'var(--text-main)', cursor: 'pointer' }}
               >
-                Cerrar
+                Cancelar
               </button>
               <button
                 className="btn-primary"

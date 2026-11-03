@@ -111,9 +111,17 @@ const createSegmentMeasureIcon = (distMeters, angle = 0, strokeColor = '#0284c7'
 
 export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, setMousePos, onFinish, setIsSnapped }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
+  const [localMousePos, setLocalMousePos] = useState(null);
   const [cachedSnapPoints, setCachedSnapPoints] = useState([]);
   const [selectedVertexIndex, setSelectedVertexIndex] = useState(null);
   const latestMousePos = useRef(null);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   const map = useMap();
 
@@ -338,10 +346,20 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     },
     mousemove(e) {
       latestMousePos.current = e.latlng;
-      if (isDrawing) {
+      if (!isDrawing) {
+        if (localMousePos) setLocalMousePos(null);
+        if (snappedLatLng) setSnappedLatLng(null);
+        if (setIsSnapped) setIsSnapped(false);
+        return;
+      }
+
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const curLatLng = latestMousePos.current || e.latlng;
         let bestSnap = null;
         let minDistance = 20;
-        const mousePoint = map.latLngToLayerPoint(e.latlng);
+        const mousePoint = map.latLngToLayerPoint(curLatLng);
 
         if (drawPoints.length > 0) {
           drawPoints.forEach((ptLatLng, index) => {
@@ -356,30 +374,35 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
         }
 
         if (cachedSnapPoints.length > 0) {
-          cachedSnapPoints.forEach(coord => {
+          // Bounding box en grados para descartar el 99.9% de puntos sin proyectar
+          const p0 = map.layerPointToLatLng([0, 0]);
+          const pR = map.layerPointToLatLng([25, 25]);
+          const dLat = Math.abs(pR.lat - p0.lat);
+          const dLng = Math.abs(pR.lng - p0.lng);
+          const minLat = curLatLng.lat - dLat;
+          const maxLat = curLatLng.lat + dLat;
+          const minLng = curLatLng.lng - dLng;
+          const maxLng = curLatLng.lng + dLng;
+
+          for (let i = 0; i < cachedSnapPoints.length; i++) {
+            const coord = cachedSnapPoints[i];
+            if (coord.lat < minLat || coord.lat > maxLat || coord.lng < minLng || coord.lng > maxLng) {
+              continue;
+            }
             const vPoint = map.latLngToLayerPoint(coord);
             const dist = mousePoint.distanceTo(vPoint);
             if (dist < minDistance) {
               minDistance = dist;
               bestSnap = coord;
             }
-          });
+          }
         }
 
-        if (bestSnap) {
-          setSnappedLatLng(bestSnap);
-          setMousePos(bestSnap);
-          if (setIsSnapped) setIsSnapped(true);
-        } else {
-          setSnappedLatLng(null);
-          setMousePos(e.latlng);
-          if (setIsSnapped) setIsSnapped(false);
-        }
-      } else {
-        setMousePos(null);
-        setSnappedLatLng(null);
-        if (setIsSnapped) setIsSnapped(false);
-      }
+        const activePos = bestSnap || curLatLng;
+        setSnappedLatLng(bestSnap);
+        setLocalMousePos(activePos);
+        if (setIsSnapped) setIsSnapped(Boolean(bestSnap));
+      });
     },
     dblclick(e) {
       if (isDrawing) {
@@ -497,6 +520,29 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
           positions={drawPoints}
           pathOptions={{ color: '#0284c7', fillColor: '#0284c7', fillOpacity: 0.18, weight: 2.5 }}
           interactive={false}
+        />
+      )}
+
+      {/* Línea elástica interactiva hacia el cursor (ultra rápida en componente local) */}
+      {drawPoints.length > 0 && localMousePos && (
+        <Polyline
+          positions={[drawPoints[drawPoints.length - 1], localMousePos]}
+          pathOptions={{ color: '#0284c7', weight: 2, dashArray: '5, 5' }}
+          interactive={false}
+        />
+      )}
+
+      {/* Cursor y punto de snap en tiempo real sin recargar Geoportal */}
+      {localMousePos && (
+        <Marker
+          position={localMousePos}
+          interactive={false}
+          icon={L.divIcon({
+            className: 'current-drawing-cursor',
+            html: `<div style="width: ${snappedLatLng ? '16px' : '14px'}; height: ${snappedLatLng ? '16px' : '14px'}; border: 2px solid ${snappedLatLng ? '#10b981' : '#0284c7'}; border-radius: 50%; background: ${snappedLatLng ? 'rgba(16, 185, 129, 0.45)' : 'rgba(2, 132, 199, 0.35)'}; box-shadow: ${snappedLatLng ? '0 0 8px #10b981' : 'none'}; transform: translate(-50%, -50%);"></div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+          })}
         />
       )}
 

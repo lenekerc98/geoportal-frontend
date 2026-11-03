@@ -11,7 +11,8 @@ import { validateVerticesWithinUrdaneta, showOutsideUrdanetaAlert, isPointInside
 
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
-export default function PredioForm({ onSubmit, onCancel, initialData, onStartDrawing }) {
+export default function PredioForm({ onSubmit, onCancel, initialData, onStartDrawing, onEditOnMap }) {
+  const isEditing = Boolean(initialData && (initialData.id || initialData.predio_id));
   const { activeEmpresa, activeProyecto } = useContext(AppContext);
   const formatInitialCoords = (rawVal) => {
     if (!rawVal) return '';
@@ -75,7 +76,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     cod_catastral: initCodCat,
     geom_geojson: initialCoords,
     parroquia: initParr,
-    sector: initialData?.sector || '',
+    sector: (initialData?.sector && initialData.sector !== 'RURAL' && initialData.sector !== initialData?.nombre_posesionario) ? initialData.sector : '',
   });
   const [colindantes, setColindantes] = useState([]);
   const [rumbosCustom, setRumbosCustom] = useState([]);
@@ -96,15 +97,27 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           parr = detectedLoc.parroquia;
         }
 
+        const isNameInSector = !initialData.nombre_posesionario && !initialData.posesionario_nombre && initialData.sector && initialData.sector.includes(' ') && !initialData.sector.toUpperCase().startsWith('SECTOR');
         return {
           ...prev,
           posesionario_id: initialData.posesionario_id !== undefined ? initialData.posesionario_id : prev.posesionario_id,
           cod_catastral: cod,
           geom_geojson: coords || prev.geom_geojson || '',
           parroquia: parr || '',
-          sector: initialData.sector !== undefined ? initialData.sector : prev.sector || ''
+          sector: (initialData.sector && initialData.sector !== 'RURAL' && initialData.sector !== initialData.nombre_posesionario && !isNameInSector) ? initialData.sector : (prev.sector && prev.sector !== 'RURAL' && !isNameInSector ? prev.sector : '')
         };
       });
+
+      if (initialData.cedula || initialData.cedula_posesionario) {
+        setCedula(initialData.cedula || initialData.cedula_posesionario);
+      }
+      if (initialData.nombre_posesionario || initialData.posesionario_nombre) {
+        setNombrePosesionario(initialData.nombre_posesionario || initialData.posesionario_nombre);
+      } else if (initialData.sector && initialData.sector.includes(' ') && !initialData.sector.toUpperCase().startsWith('SECTOR')) {
+        setNombrePosesionario(initialData.sector);
+      }
+      if (initialData.empresa_id) setSelectedEmpresaId(initialData.empresa_id);
+      if (initialData.proyecto_id) setSelectedProyectoId(initialData.proyecto_id);
     }
   }, [initialData]);
 
@@ -121,8 +134,25 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             if (p.parroquia) {
               setFormData(prev => ({ ...prev, parroquia: p.parroquia }));
             }
-            if (p.sector) {
+            const isNameInSector = !p.nombre_posesionario && p.sector && p.sector.includes(' ') && !p.sector.toUpperCase().startsWith('SECTOR');
+            if (p.nombre_posesionario) {
+              setNombrePosesionario(p.nombre_posesionario);
+            } else if (isNameInSector) {
+              setNombrePosesionario(p.sector);
+            }
+            if (p.sector && p.sector !== 'RURAL' && p.sector !== p.nombre_posesionario && !isNameInSector) {
               setFormData(prev => ({ ...prev, sector: p.sector }));
+            } else {
+              setFormData(prev => ({ ...prev, sector: '' }));
+            }
+            if (p.cedula) {
+              setCedula(p.cedula);
+            }
+            if (p.posesionario_id) {
+              setFormData(prev => ({ ...prev, posesionario_id: p.posesionario_id }));
+            }
+            if (p.cod_catastral) {
+              setFormData(prev => ({ ...prev, cod_catastral: p.cod_catastral }));
             }
             if (data.linderos && data.linderos.length > 0) {
               const sorted = data.linderos.sort((a, b) => a.id - b.id);
@@ -178,8 +208,11 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     }
   }, [activeProyecto, selectedEmpresaId, activeEmpresa]);
 
-  const [cedula, setCedula] = useState('');
-  const [nombrePosesionario, setNombrePosesionario] = useState('');
+  const [cedula, setCedula] = useState(initialData?.cedula || initialData?.cedula_posesionario || '');
+  const [nombrePosesionario, setNombrePosesionario] = useState(
+    initialData?.nombre_posesionario || initialData?.posesionario_nombre || 
+    (initialData?.sector && initialData.sector.includes(' ') && !initialData.sector.toUpperCase().startsWith('SECTOR') ? initialData.sector : '')
+  );
   const [loadingCedula, setLoadingCedula] = useState(false);
   const [loadingCodigo, setLoadingCodigo] = useState(false);
   const [codigoMsg, setCodigoMsg] = useState('');
@@ -188,10 +221,9 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (cedula && cedula.length >= 10) {
+    if (cedula && cedula.trim().length >= 10) {
       buscarPosesionario();
     } else {
-      setNombrePosesionario('');
       setFormData(prev => ({ ...prev, posesionario_id: '' }));
     }
   }, [cedula]);
@@ -209,12 +241,10 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         setFormData(prev => ({ ...prev, posesionario_id: data.id }));
         setIsNewPosesionario(false);
       } else {
-        setNombrePosesionario('');
         setFormData(prev => ({ ...prev, posesionario_id: '' }));
         setIsNewPosesionario(true);
       }
     } catch (e) {
-      setNombrePosesionario('');
       setIsNewPosesionario(true);
     } finally {
       setLoadingCedula(false);
@@ -296,7 +326,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
               return {
                 ...prev,
                 parroquia: prev.parroquia || data.parroquia || '',
-                sector: prev.sector || (data.sector && data.sector !== 'RURAL' ? data.sector : (prev.sector || 'RURAL')),
+                sector: (prev.sector && prev.sector !== 'RURAL') ? prev.sector : '',
                 cod_catastral: updatedCod
               };
             });
@@ -323,9 +353,13 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         const data = await res.json();
         setCodigoMsg('Registrado');
         if (data.cedula_posesionario) {
-          setCedula(data.cedula_posesionario); // Esto activará el otro useEffect
-        } else {
-          setCedula('');
+          setCedula(data.cedula_posesionario);
+        }
+        if (data.nombre_posesionario) {
+          setNombrePosesionario(data.nombre_posesionario);
+        }
+        if (data.posesionario_id) {
+          setFormData(prev => ({ ...prev, posesionario_id: data.posesionario_id }));
         }
       } else {
         setCodigoMsg('Código libre');
@@ -395,81 +429,11 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     XLSX.writeFile(wb, "Plantilla_Coordenadas.xlsx");
   };
 
-  const handleCaptureCurrentGPSPoint = () => {
-    if (!navigator.geolocation) {
-      alert("Tu dispositivo o navegador no soporta geolocalización.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const utm = proj4('EPSG:4326', 'EPSG:32717', [longitude, latitude]);
-        const xStr = utm[0].toFixed(2);
-        const yStr = utm[1].toFixed(2);
-        
-        if (!isPointInsideUrdaneta({ x: utm[0], y: utm[1], lat: latitude, lng: longitude })) {
-          alert(`⚠️ Alerta: El punto GPS capturado (X=${xStr}, Y=${yStr}) se encuentra fuera de los límites territoriales del cantón Urdaneta.`);
-          return;
-        }
-
-        const current = formData.geom_geojson ? formData.geom_geojson.trim() : '';
-        const newLine = `${xStr} ${yStr}`;
-        const updated = current ? `${current}\n${newLine}` : newLine;
-        
-        setFormData(prev => ({ ...prev, geom_geojson: updated }));
-        alert(`Punto GPS capturado: X=${xStr}, Y=${yStr} (Precisión ±${accuracy.toFixed(1)}m)`);
-      },
-      (err) => {
-        alert("Error al capturar ubicación GPS: " + (err.message || "Permiso denegado"));
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  const handleGenerateAtCurrentGPS = () => {
-    if (!navigator.geolocation) {
-      alert("Tu dispositivo o navegador no soporta geolocalización.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const utm = proj4('EPSG:4326', 'EPSG:32717', [longitude, latitude]);
-        const half = 10; // 20m x 20m polígono (400 m2)
-        const utmX = utm[0];
-        const utmY = utm[1];
-        
-        if (!isPointInsideUrdaneta({ x: utmX, y: utmY, lat: latitude, lng: longitude })) {
-          alert("⚠️ Alerta: Tu ubicación GPS actual se encuentra fuera de los límites territoriales de Urdaneta.");
-          return;
-        }
-
-        // P01: NO, P02: NE, P03: SE, P04: SO, P01: Cierre
-        const coords = [
-          [utmX - half, utmY + half],
-          [utmX + half, utmY + half],
-          [utmX + half, utmY - half],
-          [utmX - half, utmY - half],
-          [utmX - half, utmY + half]
-        ];
-        
-        const coordsText = coords.map(c => `${c[0].toFixed(2)} ${c[1].toFixed(2)}`).join('\n');
-        setFormData(prev => ({ ...prev, geom_geojson: coordsText }));
-        setInputMode('table');
-        alert(`Predio base de 20x20m (400 m²) generado en tu posición GPS actual (Precisión ±${accuracy.toFixed(1)}m).`);
-      },
-      (err) => {
-        alert("Error al capturar ubicación GPS: " + (err.message || "Permiso denegado"));
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const finalCod = formData.cod_catastral.replace(/\s/g, '');
-    if (finalCod.length !== 19) {
+    const finalCod = formData.cod_catastral ? formData.cod_catastral.replace(/\s/g, '') : '';
+    if (!isEditing && finalCod.length !== 19) {
       alert('La Clave Catastral debe tener exactamente 19 dígitos.');
       return;
     }
@@ -480,38 +444,48 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     }
 
     let finalPosesionarioId = formData.posesionario_id;
-    if (!finalPosesionarioId && cedula && nombrePosesionario) {
+    const cleanNombre = (nombrePosesionario || '').trim();
+    const cleanCedula = (cedula || '').trim();
+
+    if (!finalPosesionarioId && cleanNombre) {
       try {
         if (!navigator.onLine) throw new Error("offline");
-        
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
         const token = localStorage.getItem('catastro_token');
         const res = await fetch(`${API_URL}/api/gis/posesionarios`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ cedula, nombre: nombrePosesionario }),
+          body: JSON.stringify({ cedula: cleanCedula || null, nombre: cleanNombre }),
           signal: controller.signal
         });
         clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           finalPosesionarioId = data.id;
-        } else {
-          // Si falla en línea, no bloquear al usuario en campo: guardar como temporal
-          finalPosesionarioId = null;
         }
       } catch (err) {
-        // Red no disponible o lenta (timeout), no bloquear al usuario en el campo!
         finalPosesionarioId = null;
+      }
+    } else if (finalPosesionarioId && cleanNombre) {
+      try {
+        const token = localStorage.getItem('catastro_token');
+        await fetch(`${API_URL}/api/gis/posesionarios/${finalPosesionarioId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ cedula: cleanCedula || null, nombre: cleanNombre })
+        });
+      } catch (e) {
+        console.error("Error actualizando posesionario:", e);
       }
     }
 
     let parsedGeojson = null;
     let esUtm = false;
+    let rawText = '';
 
     if (formData.geom_geojson) {
-      const rawText = formData.geom_geojson.trim();
+      rawText = formData.geom_geojson.trim();
 
       if (rawText.startsWith('{')) {
         // Asume GeoJSON normal
@@ -598,22 +572,34 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       }
     }
 
+    const cleanSector = (formData.sector && formData.sector.trim()) ? formData.sector.trim().toUpperCase() : '';
+    const cleanParroquia = (formData.parroquia && formData.parroquia.trim()) ? formData.parroquia.trim().toUpperCase() : '';
+
     const finalData = {
       ...formData,
-      parroquia: formData.parroquia ? formData.parroquia.trim().toUpperCase() : null,
-      sector: formData.sector ? formData.sector.trim().toUpperCase() : null,
+      parroquia: cleanParroquia || null,
+      sector: cleanSector, // Cadena vacía '' indica al backend borrarlo (SET sector = NULL)
       cod_catastral: finalCod,
       posesionario_id: finalPosesionarioId ? parseInt(finalPosesionarioId, 10) : null,
-      cedula_temporal: (!finalPosesionarioId && cedula) ? cedula : undefined,
-      nombre_temporal: (!finalPosesionarioId && nombrePosesionario) ? nombrePosesionario : undefined,
+      cedula_temporal: (!finalPosesionarioId && cleanCedula) ? cleanCedula : undefined,
+      nombre_temporal: (!finalPosesionarioId && cleanNombre) ? cleanNombre : undefined,
+      nombre_posesionario: cleanNombre || undefined,
       empresa_id: selectedEmpresaId ? parseInt(selectedEmpresaId, 10) : null,
       proyecto_id: activeProyecto ? activeProyecto.id : (selectedProyectoId ? parseInt(selectedProyectoId, 10) : null),
-      geom_geojson: parsedGeojson || { type: 'Polygon', coordinates: [] }, // Asegurarnos de mandar un dict si json
       colindantes: colindantes,
       rumbos: rumbosCustom,
       es_utm: esUtm
     };
-    if (!parsedGeojson) finalData.geom_text = rawText;
+
+    if (parsedGeojson) {
+      finalData.geom_geojson = parsedGeojson;
+    } else if (isEditing) {
+      delete finalData.geom_geojson;
+    } else {
+      finalData.geom_geojson = { type: 'Polygon', coordinates: [] };
+    }
+
+    if (rawText && !parsedGeojson) finalData.geom_text = rawText;
 
     onSubmit(finalData);
   };
@@ -651,7 +637,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
       <Draggable nodeRef={nodeRef} handle=".drag-handle" cancel="button, input, select, textarea, .no-drag">
         <div ref={nodeRef} className="predio-form-modal" style={{ pointerEvents: 'auto', padding: '25px 30px', maxWidth: '640px', width: '92%', margin: '0 auto', border: '1px solid var(--card-border)', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card-bg, #ffffff)', opacity: 1, backdropFilter: 'none', WebkitBackdropFilter: 'none', borderRadius: '16px', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.45)' }}>
           <div className="drag-handle" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid var(--card-border)', paddingBottom: '15px', cursor: 'move' }}>
-            <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{initialData && initialData.id ? 'Editar Predio' : 'Nuevo Predio (Coordenadas)'}</h2>
+            <h2 style={{ margin: 0, color: 'var(--accent-color)', fontSize: '20px' }}>{isEditing ? `Editar Predio (ID: ${initialData.id || initialData.predio_id})` : 'Nuevo Predio (Coordenadas)'}</h2>
 
             <div style={{ display: 'flex', gap: '10px' }}>
               {initialData && initialData.id && (
@@ -666,7 +652,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
               {!activeEmpresa && empresasList.length > 1 && (
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Empresa *</label>
-                  <select className="input-dynamic" value={selectedEmpresaId} onChange={e => { setSelectedEmpresaId(e.target.value); setSelectedProyectoId(''); }} required>
+                  <select className="input-dynamic" value={selectedEmpresaId} onChange={e => { setSelectedEmpresaId(e.target.value); setSelectedProyectoId(''); }} required={!isEditing}>
                     <option value="">Seleccione Empresa...</option>
                     {empresasList.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                   </select>
@@ -675,7 +661,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
               {!activeProyecto && proyectosList.length > 1 && (
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Proyecto *</label>
-                  <select className="input-dynamic" value={selectedProyectoId} onChange={e => setSelectedProyectoId(e.target.value)} required disabled={!selectedEmpresaId}>
+                  <select className="input-dynamic" value={selectedProyectoId} onChange={e => setSelectedProyectoId(e.target.value)} required={!isEditing && Boolean(selectedEmpresaId)} disabled={!selectedEmpresaId}>
                     <option value="">Seleccione Proyecto...</option>
                     {proyectosList.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
@@ -706,6 +692,30 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
               </div>
             )}
 
+            {isEditing ? (
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                  <span>Clave Catastral</span>
+                  <span style={{ fontSize: '11.5px', color: '#3b82f6', fontWeight: '600' }}>🔒 Bloqueada (Modo Edición)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.cod_catastral || ''}
+                  readOnly
+                  disabled
+                  className="input-dynamic"
+                  style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 'bold',
+                    letterSpacing: '1px',
+                    backgroundColor: 'var(--bg-main)',
+                    color: 'var(--text-main)',
+                    cursor: 'not-allowed',
+                    opacity: 0.95
+                  }}
+                />
+              </div>
+            ) : (
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
                 <span>Clave Catastral (19 dígitos) *</span>
@@ -769,18 +779,20 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                 {codigoMsg === 'Registrado' ? 'Código existente (asignando posesionario...)' : (formData.cod_catastral.replace(/\s/g, '').length !== 19 && formData.cod_catastral.length > 0 ? 'Faltan dígitos (19 obligatorios)' : codigoMsg)}
               </small>
             </div>
+            )}
 
             <div className="predio-form-header">
               <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Cédula Posesionario *</label>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                  Cédula Posesionario <span style={{ fontWeight: 'normal', fontSize: '11px', color: '#94a3b8' }}>(Opcional)</span>
+                </label>
                 <div style={{ position: 'relative' }}>
                   <input
                     type="text"
                     value={cedula}
                     onChange={e => setCedula(e.target.value)}
                     className="input-dynamic"
-                    placeholder="Ej. 1712345678"
-                    required
+                    placeholder="Ej. 1712345678 (opcional)"
                     maxLength={10}
                   />
                   {loadingCedula && <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)' }}><Loader2 size={16} className="spin" color="var(--accent-color)" /></div>}
@@ -788,16 +800,16 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
               </div>
 
               <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>Nombre Posesionario</label>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                  Nombre Posesionario
+                </label>
                 <input
                   type="text"
                   value={nombrePosesionario || ''}
-                  onChange={e => isNewPosesionario && setNombrePosesionario(e.target.value)}
+                  onChange={e => setNombrePosesionario(e.target.value)}
                   className="input-dynamic"
-                  placeholder={isNewPosesionario ? "Escriba el nombre..." : "Se autocompleta..."}
-                  disabled={!isNewPosesionario}
-                  style={{ opacity: isNewPosesionario ? 1 : 0.7 }}
-                  required={isNewPosesionario}
+                  placeholder="Nombre y Apellidos del Posesionario..."
+                  style={{ opacity: 1 }}
                 />
               </div>
             </div>
@@ -847,7 +859,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   value={formData.sector || ''}
                   onChange={e => setFormData({ ...formData, sector: e.target.value })}
                   className="input-dynamic"
-                  placeholder="Escriba el sector (ej. URBANO, SAN ANTONIO...)"
+                  placeholder="Escriba el nombre del sector..."
                   style={{ width: '100%' }}
                 />
               </div>
@@ -873,21 +885,23 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleGenerateAtCurrentGPS}
-                    style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
-                    title="Generar predio de 20x20m centrado en mi coordenada GPS actual"
-                  >
-                    <MapPin size={15} /> Generar en mi punto GPS
-                  </button>
-                  {!(initialData && initialData.id) && onStartDrawing && (
+                  {onEditOnMap && (
+                    <button
+                      type="button"
+                      onClick={() => onEditOnMap(formData.geom_geojson)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#3b82f6', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 6px rgba(59, 130, 246, 0.35)' }}
+                      title="Mover y ajustar los puntos del predio directamente sobre el mapa"
+                    >
+                      <MousePointer2 size={15} /> 🖐️ Mover Puntos en el Mapa
+                    </button>
+                  )}
+                  {onStartDrawing && (
                     <button
                       type="button"
                       onClick={onStartDrawing}
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--primary-glow)', color: 'var(--accent-color)', border: '1px solid var(--accent-color)', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
                     >
-                      <MousePointer2 size={16} /> Dibujar en el Mapa
+                      <MousePointer2 size={16} /> Redibujar en el Mapa
                     </button>
                   )}
                 </div>
@@ -953,17 +967,84 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                                       setColindantes(newCols);
                                     }} />
                                   </td>
-                                  <td style={{ padding: '8px', textAlign: 'center' }}>
-                                    <button type="button" onClick={() => {
-                                      const newLines = [...lines];
-                                      newLines.splice(index, 1);
-                                      setFormData({ ...formData, geom_geojson: newLines.join('\n') });
-                                      const newCols = [...colindantes];
-                                      newCols.splice(index, 1);
-                                      setColindantes(newCols);
-                                    }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }}>
-                                      <X size={16} />
-                                    </button>
+                                  <td style={{ padding: '6px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }}>
+                                      <button
+                                        type="button"
+                                        title="Mover vértice hacia arriba"
+                                        disabled={index === 0}
+                                        onClick={() => {
+                                          if (index === 0) return;
+                                          const newLines = [...lines];
+                                          const tempL = newLines[index];
+                                          newLines[index] = newLines[index - 1];
+                                          newLines[index - 1] = tempL;
+                                          setFormData({ ...formData, geom_geojson: newLines.join('\n') });
+                                          const newCols = [...colindantes];
+                                          const tempC = newCols[index];
+                                          newCols[index] = newCols[index - 1];
+                                          newCols[index - 1] = tempC;
+                                          setColindantes(newCols);
+                                        }}
+                                        style={{
+                                          background: 'var(--bg-main, #f8fafc)',
+                                          border: '1px solid var(--card-border, #cbd5e1)',
+                                          borderRadius: '4px',
+                                          color: index === 0 ? 'var(--text-muted, #94a3b8)' : 'var(--text-main, #334155)',
+                                          cursor: index === 0 ? 'not-allowed' : 'pointer',
+                                          padding: '2px 6px',
+                                          fontSize: '11px',
+                                          opacity: index === 0 ? 0.35 : 1
+                                        }}
+                                      >
+                                        ▲
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Mover vértice hacia abajo"
+                                        disabled={index === lines.length - 1}
+                                        onClick={() => {
+                                          if (index === lines.length - 1) return;
+                                          const newLines = [...lines];
+                                          const tempL = newLines[index];
+                                          newLines[index] = newLines[index + 1];
+                                          newLines[index + 1] = tempL;
+                                          setFormData({ ...formData, geom_geojson: newLines.join('\n') });
+                                          const newCols = [...colindantes];
+                                          const tempC = newCols[index];
+                                          newCols[index] = newCols[index + 1];
+                                          newCols[index + 1] = tempC;
+                                          setColindantes(newCols);
+                                        }}
+                                        style={{
+                                          background: 'var(--bg-main, #f8fafc)',
+                                          border: '1px solid var(--card-border, #cbd5e1)',
+                                          borderRadius: '4px',
+                                          color: index === lines.length - 1 ? 'var(--text-muted, #94a3b8)' : 'var(--text-main, #334155)',
+                                          cursor: index === lines.length - 1 ? 'not-allowed' : 'pointer',
+                                          padding: '2px 6px',
+                                          fontSize: '11px',
+                                          opacity: index === lines.length - 1 ? 0.35 : 1
+                                        }}
+                                      >
+                                        ▼
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Eliminar vértice"
+                                        onClick={() => {
+                                          const newLines = [...lines];
+                                          newLines.splice(index, 1);
+                                          setFormData({ ...formData, geom_geojson: newLines.join('\n') });
+                                          const newCols = [...colindantes];
+                                          newCols.splice(index, 1);
+                                          setColindantes(newCols);
+                                        }}
+                                        style={{ background: 'none', border: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+                                      >
+                                        <X size={15} />
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -980,15 +1061,17 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                     }} className="btn-add-vertex">
                       + Añadir Vértice
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleCaptureCurrentGPSPoint}
-                      className="btn-add-vertex"
-                      style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderColor: '#10b981', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
-                      title="Obtener la coordenada actual del GPS del teléfono y agregarla a la tabla"
-                    >
-                      <MapPin size={14} /> + Capturar mi Punto GPS
-                    </button>
+                    {onEditOnMap && (
+                      <button
+                        type="button"
+                        onClick={() => onEditOnMap(formData.geom_geojson)}
+                        className="btn-add-vertex"
+                        style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', borderColor: '#3b82f6', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: '600' }}
+                        title="Ajustar y arrastrar los vértices interactivamente en el mapa"
+                      >
+                        <MousePointer2 size={14} /> 🖐️ Mover Puntos en el Mapa
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
