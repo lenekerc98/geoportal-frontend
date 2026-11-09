@@ -338,13 +338,21 @@ export default function PlanimetricoSheet({
     return list;
   }, [linderosConInfo]);
 
+  // Limpiar y formatear nombre de colindante para planos
+  const formatColindante = (name) => {
+    if (!name || !name.trim()) return '';
+    const clean = name.trim();
+    if (/TEMP-[a-f0-9]+|S\/C/i.test(clean)) return 'PROP. PRIVADA';
+    return clean;
+  };
+
   // Memoizar marcadores rotados y colindantes para no recalcular trigonometría en cada render
   const linderosMarkers = useMemo(() => {
     if (!linderos || linderos.length === 0) return [];
     const contiguousGroups = [];
     let currGroup = null;
     linderos.forEach((l, idx) => {
-      const cName = (l.colindante || '').trim();
+      const cName = formatColindante(l.colindante);
       if (cName === '') {
         currGroup = null;
         return;
@@ -378,7 +386,7 @@ export default function PlanimetricoSheet({
           const midLng = (points[0][1] + points[1][1]) / 2;
           if (isNaN(midLat) || isNaN(midLng)) return null;
           const medida = `${l.longitud ? Number(l.longitud).toFixed(1) : '0.0'}m`;
-          const colindanteToRender = centerIndices.has(i) ? l.colindante : '';
+          const colindanteToRender = centerIndices.has(i) ? formatColindante(l.colindante) : '';
           return (
             <Marker
               key={`lindero-${i}`}
@@ -445,8 +453,9 @@ export default function PlanimetricoSheet({
 
   const renderLinderoText = (l) => {
     const tramoStr = (l.tramo || '').replace(' - ', ' al ');
-    const colindanteText = l.colindante && l.colindante.trim() && l.colindante.trim() !== '-'
-      ? `; ${l.colindante.trim()}`
+    const fCol = formatColindante(l.colindante);
+    const colindanteText = fCol && fCol !== '-'
+      ? `; ${fCol}`
       : '';
     return `Del ${tramoStr} con una distancia de ${l.longitud ? Number(l.longitud).toFixed(1) : '0.0'} m, Rumbo ${l.rumbo || '-'}${colindanteText}`;
   };
@@ -976,7 +985,7 @@ export default function PlanimetricoSheet({
                             <td>{desdeHasta}</td>
                             <td>{l.longitud ? Number(l.longitud).toFixed(1) : '-'}</td>
                             <td>{l.rumbo || '-'}</td>
-                            <td style={{ fontSize: '8px' }}>{l.colindante && l.colindante.trim() ? l.colindante : '-'}</td>
+                            <td style={{ fontSize: '8px' }}>{formatColindante(l.colindante) || '-'}</td>
                           </tr>
                         );
                       })}
