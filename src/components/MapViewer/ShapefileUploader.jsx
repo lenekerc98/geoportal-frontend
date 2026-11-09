@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { 
   UploadCloud, CheckCircle2, AlertCircle, Loader2, X, Eye, 
   ArrowRight, ArrowLeft, CheckSquare, Square, RefreshCw, Slash, AlertTriangle, Layers,
-  MapPin, Compass, Check, Printer, FileSpreadsheet, FileDown
+  MapPin, Compass, Check, Printer, FileSpreadsheet, FileDown, Copy
 } from 'lucide-react';
 import { MapContainer, TileLayer, Polygon, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -47,6 +47,100 @@ const extractLeafletPositions = (geom) => {
   }
   return [];
 };
+
+// Componente de botón de copiado rápido con feedback visual
+function CopyButton({ text, label = '', title = 'Copiar', size = 11, style = {} }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!text || text === 'S/C' || text === 'S/D' || text === '-' || text === 'null') return null;
+
+  const handleCopy = (e) => {
+    e.stopPropagation();
+    try {
+      navigator.clipboard.writeText(String(text).trim());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.warn("Error copiando al portapapeles:", err);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={copied ? "¡Copiado al portapapeles!" : `${title}: ${text}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        background: copied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(100, 116, 139, 0.12)',
+        border: '1px solid',
+        borderColor: copied ? '#10b981' : 'rgba(100, 116, 139, 0.2)',
+        borderRadius: '4px',
+        padding: '1px 5px',
+        fontSize: '0.68rem',
+        cursor: 'pointer',
+        color: copied ? '#10b981' : 'var(--text-muted)',
+        transition: 'all 0.15s ease',
+        verticalAlign: 'middle',
+        marginLeft: '4px',
+        lineHeight: 1.2,
+        ...style
+      }}
+    >
+      {copied ? <Check size={size} color="#10b981" /> : <Copy size={size} />}
+      {copied ? 'Copiado' : (label || '')}
+    </button>
+  );
+}
+
+function CopyAllButton({ codigo, propietario, cedula, sector, area, title = "Copiar todos los datos" }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e) => {
+    e.stopPropagation();
+    const parts = [];
+    if (codigo && codigo !== 'S/C') parts.push(`Código: ${codigo}`);
+    if (propietario && propietario !== 'S/D') parts.push(`Propietario: ${propietario}`);
+    if (cedula && cedula !== '-') parts.push(`Cédula: ${cedula}`);
+    if (sector) parts.push(`Sector: ${sector}`);
+    if (area) parts.push(`Área: ${area} ha`);
+    
+    const textToCopy = parts.join(' | ');
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        background: copied ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.08)',
+        border: '1px solid',
+        borderColor: copied ? '#10b981' : 'var(--card-border)',
+        borderRadius: '4px',
+        padding: '2px 7px',
+        fontSize: '0.7rem',
+        cursor: 'pointer',
+        color: copied ? '#10b981' : 'var(--text-muted)',
+        transition: 'all 0.15s ease',
+        marginTop: '4px'
+      }}
+    >
+      {copied ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
+      <span>{copied ? '¡Datos copiados!' : 'Copiar fila'}</span>
+    </button>
+  );
+}
 
 export default function ShapefileUploader({ onClose, onSuccess, authToken, user, onAddTemporalLayer, onOpenAtlasWithoutDB, initialImportType = 'catastro_base' }) {
   const [file, setFile] = useState(null);
@@ -1579,25 +1673,72 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                           <tr key={idx} style={{background: action === 'omitir' ? 'rgba(100, 116, 139, 0.08)' : 'inherit'}}>
                             <td style={{padding: '8px', color: 'var(--text-muted)'}}>{idx + 1}</td>
                             <td style={{padding: '8px'}}>
-                              <div style={{fontWeight: 'bold', color: 'var(--text-main)'}}>{cleanCadastralCode(conf.existing.codigo)}</div>
-                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>
-                                {conf.existing.propietario} {conf.existing.cedula ? `(${conf.existing.cedula})` : ''}
+                              <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span style={{fontWeight: 'bold', color: 'var(--text-main)'}}>{cleanCadastralCode(conf.existing.codigo)}</span>
+                                <CopyButton text={cleanCadastralCode(conf.existing.codigo)} title="Copiar código existente" />
                               </div>
-                              <div style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>
-                                Área: {conf.existing.area_ha} ha
+                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span>{conf.existing.propietario}</span>
+                                <CopyButton text={conf.existing.propietario} title="Copiar nombre" />
+                                {conf.existing.cedula && (
+                                  <>
+                                    <span>({conf.existing.cedula})</span>
+                                    <CopyButton text={conf.existing.cedula} title="Copiar cédula" />
+                                  </>
+                                )}
                               </div>
+                              <div style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span>Área: {conf.existing.area_ha} ha</span>
+                                {conf.existing.sector && (
+                                  <>
+                                    <span>| Sector: {conf.existing.sector}</span>
+                                    <CopyButton text={conf.existing.sector} title="Copiar sector" />
+                                  </>
+                                )}
+                              </div>
+                              <CopyAllButton 
+                                codigo={cleanCadastralCode(conf.existing.codigo)}
+                                propietario={conf.existing.propietario}
+                                cedula={conf.existing.cedula}
+                                sector={conf.existing.sector}
+                                area={conf.existing.area_ha}
+                                title="Copiar todos los datos del predio existente"
+                              />
                             </td>
                             <td style={{padding: '8px'}}>
-                              <div style={{fontWeight: 'bold', color: 'var(--primary)'}}>{cleanCadastralCode(conf.incoming.codigo)}</div>
-                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>
-                                {conf.incoming.propietario} {conf.incoming.cedula ? `(${conf.incoming.cedula})` : ''}
+                              <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span style={{fontWeight: 'bold', color: 'var(--primary)'}}>{cleanCadastralCode(conf.incoming.codigo)}</span>
+                                <CopyButton text={cleanCadastralCode(conf.incoming.codigo)} title="Copiar código nuevo" />
                               </div>
-                              <div style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>
-                                Área: {conf.incoming.area_ha} ha 
+                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span>{conf.incoming.propietario}</span>
+                                <CopyButton text={conf.incoming.propietario} title="Copiar nombre" />
+                                {conf.incoming.cedula && (
+                                  <>
+                                    <span>({conf.incoming.cedula})</span>
+                                    <CopyButton text={conf.incoming.cedula} title="Copiar cédula" />
+                                  </>
+                                )}
+                              </div>
+                              <div style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span>Área: {conf.incoming.area_ha} ha</span>
                                 {conf.incoming.fecha_adjudicacion ? ` | F. Adju: ${conf.incoming.fecha_adjudicacion}` : ''}
                                 {conf.incoming.numero_tramite ? ` | Trámite: ${conf.incoming.numero_tramite}` : ''}
-                                {conf.incoming.sector ? ` | Sector: ${conf.incoming.sector}` : ''}
+                                {conf.incoming.sector && (
+                                  <>
+                                    <span>| Sector: {conf.incoming.sector}</span>
+                                    <CopyButton text={conf.incoming.sector} title="Copiar sector" />
+                                  </>
+                                )}
                               </div>
+                              <CopyAllButton 
+                                codigo={cleanCadastralCode(conf.incoming.codigo)}
+                                propietario={conf.incoming.propietario}
+                                cedula={conf.incoming.cedula}
+                                sector={conf.incoming.sector}
+                                area={conf.incoming.area_ha}
+                                title="Copiar todos los datos del predio nuevo"
+                              />
                             </td>
                             <td style={{padding: '8px', textAlign: 'center'}}>
                               <span style={{
@@ -1714,6 +1855,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                             <td style={{padding: '8px', fontWeight: 'bold', color: 'var(--primary)'}}>
                               <div style={{display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
                                 <span>{cleanCadastralCode(item.codigo)}</span>
+                                <CopyButton text={cleanCadastralCode(item.codigo)} title="Copiar código catastral" />
                                 {item.es_codigo_repetido && (
                                   <span style={{
                                     fontSize: '0.7rem',
@@ -1729,15 +1871,38 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                                 )}
                               </div>
                             </td>
-                            <td style={{padding: '8px'}}>{item.propietario}</td>
-                            <td style={{padding: '8px'}}>{item.cedula || '-'}</td>
+                            <td style={{padding: '8px'}}>
+                              <div style={{display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span>{item.propietario}</span>
+                                <CopyButton text={item.propietario} title="Copiar nombre del propietario" />
+                              </div>
+                            </td>
+                            <td style={{padding: '8px'}}>
+                              <div style={{display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span>{item.cedula || '-'}</span>
+                                <CopyButton text={item.cedula} title="Copiar cédula" />
+                              </div>
+                            </td>
                             <td style={{padding: '8px'}}>{item.area_ha} ha</td>
                             <td style={{padding: '8px', fontSize: '0.75rem', color: 'var(--text-muted)'}}>
                               {item.fecha_adjudicacion ? `F. Adju: ${item.fecha_adjudicacion} ` : ''}
                               {item.numero_tramite ? `Trámite: ${item.numero_tramite} ` : ''}
                               {item.institucion ? `Inst: ${item.institucion} ` : ''}
-                              {item.sector ? `Sector: ${item.sector} ` : ''}
+                              {item.sector ? (
+                                <span style={{display: 'inline-flex', alignItems: 'center', gap: '3px'}}>
+                                  Sector: {item.sector}
+                                  <CopyButton text={item.sector} title="Copiar sector" />
+                                </span>
+                              ) : ''}
                               {!item.fecha_adjudicacion && !item.numero_tramite && !item.institucion && !item.sector ? '-' : ''}
+                              <CopyAllButton 
+                                codigo={cleanCadastralCode(item.codigo)}
+                                propietario={item.propietario}
+                                cedula={item.cedula}
+                                sector={item.sector}
+                                area={item.area_ha}
+                                title="Copiar todos los datos de este predio"
+                              />
                             </td>
                           </tr>
                         );
