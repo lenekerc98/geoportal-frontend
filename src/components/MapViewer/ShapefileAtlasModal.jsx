@@ -13,6 +13,7 @@ import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { buildTransientPredioReportData } from '../../utils/geometryUtils';
 import { detectarUbicacionCliente } from '../../utils/geoDetection';
+import { cleanCadastralCode, extractPredioAttributes } from '../../utils/cadastralUtils';
 import './ShapefileAtlasModal.css';
 
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
@@ -364,29 +365,24 @@ export default function ShapefileAtlasModal({
     }
   }, [initialIndex, normalizedFeatures.length]);
 
-  // Inicializar borradores
+  // Inicializar borradores con extracción precisa como texto y detección de vecinos colindantes
   useEffect(() => {
     const initial = {};
-    normalizedFeatures.forEach((feat, idx) => {
-      const props = feat.originalProperties;
-      let initCedula = '';
-      let initNombre = '';
-      let initClave = dpaPrefix || '';
-      let initSector = '';
-      let initParroquia = '';
+    const featureAttrs = normalizedFeatures.map(f => extractPredioAttributes(f.originalProperties || {}));
 
-      Object.keys(props).forEach(k => {
-        const val = String(props[k] || '').trim();
-        if (!val) return;
-        const upper = k.toUpperCase();
-        if (upper.includes('CEDULA') || upper.includes('RUC') || upper.includes('IDENTIFIC')) initCedula = val;
-        if (upper.includes('NOMBRE') || upper.includes('PROPIETARIO') || upper.includes('POSESION')) initNombre = val;
-        if ((upper.includes('CLAVE') || upper.includes('CATAST') || upper.includes('COD_CAT') || upper.includes('CODIGO')) && val.length >= 5) initClave = val;
-        if (upper.includes('SECTOR') || upper.includes('RECINTO') || upper.includes('BARRIO')) initSector = val;
-        if (upper.includes('PARROQ') || upper.includes('DPA_DESPAR')) initParroquia = val;
-      });
-      const combinedNomApe = [props.nombres || props.NOMBRES, props.apellidos || props.APELLIDOS].filter(Boolean).map(v => String(v).trim()).join(' ').trim();
-      if (combinedNomApe) initNombre = combinedNomApe;
+    normalizedFeatures.forEach((feat, idx) => {
+      const attr = featureAttrs[idx] || {};
+      let initCedula = attr.cedula || '';
+      let initNombre = attr.nombre_posesionario || '';
+      let initSector = attr.sector || '';
+      let initParroquia = attr.parroquia || '';
+      let initClave = cleanCadastralCode(attr.cod_catastral) || '';
+
+      if (!initClave) {
+        initClave = dpaPrefix || '';
+      } else if (initClave.length < 19 && dpaPrefix && !initClave.startsWith(dpaPrefix.substring(0, 4))) {
+        initClave = (dpaPrefix + initClave).substring(0, 19);
+      }
 
       if (!initParroquia || !initSector) {
         try {
@@ -410,11 +406,36 @@ export default function ShapefileAtlasModal({
         const vStart = feat.vertexLabels[i];
         const vEnd = feat.vertexLabels[(i + 1) % n];
 
+        // Detección automática de colindante espacial entre polígonos vecinos
+        let colindanteDetectado = '';
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+
+        for (let j = 0; j < normalizedFeatures.length; j++) {
+          if (j === idx) continue;
+          const otherCoords = normalizedFeatures[j].utmCoords;
+          if (!otherCoords || otherCoords.length < 2) continue;
+          const nO = otherCoords.length;
+
+          for (let k = 0; k < nO; k++) {
+            const ox1 = otherCoords[k][0], oy1 = otherCoords[k][1];
+            const ox2 = otherCoords[(k + 1) % nO][0], oy2 = otherCoords[(k + 1) % nO][1];
+            const omx = (ox1 + ox2) / 2, omy = (oy1 + oy2) / 2;
+            const dMid = Math.sqrt((mx - omx) ** 2 + (my - omy) ** 2);
+            if (dMid < 1.2) {
+              const oAttr = featureAttrs[j] || {};
+              colindanteDetectado = oAttr.nombre_posesionario || (oAttr.cod_catastral ? `Predio ${oAttr.cod_catastral}` : `Predio #${j + 1}`);
+              break;
+            }
+          }
+          if (colindanteDetectado) break;
+        }
+
         linderos.push({
           tramo: `${vStart} - ${vEnd}`,
           distancia: dist,
           rumbo,
-          colindante: ''
+          colindante: colindanteDetectado || ''
         });
       }
 
@@ -441,7 +462,8 @@ export default function ShapefileAtlasModal({
       Object.keys(updated).forEach(k => {
         const cur = updated[k];
         const raw = (cur.cod_catastral || '').replace(/\s/g, '');
-        if (raw.length === 0 || raw.length <= dpaPrefix.length) {
+        // Solo aplicar dpaPrefix si no se extrajo ninguna clave del archivo
+        if (raw.length === 0 || raw.length < 4) {
           const newCode = (dpaPrefix + (cur.cod_catastral || '').substring(dpaPrefix.length)).padEnd(19, ' ').substring(0, 19);
           if (newCode !== cur.cod_catastral) {
             updated[k] = { ...cur, cod_catastral: newCode };
@@ -790,7 +812,7 @@ export default function ShapefileAtlasModal({
 
   const totalPolygons = normalizedFeatures.length;
   const savedCount = Object.values(drafts).filter(d => d.status === 'saved').length;
-  const codStr = (currentDraft.cod_catastral || '').padEnd(19, ' ');
+  const codStr = (cleanCadastralCode(currentDraft.cod_catastral) || '').padEnd(19, ' ');
 
   useEffect(() => {
     if (totalPolygons === 0) {

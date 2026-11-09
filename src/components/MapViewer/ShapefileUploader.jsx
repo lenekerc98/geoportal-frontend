@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import shpwrite from '@mapbox/shp-write';
 import proj4 from 'proj4';
 import { showSuccess } from '../../utils/swal';
+import { cleanCadastralCode } from '../../utils/cadastralUtils';
 import { AppContext } from '../../context/AppContext';
 import './ShapefileUploader.css';
 
@@ -275,11 +276,22 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
           const normalizedGeoJson = Array.isArray(geojson) ? geojson[0] : geojson;
           const rawFeatures = (normalizedGeoJson && normalizedGeoJson.features) ? normalizedGeoJson.features : [];
 
+          // Normalizar atributos numéricos/científicos para tratarlos 100% como texto
+          rawFeatures.forEach(feat => {
+            if (feat && feat.properties) {
+              Object.entries(feat.properties).forEach(([k, v]) => {
+                if (typeof v === 'number' || (typeof v === 'string' && /e[+-]?\d+/i.test(v))) {
+                  feat.properties[k] = cleanCadastralCode(v);
+                }
+              });
+            }
+          });
+
           if (rawFeatures.length > 0) {
             const props = rawFeatures[0].properties || {};
             const cols = Object.keys(props).map(key => ({
               original: key,
-              sample: props[key]
+              sample: cleanCadastralCode(props[key])
             }));
             setPreviewColumns(cols);
             
@@ -298,10 +310,10 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                if (k.includes('CEDULA') || k === 'NUMERO_IDE' || k.includes('IDENT') || k.includes('DNI') || k.includes('RUC')) {
                  newMap.cedula = c.original;
                }
-               if (k.includes('NOMBRE') || k === 'NOMBRE_PRO' || k.includes('PROP') || k.includes('TITUL') || k.includes('DUENO')) {
+               if (k.includes('NOMBRE') || k === 'NOMBRE_PRO' || k.includes('PROP') || k.includes('TITUL') || k.includes('DUENO') || k === 'PROPIETRIO') {
                  newMap.nombre_posesionario = c.original;
                }
-               if (k.includes('CLAVE') || k.includes('CATAST') || k.includes('COD_CAT') || k.includes('NUMERO_PRO') || k === 'COD_PREDIO' || k === 'PREDIO' || k === 'CODIGO') {
+               if (k.includes('CLAVE') || k.includes('CATAST') || k.includes('COD_CAT') || k.includes('NUMERO_PRO') || k === 'COD_PREDIO' || k === 'PREDIO' || k === 'CODIGO' || k.startsWith('CLV_') || k === 'NUM_PREDIO') {
                  newMap.cod_catastral = c.original;
                }
                if (k.includes('FECHA_ADJU') || k.includes('FECHA_ADJ') || k.includes('ADJUDIC')) {
@@ -720,6 +732,18 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
 
       const data = await response.json();
       if (response.ok) {
+        // Garantizar que ningún código venga en notación científica o como float
+        if (data.conflictos) {
+          data.conflictos.forEach(c => {
+            if (c.incoming) c.incoming.codigo = cleanCadastralCode(c.incoming.codigo) || 'S/C';
+            if (c.existing) c.existing.codigo = cleanCadastralCode(c.existing.codigo) || 'S/C';
+          });
+        }
+        if (data.nuevos) {
+          data.nuevos.forEach(n => {
+            n.codigo = cleanCadastralCode(n.codigo) || 'S/C';
+          });
+        }
         setAnalysisData(data);
         
         // Inicializar acciones de conflicto: por defecto sugerir 'reemplazar'
@@ -1552,7 +1576,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                           <tr key={idx} style={{background: action === 'omitir' ? 'rgba(100, 116, 139, 0.08)' : 'inherit'}}>
                             <td style={{padding: '8px', color: 'var(--text-muted)'}}>{idx + 1}</td>
                             <td style={{padding: '8px'}}>
-                              <div style={{fontWeight: 'bold', color: 'var(--text-main)'}}>{conf.existing.codigo}</div>
+                              <div style={{fontWeight: 'bold', color: 'var(--text-main)'}}>{cleanCadastralCode(conf.existing.codigo)}</div>
                               <div style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>
                                 {conf.existing.propietario} {conf.existing.cedula ? `(${conf.existing.cedula})` : ''}
                               </div>
@@ -1561,7 +1585,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                               </div>
                             </td>
                             <td style={{padding: '8px'}}>
-                              <div style={{fontWeight: 'bold', color: 'var(--primary)'}}>{conf.incoming.codigo}</div>
+                              <div style={{fontWeight: 'bold', color: 'var(--primary)'}}>{cleanCadastralCode(conf.incoming.codigo)}</div>
                               <div style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>
                                 {conf.incoming.propietario} {conf.incoming.cedula ? `(${conf.incoming.cedula})` : ''}
                               </div>
@@ -1686,7 +1710,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                             </td>
                             <td style={{padding: '8px', fontWeight: 'bold', color: 'var(--primary)'}}>
                               <div style={{display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
-                                <span>{item.codigo}</span>
+                                <span>{cleanCadastralCode(item.codigo)}</span>
                                 {item.es_codigo_repetido && (
                                   <span style={{
                                     fontSize: '0.7rem',

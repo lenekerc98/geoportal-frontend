@@ -26,6 +26,7 @@ import SplitPolygonTool from '../../components/MapViewer/SplitPolygonTool';
 import SplitPredioModal from '../../components/MapViewer/SplitPredioModal';
 import { detectarUbicacionCliente } from '../../utils/geoDetection';
 import { buildTransientPredioReportData } from '../../utils/geometryUtils';
+import { cleanCadastralCode } from '../../utils/cadastralUtils';
 
 // Prevención definitiva de TypeError: Cannot read properties of null (reading '_leaflet_pos') en Leaflet
 if (typeof window !== 'undefined' && L && L.Popup && L.Popup.prototype._adjustPan) {
@@ -1127,6 +1128,19 @@ export default function Geoportal() {
         } else {
           const buffer = evt.target.result;
           geojson = await shp(buffer);
+          const normalizedGeo = Array.isArray(geojson) ? geojson[0] : geojson;
+          if (normalizedGeo && normalizedGeo.features) {
+            normalizedGeo.features.forEach(feat => {
+              if (feat && feat.properties) {
+                Object.entries(feat.properties).forEach(([k, v]) => {
+                  if (typeof v === 'number' || (typeof v === 'string' && /e[+-]?\d+/i.test(v))) {
+                    feat.properties[k] = cleanCadastralCode(v);
+                  }
+                });
+              }
+            });
+            geojson = normalizedGeo;
+          }
         }
 
         setImportedShapes(geojson);
