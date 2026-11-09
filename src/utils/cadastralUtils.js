@@ -10,9 +10,9 @@
  * @returns {string} Código en texto limpio
  */
 export function cleanCadastralCode(val) {
-  if (val === null || val === undefined) return '';
+  if (val === null || val === undefined || Number.isNaN(val)) return '';
   let str = String(val).trim();
-  if (!str) return '';
+  if (!str || str.includes('*') || /^(nan|none|null|undefined|s\/c|s\/d)$/i.test(str)) return '';
 
   // Detección y expansión precisa de notación científica (ej. 1.20651510500704e+18)
   if (/e[+-]?\d+/i.test(str)) {
@@ -94,8 +94,10 @@ export function extractPredioAttributes(props = {}) {
       const cleanCed = val.replace(/[^\d]/g, '');
       if (cleanCed.length >= 9) {
         cedula = cleanCed.padStart(10, '0');
+      } else if (cleanCed.length > 0) {
+        cedula = cleanCed;
       } else {
-        cedula = val;
+        cedula = '';
       }
     }
 
