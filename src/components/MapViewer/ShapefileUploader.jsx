@@ -97,6 +97,8 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   
   // Historical Cadastre 4D
   const [fechaVigencia, setFechaVigencia] = useState('');
+  // Sector global predeterminado para todos los predios importados
+  const [defaultSector, setDefaultSector] = useState('');
 
   useEffect(() => {
     if (activeEmpresa?.id && !selectedEmpresa) {
@@ -780,7 +782,8 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       selected_new_ids: Array.from(selectedNewIds),
       fecha_creacion: fechaVigencia ? `${fechaVigencia}T00:00:00` : null,
       proyecto_id: activeProyecto?.id || null,
-      task_id: taskId
+      task_id: taskId,
+      sector_default: defaultSector.trim().toUpperCase() || null
     };
 
     try {
@@ -878,6 +881,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
     let url = `${API_URL}/api/gis/import-shapefile?empresa_id=${empId}&mapping=${encodeURIComponent(JSON.stringify(mapping))}&renames=${encodeURIComponent(JSON.stringify(renames))}`;
     if (fechaVigencia) url += `&fecha_creacion=${fechaVigencia}T00:00:00`;
     if (activeProyecto?.id) url += `&proyecto_id=${activeProyecto.id}`;
+    if (defaultSector.trim()) url += `&sector_default=${encodeURIComponent(defaultSector.trim().toUpperCase())}`;
 
     try {
       const response = await fetch(url, {
@@ -1024,6 +1028,25 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                 <option value="limite_parroquial">Límite Parroquial (Límites)</option>
               </select>
             </div>
+
+            {importType === 'catastro_base' && (
+              <div className="form-group" style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Sector a Asignar a Todos los Predios (Opcional):
+                </label>
+                <input 
+                  type="text"
+                  className="input-dynamic"
+                  placeholder="Ej: LAS CASITAS, DOS POSTES, SECTOR 01..."
+                  value={defaultSector}
+                  onChange={(e) => setDefaultSector(e.target.value.toUpperCase())}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--card-border)' }}
+                />
+                <small style={{ color: 'var(--text-muted)' }}>
+                  Si tu archivo no tiene una columna de sector o deseas asignarle el mismo sector a todos los predios importados, ingrésalo aquí.
+                </small>
+              </div>
+            )}
 
             {isModoManual && (
               <div className="form-group" style={{marginBottom: '15px'}}>

@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
 import { API_URL } from '../../services/api';
 import { AppContext } from '../../context/AppContext';
 import { buildTransientPredioReportData } from '../../utils/geometryUtils';
+import { detectarUbicacionCliente } from '../../utils/geoDetection';
 import './ShapefileAtlasModal.css';
 
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
@@ -371,6 +372,8 @@ export default function ShapefileAtlasModal({
       let initCedula = '';
       let initNombre = '';
       let initClave = dpaPrefix || '';
+      let initSector = '';
+      let initParroquia = '';
 
       Object.keys(props).forEach(k => {
         const val = String(props[k] || '').trim();
@@ -379,9 +382,21 @@ export default function ShapefileAtlasModal({
         if (upper.includes('CEDULA') || upper.includes('RUC') || upper.includes('IDENTIFIC')) initCedula = val;
         if (upper.includes('NOMBRE') || upper.includes('PROPIETARIO') || upper.includes('POSESION')) initNombre = val;
         if ((upper.includes('CLAVE') || upper.includes('CATAST') || upper.includes('COD_CAT') || upper.includes('CODIGO')) && val.length >= 5) initClave = val;
+        if (upper.includes('SECTOR') || upper.includes('RECINTO') || upper.includes('BARRIO')) initSector = val;
+        if (upper.includes('PARROQ') || upper.includes('DPA_DESPAR')) initParroquia = val;
       });
       const combinedNomApe = [props.nombres || props.NOMBRES, props.apellidos || props.APELLIDOS].filter(Boolean).map(v => String(v).trim()).join(' ').trim();
       if (combinedNomApe) initNombre = combinedNomApe;
+
+      if (!initParroquia || !initSector) {
+        try {
+          const detectedLoc = detectarUbicacionCliente(feat.utmCoords || feat.latLngCoords);
+          if (detectedLoc) {
+            if (!initParroquia && detectedLoc.parroquia) initParroquia = detectedLoc.parroquia;
+            if (!initSector && detectedLoc.sector) initSector = detectedLoc.sector;
+          }
+        } catch (e) {}
+      }
 
       const linderos = [];
       const n = (feat.vertexLabels || []).length;
@@ -407,6 +422,8 @@ export default function ShapefileAtlasModal({
         cod_catastral: initClave ? initClave.padEnd(19, ' ').substring(0, 19) : '',
         cedula: initCedula || '',
         nombre_posesionario: initNombre || '',
+        parroquia: initParroquia || '',
+        sector: initSector || '',
         posesionario_id: null,
         linderos,
         status: 'draft'
@@ -441,6 +458,8 @@ export default function ShapefileAtlasModal({
     cod_catastral: '',
     cedula: '',
     nombre_posesionario: '',
+    parroquia: '',
+    sector: '',
     posesionario_id: null,
     linderos: [],
     status: 'draft'
@@ -558,6 +577,8 @@ export default function ShapefileAtlasModal({
         posesionario_id: finalPosId || null,
         cedula_temporal: (!finalPosId && currentDraft.cedula) ? currentDraft.cedula : undefined,
         nombre_temporal: (!finalPosId && currentDraft.nombre_posesionario) ? currentDraft.nombre_posesionario : undefined,
+        parroquia: currentDraft.parroquia || undefined,
+        sector: currentDraft.sector || undefined,
         empresa_id: activeEmpresa?.id || null,
         proyecto_id: activeProyecto?.id || null,
         geom_geojson: {
@@ -673,6 +694,8 @@ export default function ShapefileAtlasModal({
           posesionario_id: finalPosId || null,
           cedula_temporal: (!finalPosId && draft.cedula) ? draft.cedula : undefined,
           nombre_temporal: (!finalPosId && draft.nombre_posesionario) ? draft.nombre_posesionario : undefined,
+          parroquia: draft.parroquia || undefined,
+          sector: draft.sector || undefined,
           empresa_id: activeEmpresa?.id || null,
           proyecto_id: activeProyecto?.id || null,
           geom_geojson: { type: "Polygon", coordinates: [feat.utmCoords] },
@@ -749,6 +772,8 @@ export default function ShapefileAtlasModal({
         id: currentDraft?.savedPredioId,
         cod_catastral: (currentDraft?.cod_catastral || '').replace(/\s/g, ''),
         nombre_posesionario: currentDraft?.nombre_posesionario || '',
+        parroquia: currentDraft?.parroquia || '',
+        sector: currentDraft?.sector || '',
         latLngs: currentFeature?.latLngs || [],
         positions: currentFeature?.latLngs || [],
         center: currentFeature ? [currentFeature.centerLat, currentFeature.centerLng] : null,
@@ -1247,6 +1272,30 @@ export default function ShapefileAtlasModal({
                   value={currentDraft.nombre_posesionario}
                   onChange={e => handleUpdateDraft('nombre_posesionario', e.target.value)}
                   placeholder="Nombre completo..."
+                />
+              </div>
+            </div>
+
+            {/* Parroquia y Sector */}
+            <div className="atlas-row" style={{ marginTop: '4px' }}>
+              <div className="atlas-field-group">
+                <label>Parroquia</label>
+                <input 
+                  type="text" 
+                  className="atlas-input"
+                  value={currentDraft.parroquia || ''}
+                  onChange={e => handleUpdateDraft('parroquia', e.target.value)}
+                  placeholder="Ej. CATARAMA, RICAURTE..."
+                />
+              </div>
+              <div className="atlas-field-group" style={{ flex: 1.5 }}>
+                <label>Sector / Recinto</label>
+                <input 
+                  type="text" 
+                  className="atlas-input"
+                  value={currentDraft.sector || ''}
+                  onChange={e => handleUpdateDraft('sector', e.target.value)}
+                  placeholder="Ej. LAS CASITAS, EL CRISTAL..."
                 />
               </div>
             </div>

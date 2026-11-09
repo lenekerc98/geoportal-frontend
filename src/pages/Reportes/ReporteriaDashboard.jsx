@@ -109,12 +109,14 @@ const ReporteriaDashboard = () => {
   };
 
   // ESTADO DERIVADO: Evita loops infinitos de renderizado
-  const term = searchTerm.toLowerCase();
+  const term = searchTerm.toLowerCase().trim();
   const filteredData = data.filter(item =>
     String(item.codigo || '').toLowerCase().includes(term) ||
     String(item.nombre_posesionario || '').toLowerCase().includes(term) ||
-    String(item.cedula_posesionario || '').toLowerCase().includes(term) ||
-    String(item.sector || '').toLowerCase().includes(term)
+    String(item.cedula_posesionario || item.cedula || '').toLowerCase().includes(term) ||
+    String(item.sector || '').toLowerCase().includes(term) ||
+    String(item.parroquia || '').toLowerCase().includes(term) ||
+    String(item.predio_id || item.id || '').toLowerCase().includes(term)
   );
 
   // Totales / Métricas

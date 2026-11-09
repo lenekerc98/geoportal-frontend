@@ -357,6 +357,12 @@ export default function PlanimetricoSheet({
       }
     });
 
+    // Unir el último grupo con el primero si comparten el mismo colindante (cierre poligonal en P01)
+    if (contiguousGroups.length > 1 && contiguousGroups[0].name.toLowerCase() === contiguousGroups[contiguousGroups.length - 1].name.toLowerCase()) {
+      contiguousGroups[0].indices = [...contiguousGroups[contiguousGroups.length - 1].indices, ...contiguousGroups[0].indices];
+      contiguousGroups.pop();
+    }
+
     const centerIndices = new Set();
     contiguousGroups.forEach(group => {
       const midIndex = group.indices[Math.floor(group.indices.length / 2)];
