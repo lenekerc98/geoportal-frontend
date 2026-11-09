@@ -387,8 +387,11 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
             setSelectedPolyIdx(0);
           }
         } catch (err) {
-          console.error("Error parsing SHP", err);
-          alert("Error leyendo el Shapefile para previsualización.");
+          console.warn("Error en previsualización JS del Shapefile:", err);
+          setUploadStatus({
+            type: 'warning',
+            message: 'Aviso: La previsualización rápida en el navegador no pudo decodificar este archivo (posible formato con elevaciones 3D, caracteres especiales o metadatos de exportación). Puedes pulsar "Continuar" para que el motor GIS del servidor (GDAL/OGR) lo procese directamente.'
+          });
         } finally {
           setIsParsing(false);
         }
