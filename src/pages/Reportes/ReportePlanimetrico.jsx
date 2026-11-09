@@ -487,17 +487,27 @@ export default function ReportePlanimetrico() {
     const fetchAllPredios = async () => {
       try {
         const token = searchParams.get('token') || localStorage.getItem('catastro_token');
-        const params = new URLSearchParams();
-        if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
-        if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
-        const queryStr = params.toString() ? `?${params.toString()}` : '';
+        const soloFaltantes = searchParams.get('faltantes') === 'true';
+        let url = `${API_URL}/api/gis/codigos-catastrales`;
+        if (soloFaltantes) {
+          url = `${API_URL}/api/gis/codigos-catastrales/faltantes`;
+        } else {
+          const params = new URLSearchParams();
+          if (activeEmpresa) params.append('empresa_id', activeEmpresa.id);
+          if (activeProyecto) params.append('proyecto_id', activeProyecto.id);
+          const queryStr = params.toString() ? `?${params.toString()}` : '';
+          url += queryStr;
+        }
 
-        const res = await fetch(`${API_URL}/api/gis/codigos-catastrales${queryStr}`, {
+        const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
-          const json = await res.json();
-          json.sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''));
+          let json = await res.json();
+          if (!soloFaltantes) {
+            json = json.filter(item => item.predio_id !== null && item.predio_id !== undefined);
+            json.sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''));
+          }
           setAllPredios(json);
         }
       } catch (e) { }
@@ -920,8 +930,9 @@ export default function ReportePlanimetrico() {
     if (autoBatch && allPredios.length > 0) {
       const pFrom = parseInt(searchParams.get('from'));
       const pTo = parseInt(searchParams.get('to'));
+      const pLote = parseInt(searchParams.get('lote'));
       if (pFrom && pTo) {
-        handleStartBatch(pFrom, pTo, true, Math.ceil(pFrom / 200));
+        handleStartBatch(pFrom, pTo, true, pLote || Math.ceil(pFrom / 200));
       } else {
         setShowBatchModal(true);
       }
@@ -1048,11 +1059,13 @@ export default function ReportePlanimetrico() {
       setTimeout(() => {
         setBatchLoading(false);
         setShowBatchModal(false);
-        window.__BATCH_READY__ = true;
-        window.__BATCH_DATA_COUNT__ = validResults.length;
         setTimeout(() => {
-          window.print();
-        }, 400);
+          window.__BATCH_READY__ = true;
+          window.__BATCH_DATA_COUNT__ = validResults.length;
+          setTimeout(() => {
+            window.print();
+          }, 400);
+        }, 1200);
       }, renderWaitMs);
     } catch (e) {
       console.error('Error en lote de impresión:', e);
@@ -1360,7 +1373,7 @@ export default function ReportePlanimetrico() {
         </div>
       )}
 
-      {!loading && !data && (
+      {!loading && !data && !isBatchPrinting && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', flexDirection: 'column', color: '#64748b' }}>
           <AlertCircle size={60} style={{ marginBottom: '20px', color: '#cbd5e1' }} />
           <h2>Predio Sin Mapa</h2>
@@ -1368,7 +1381,7 @@ export default function ReportePlanimetrico() {
         </div>
       )}
 
-      {!loading && data && (
+      {(isBatchPrinting || (!loading && data)) && (
         <>
           {showTextModal && (
             <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
