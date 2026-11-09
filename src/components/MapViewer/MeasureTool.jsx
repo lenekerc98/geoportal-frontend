@@ -1,11 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 export default function MeasureTool({ isMeasuring, measurePoints, setMeasurePoints, setMousePos }) {
   const [snappedLatLng, setSnappedLatLng] = useState(null);
+  const rafRef = useRef(null);
   
   const map = useMap();
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
   
   useMapEvents({
     click(e) {
@@ -30,13 +37,12 @@ export default function MeasureTool({ isMeasuring, measurePoints, setMeasurePoin
           }
         });
 
-        if (bestSnap) {
+        const targetPos = bestSnap || e.latlng;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
           setSnappedLatLng(bestSnap);
-          setMousePos(bestSnap);
-        } else {
-          setSnappedLatLng(null);
-          setMousePos(e.latlng);
-        }
+          setMousePos(targetPos);
+        });
       } else if (!isMeasuring) {
         setSnappedLatLng(null);
       }

@@ -178,11 +178,14 @@ export default function PlanimetricoSheet({
   codigoCarta = '',
   nombreCarta = '',
   nombreCuadricula = 'ZONA 17S',
+  parroquiaCarta = '',
+  sectorCarta = '',
   duplexMode = true,
   onPrevisualizarPlano,
   onPrevisualizarMinimapa,
   MapScaleUpdater,
-  UtmGrid
+  UtmGrid,
+  isPrinting = false
 }) {
   const [mapGridLabels, setMapGridLabels] = useState({ top: [], left: [] });
   const [minimapGridLabels, setMinimapGridLabels] = useState({ top: [], left: [] });
@@ -446,8 +449,8 @@ export default function PlanimetricoSheet({
   const currentEmpresa = empresaInfo || activeEmpresa;
   const dpaProvincia = currentEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
   const dpaCanton = currentEmpresa?.canton || predio?.canton || 'URDANETA';
-  const dpaParroquia = predio?.parroquia || predio?.ciudad || currentEmpresa?.ciudad || 'CATARAMA';
-  const dpaSector = predio?.sector || currentEmpresa?.sector || 'URBANO';
+  const dpaParroquia = (parroquiaCarta && parroquiaCarta.trim()) ? parroquiaCarta.trim() : (predio?.parroquia || predio?.ciudad || currentEmpresa?.ciudad || 'CATARAMA');
+  const dpaSector = (sectorCarta && sectorCarta.trim()) ? sectorCarta.trim() : ((predio?.sector && predio.sector.trim()) ? predio.sector.trim() : 'S/N');
   const displayScale = scale === 'custom' ? customScale : scale;
   const directorNombre = currentEmpresa?.nombre_director || ' ';
 
@@ -543,7 +546,19 @@ export default function PlanimetricoSheet({
                   )}
 
                   {polygonCoords.length > 0 && !isNaN(center[0]) && !isNaN(center[1]) && (
-                    <MapContainer center={center} zoom={18} maxZoom={24} zoomSnap={0.1} style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} dragging={false} touchZoom={false}>
+                    <MapContainer
+                      center={center}
+                      zoom={18}
+                      maxZoom={24}
+                      zoomSnap={0.1}
+                      preferCanvas={true}
+                      style={{ width: '100%', height: '100%', zIndex: 1 }}
+                      zoomControl={false}
+                      scrollWheelZoom={false}
+                      doubleClickZoom={false}
+                      dragging={false}
+                      touchZoom={false}
+                    >
                       {MapScaleUpdater && (
                         <MapScaleUpdater scaleValue={displayScale} polygonCoords={polygonCoords} setCalculatedScale={setCalculatedScale} setGraphicScale={setGraphicScale} />
                       )}
@@ -663,6 +678,7 @@ export default function PlanimetricoSheet({
                         key={`minimap_${center[0].toFixed(5)}_${center[1].toFixed(5)}_${fondoMinimapa}`}
                         center={center}
                         zoom={13}
+                        preferCanvas={true}
                         style={{ width: '100%', height: '100%' }}
                         zoomControl={false}
                         scrollWheelZoom={false}
@@ -670,74 +686,83 @@ export default function PlanimetricoSheet({
                         dragging={false}
                         touchZoom={false}
                       >
-                      <MinimapViewUpdater center={center} />
+                        <MinimapViewUpdater center={center} />
 
-                      {fondoMinimapa === 'osm' && (
-                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-                      )}
+                        {fondoMinimapa === 'osm' && (
+                          <TileLayer
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution="&copy; OpenStreetMap contributors"
+                            crossOrigin="anonymous"
+                            updateWhenZooming={false}
+                          />
+                        )}
 
-                      {fondoMinimapa === 'satelital' && (
-                        <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
-                      )}
+                        {fondoMinimapa === 'satelital' && (
+                          <TileLayer
+                            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                            crossOrigin="anonymous"
+                            updateWhenZooming={false}
+                          />
+                        )}
 
-                      {fondoMinimapa === 'cad' && activeCadGeoJson && (
-                        <GeoJSON
-                          key={'minimap_cad_' + (activeCadGeoJson?.features?.length || 0)}
-                          data={activeCadGeoJson}
-                          filter={(feature) => {
-                            const geomType = feature?.geometry?.type;
-                            const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || '').toUpperCase();
-                            // Filtrar puntos densos de cota/altura que saturan el minimapa 235px
-                            if (geomType === 'Point' || geomType === 'MultiPoint') {
-                              if (capa.includes('ALTURA') || capa.includes('ELEVACION') || capa.includes('VALORCURVA')) return false;
+                        {fondoMinimapa === 'cad' && activeCadGeoJson && (
+                          <GeoJSON
+                            key={'minimap_cad_' + (activeCadGeoJson?.features?.length || 0)}
+                            data={activeCadGeoJson}
+                            filter={(feature) => {
+                              const geomType = feature?.geometry?.type;
+                              const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || '').toUpperCase();
+                              // Filtrar puntos densos de cota/altura que saturan el minimapa 235px
+                              if (geomType === 'Point' || geomType === 'MultiPoint') {
+                                if (capa.includes('ALTURA') || capa.includes('ELEVACION') || capa.includes('VALORCURVA')) return false;
+                                const textVal = feature?.properties?.texto || feature?.properties?.text;
+                                return Boolean(textVal && String(textVal).trim());
+                              }
+                              return true;
+                            }}
+                            style={(feature) => {
+                              const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
+                              if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.8, opacity: 0.7 };
+                              if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.8, opacity: 0.95 };
+                              if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.6, opacity: 0.95 };
+                              if (capa.includes('CURVA') || capa.includes('NIVEL') || capa.includes('ACCIDENTE')) return { color: '#ca8a04', weight: 1.3, opacity: 0.9 };
+                              return { color: '#334155', weight: 1.1, opacity: 0.85 };
+                            }}
+                            pointToLayer={(feature, latlng) => {
                               const textVal = feature?.properties?.texto || feature?.properties?.text;
-                              return Boolean(textVal && String(textVal).trim());
-                            }
-                            return true;
-                          }}
-                          style={(feature) => {
-                            const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
-                            if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.8, opacity: 0.7 };
-                            if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.8, opacity: 0.95 };
-                            if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.6, opacity: 0.95 };
-                            if (capa.includes('CURVA') || capa.includes('NIVEL') || capa.includes('ACCIDENTE')) return { color: '#ca8a04', weight: 1.3, opacity: 0.9 };
-                            return { color: '#334155', weight: 1.1, opacity: 0.85 };
-                          }}
-                          pointToLayer={(feature, latlng) => {
-                            const textVal = feature?.properties?.texto || feature?.properties?.text;
-                            if (textVal && String(textVal).trim()) {
-                              return L.marker(latlng, {
-                                icon: L.divIcon({
-                                  className: 'cad-text-label',
-                                  html: `<div style="font-size: 7px; font-weight: bold; color: #475569; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
-                                  iconSize: [0, 0]
-                                })
-                              });
-                            }
-                            return null;
+                              if (textVal && String(textVal).trim()) {
+                                return L.marker(latlng, {
+                                  icon: L.divIcon({
+                                    className: 'cad-text-label',
+                                    html: `<div style="font-size: 7px; font-weight: bold; color: #475569; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
+                                    iconSize: [0, 0]
+                                  })
+                                });
+                              }
+                              return null;
+                            }}
+                          />
+                        )}
+
+                        {UtmGrid && <UtmGrid setMapGridLabels={setMinimapGridLabels} isMinimap={true} />}
+
+                        {/* Polígono del predio destacado */}
+                        <Polygon positions={polygonCoords} pathOptions={{ color: '#b91c1c', weight: 2.5, fillColor: '#ef4444', fillOpacity: 0.95 }} />
+
+                        {/* Círculo envolvente para ubicar el predio en la carta general */}
+                        <CircleMarker
+                          center={center}
+                          radius={22}
+                          pathOptions={{
+                            color: '#dc2626',
+                            weight: 2.2,
+                            dashArray: '5, 4',
+                            fillColor: '#ef4444',
+                            fillOpacity: 0.1
                           }}
                         />
-                      )}
 
-                      {UtmGrid && <UtmGrid setMapGridLabels={setMinimapGridLabels} isMinimap={true} />}
-
-                      {/* Polígono del predio destacado */}
-                      <Polygon positions={polygonCoords} pathOptions={{ color: '#b91c1c', weight: 2.5, fillColor: '#ef4444', fillOpacity: 0.95 }} />
-
-                      {/* Círculo envolvente para ubicar el predio en la carta general */}
-                      <CircleMarker
-                        center={center}
-                        radius={22}
-                        pathOptions={{
-                          color: '#dc2626',
-                          weight: 2.2,
-                          dashArray: '5, 4',
-                          fillColor: '#ef4444',
-                          fillOpacity: 0.1
-                        }}
-                      />
-
-                    </MapContainer>
+                      </MapContainer>
                     )}
                   </div>
 
@@ -801,7 +826,7 @@ export default function PlanimetricoSheet({
               <div className="sidebar-box">
                 <div className="box-title">PARROQUIA:</div>
                 <div className="box-content" style={{ textAlign: 'center', textTransform: 'uppercase' }}>
-                  {predio?.parroquia || dpaParroquia || 'CATARAMA - URDANETA - PIJULLO'}
+                  {dpaParroquia}
                 </div>
               </div>
 

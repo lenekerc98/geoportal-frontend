@@ -8,6 +8,7 @@ import { Plus, Maximize, Search, Save, Layers, Target, Eye, EyeOff, Trash2, X, D
 import proj4 from 'proj4';
 import shpwrite from '@mapbox/shp-write';
 import shp from 'shpjs';
+import * as XLSX from 'xlsx';
 import { API_URL } from '../../services/api';
 import { getOfflinePredios, saveOfflinePredio, removeOfflinePredio, getOfflinePrediosCount } from '../../services/offlineDB';
 import { confirmDelete, showSuccess, showError } from '../../utils/swal';
@@ -26,6 +27,20 @@ import SplitPredioModal from '../../components/MapViewer/SplitPredioModal';
 import { detectarUbicacionCliente } from '../../utils/geoDetection';
 import { buildTransientPredioReportData } from '../../utils/geometryUtils';
 
+// Prevención definitiva de TypeError: Cannot read properties of null (reading '_leaflet_pos') en Leaflet
+if (typeof window !== 'undefined' && L && L.Popup && L.Popup.prototype._adjustPan) {
+  const origAdjustPan = L.Popup.prototype._adjustPan;
+  L.Popup.prototype._adjustPan = function (...args) {
+    if (!this._container || !this._map) return;
+    try {
+      return origAdjustPan.apply(this, args);
+    } catch (err) {
+      // Evitar crash si el popup se desmonta o se cierra durante una animación de mapa
+      return;
+    }
+  };
+}
+
 const getGeometryIcon = (tipo) => {
   if (!tipo) return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
   const t = tipo.toUpperCase();
@@ -35,880 +50,25 @@ const getGeometryIcon = (tipo) => {
   return <Layers size={14} style={{ marginRight: '6px', color: 'var(--text-muted)' }} />;
 };
 
-// --- INTERACTIVE ZOOM HANDLER ---
-const InteractiveZoomHandler = ({ mode, setMode }) => {
-  const map = useMap();
+import InteractiveZoomHandler from './components/Map/InteractiveZoomHandler';
 
-  useEffect(() => {
-    if (!mode) {
-      if (map) {
-        map.eachLayer(layer => {
-          if (layer instanceof L.Rectangle && layer.options && (layer.options.color === '#ff0000' || layer.options.color === '#0078ff') && layer.options.interactive === false) {
-            try { map.removeLayer(layer); } catch (e) { }
-          }
-        });
-      }
-      if (map && map.boxZoom && !map.boxZoom.enabled()) {
-        map.boxZoom.enable();
-      }
-      return;
-    }
+import InteractiveSelectionHandler from './components/Map/InteractiveSelectionHandler';
 
-    let box = null;
-    let startLatLng = null;
+import { MapContextMenu, MapInteractionHandler } from './components/Toolbars/MapContextMenu';
 
-    const onMouseDown = (e) => {
-      if (e.originalEvent.button !== 0) return; // solo click izquierdo
-      map.dragging.disable();
-      startLatLng = e.latlng;
-      if (mode === 'in' || mode === 'out') {
-        box = L.rectangle([startLatLng, startLatLng], { color: mode === 'in' ? '#0078ff' : '#ff0000', weight: 2, fillOpacity: 0.2, interactive: false }).addTo(map);
-      }
-    };
+import SectorColorPickerButton from './components/Map/SectorColorPickerButton';
 
-    const onMouseMove = (e) => {
-      if (!startLatLng || !box) return;
-      box.setBounds([startLatLng, e.latlng]);
-    };
 
-    const onMouseUp = (e) => {
-      if (!startLatLng) return;
+import FeatureContextMenuComponent, { getFeatureDisplayName } from './components/Toolbars/FeatureContextMenu';
 
-      const clickLatLng = startLatLng;
-
-      if (box) {
-        const bounds = box.getBounds();
-        try { map.removeLayer(box); } catch (e) { }
-        box = null;
-        startLatLng = null;
-        map.dragging.enable();
-
-        if (!bounds.getNorthEast().equals(bounds.getSouthWest())) {
-          if (mode === 'in') {
-            map.fitBounds(bounds);
-          } else if (mode === 'out') {
-            const boundsZoom = map.getBoundsZoom(bounds);
-            const zoomDiff = boundsZoom - map.getZoom();
-            const newZoom = map.getZoom() - zoomDiff;
-            map.setView(bounds.getCenter(), newZoom > 0 ? newZoom : 0);
-          }
-          return;
-        }
-      } else {
-        startLatLng = null;
-        map.dragging.enable();
-      }
-
-      // If it was just a click (no box drawn)
-      if (mode === 'in') {
-        map.setZoomAround(clickLatLng, map.getZoom() + 1);
-      } else if (mode === 'out') {
-        map.setZoomAround(clickLatLng, map.getZoom() - 1);
-      }
-    };
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' || e.key === 'Esc') {
-        if (box) {
-          try { map.removeLayer(box); } catch (err) { }
-          box = null;
-        }
-        startLatLng = null;
-        map.dragging.enable();
-        if (setMode) setMode(null);
-      }
-    };
-
-    map.getContainer().style.cursor = mode === 'in' ? 'zoom-in' : 'zoom-out';
-    map.on('mousedown', onMouseDown);
-    map.on('mousemove', onMouseMove);
-    map.on('mouseup', onMouseUp);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      if (box) {
-        try { map.removeLayer(box); } catch (e) { }
-        box = null;
-      }
-      map.off('mousedown', onMouseDown);
-      map.off('mousemove', onMouseMove);
-      map.off('mouseup', onMouseUp);
-      window.removeEventListener('keydown', handleKeyDown);
-      map.getContainer().style.cursor = '';
-      map.dragging.enable();
-    };
-  }, [mode, map, setMode]);
-
-  return null;
-};
-
-// --- INTERACTIVE SELECTION HANDLER ---
-const InteractiveSelectionHandler = ({ mode, freeDrawings, setSelectedFeatureIds }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (mode !== 'Select') {
-      if (map) {
-        map.eachLayer(layer => {
-          if (layer instanceof L.Rectangle && layer.options && layer.options.color === '#22c55e' && layer.options.interactive === false) {
-            try { map.removeLayer(layer); } catch (e) { }
-          }
-        });
-      }
-      if (map && map.boxZoom && !map.boxZoom.enabled()) map.boxZoom.enable();
-      return;
-    }
-
-    if (map.boxZoom) map.boxZoom.disable();
-    map.dragging.disable();
-
-    let box = null;
-    let startLatLng = null;
-
-    const onMouseDown = (e) => {
-      if (e.originalEvent.button !== 0) return;
-
-      // Prevenir la selección de texto en la interfaz (UI) al arrastrar
-      document.body.style.userSelect = 'none';
-      if (window.getSelection) {
-        window.getSelection().removeAllRanges();
-      }
-
-      startLatLng = e.latlng;
-      box = L.rectangle([startLatLng, startLatLng], {
-        color: '#22c55e',
-        weight: 1,
-        fillOpacity: 0.15,
-        dashArray: '4,4',
-        interactive: false
-      }).addTo(map);
-    };
-
-    const onMouseMove = (e) => {
-      if (!startLatLng || !box) return;
-      box.setBounds([startLatLng, e.latlng]);
-    };
-
-    const onMouseUp = (e) => {
-      // Restaurar la selección de texto
-      document.body.style.userSelect = '';
-      if (window.getSelection) {
-        window.getSelection().removeAllRanges();
-      }
-
-      if (!startLatLng) return;
-
-      if (box) {
-        const bounds = box.getBounds();
-        try { map.removeLayer(box); } catch (e) { }
-        box = null;
-        startLatLng = null;
-
-        if (!bounds.getNorthEast().equals(bounds.getSouthWest())) {
-          const newSelected = [];
-          freeDrawings.forEach(d => {
-            const isInside = d.positions.some(pos => bounds.contains(pos));
-            if (isInside) newSelected.push(d.id);
-          });
-
-          setSelectedFeatureIds(prev => {
-            if (e.originalEvent.shiftKey) {
-              return Array.from(new Set([...prev, ...newSelected]));
-            }
-            return newSelected;
-          });
-        } else {
-          if (!e.originalEvent.shiftKey && e.originalEvent.target === map.getContainer()) {
-            setSelectedFeatureIds([]);
-          }
-        }
-      }
-    };
-
-    map.getContainer().style.cursor = 'crosshair';
-    map.on('mousedown', onMouseDown);
-    map.on('mousemove', onMouseMove);
-    map.on('mouseup', onMouseUp);
-
-    return () => {
-      if (box) {
-        try { map.removeLayer(box); } catch (e) { }
-        box = null;
-      }
-      map.off('mousedown', onMouseDown);
-      map.off('mousemove', onMouseMove);
-      map.off('mouseup', onMouseUp);
-      map.getContainer().style.cursor = '';
-      map.dragging.enable();
-      if (map.boxZoom && !map.boxZoom.enabled()) map.boxZoom.enable();
-    };
-  }, [mode, map, freeDrawings, setSelectedFeatureIds]);
-
-  return null;
-};
-
-function MapContextMenu({ onAction, isFeatureMenuOpen }) {
-  const [contextMenu, setContextMenu] = React.useState(null);
-
-  React.useEffect(() => {
-    const handleClose = () => setContextMenu(null);
-    window.addEventListener('closeMapContextMenu', handleClose);
-    return () => window.removeEventListener('closeMapContextMenu', handleClose);
-  }, []);
-
-  React.useEffect(() => {
-    if (isFeatureMenuOpen && contextMenu) {
-      setContextMenu(null);
-    }
-  }, [isFeatureMenuOpen]);
-
-  React.useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setContextMenu(null);
-    };
-    if (contextMenu) window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [contextMenu]);
-
-  useMapEvents({
-    contextmenu(e) {
-      // Si el clic fue en un predio o capa, o si ya hay un menú de predio, NO abrir menú general
-      if (
-        e.originalEvent?._featureHandled ||
-        isFeatureMenuOpen ||
-        (window._lastFeatureContextTime && Date.now() - window._lastFeatureContextTime < 500)
-      ) {
-        return;
-      }
-      setContextMenu({
-        mouseX: e.originalEvent.clientX,
-        mouseY: e.originalEvent.clientY,
-        latlng: e.latlng
-      });
-    },
-    click() {
-      if (contextMenu) setContextMenu(null);
-    },
-    dragstart() {
-      if (contextMenu) setContextMenu(null);
-    }
-  });
-
-  if (!contextMenu) return null;
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: contextMenu.mouseY,
-      left: contextMenu.mouseX,
-      zIndex: 9999,
-      background: 'var(--bg-panel)',
-      border: '1px solid var(--card-border)',
-      borderRadius: '8px',
-      padding: '5px 0',
-      minWidth: '200px',
-      boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-      backdropFilter: 'blur(20px)',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
-      <div
-        onClick={(e) => { e.stopPropagation(); onAction('generate_predio_at_point', contextMenu.latlng); setContextMenu(null); }}
-        style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        title="Crear un polígono base de 20x20m en estas coordenadas exactas"
-      >
-        <MapPin size={16} color="#10b981" /> Generar Predio en este punto
-      </div>
-      <div
-        onClick={(e) => { e.stopPropagation(); onAction('add_predio', contextMenu.latlng); setContextMenu(null); }}
-        style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-      >
-        <Plus size={16} color="#34d399" /> Agregar Predio Manual
-      </div>
-      <div
-        onClick={(e) => { e.stopPropagation(); onAction('measure', contextMenu.latlng); setContextMenu(null); }}
-        style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-      >
-        <Ruler size={16} color="#60a5fa" /> Medir Distancia
-      </div>
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '5px 0' }}></div>
-      <div
-        onClick={(e) => {
-          e.stopPropagation();
-          navigator.clipboard.writeText(`${contextMenu.latlng.lat.toFixed(6)}, ${contextMenu.latlng.lng.toFixed(6)}`)
-            .then(() => showSuccess('Coordenadas copiadas'))
-            .catch(() => showError('No se pudieron copiar las coordenadas'));
-          setContextMenu(null);
-        }}
-        style={{ padding: '10px 15px', color: '#e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}
-        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-      >
-        <Target size={16} color="#fbbf24" /> Copiar Coordenadas
-      </div>
-    </div>
-  );
-}
-
-function MapInteractionHandler({ onInteraction }) {
-  useMapEvents({
-    click: onInteraction,
-    dragstart: onInteraction,
-    contextmenu: (e) => {
-      if (!e.originalEvent?._featureHandled) {
-        onInteraction();
-      }
-    },
-  });
-  return null;
-}
-
-
-const getFeatureDisplayName = (f, i = 0) => {
-  if (!f) return `Elemento ${i + 1}`;
-  const p = f.properties || {};
-
-  // 1. Códigos y nombres oficiales del Cantón Urdaneta
-  const codP = String(p.codigo_dpa || p.cod_parroq || p.codpar || p.dpa_parroq || '').trim();
-  if (codP === '120650' || codP === '50' || codP.endsWith('50')) return 'Catarama (120650)';
-  if (codP === '120651' || codP === '51' || codP.endsWith('51')) return 'Ricaurte (120651)';
-  if (codP === '120652' || codP === '52' || codP.endsWith('52')) return 'Pijullo (120652)';
-  if (codP === '1206' || String(p.dpa_canton) === '1206' || String(p.codigo_canton) === '1206') return 'Urdaneta (1206)';
-
-  // 2. Nombres explícitos de Parroquia o Cantón
-  if (p.nombre && p.codigo_dpa) return `${p.nombre} (${p.codigo_dpa})`;
-  if (p.nombre && String(p.nombre).trim()) return String(p.nombre).trim();
-  const fullNom = [p.nombres, p.apellidos].filter(Boolean).map(v => String(v).trim()).join(' ').trim();
-  if (fullNom) return fullNom;
-  if (p.nombre_posesionario) return p.nombre_posesionario;
-  if (p.propietario) return p.propietario;
-  if (p.parroquia && p.codigo_dpa) return `${p.parroquia} (${p.codigo_dpa})`;
-  if (p.parroquia) return p.parroquia;
-  if (p.canton && p.codigo_dpa) return `${p.canton} (${p.codigo_dpa})`;
-  if (p.canton) return p.canton;
-  if (p.dpa_despar) return p.dpa_despar;
-  if (p.dpa_descan) return p.dpa_descan;
-  if (p.name) return p.name;
-  if (p.etiqueta) return p.etiqueta;
-  if (p.cod_catastral) return p.cod_catastral;
-  if (p.cod_cat) return p.cod_cat;
-  if (p.codigo) return p.codigo;
-  if (p.recinto) {
-    const mzPred = [p.num_manz ? `Mz ${p.num_manz}` : '', p.num_predio ? `Lote ${p.num_predio}` : ''].filter(Boolean).join(' ');
-    return mzPred ? `${p.recinto} (${mzPred})` : p.recinto;
-  }
-
-  return `Elemento ${i + 1}`;
-};
-
-function FeatureContextMenuComponent({ context, onClose, onAction, hiddenFeatureIds = [] }) {
-  const menuRef = React.useRef(null);
-  const [coords, setCoords] = React.useState({
-    top: context?.mouseY || 0,
-    left: context?.mouseX || 0
-  });
-
-  React.useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' || e.key === 'Esc') {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown, true);
-    document.addEventListener('keydown', handleKeyDown, true);
-    if (menuRef.current) {
-      menuRef.current.focus();
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-      document.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [onClose]);
-
-  // Auto-posicionar dentro de la ventana (evita salirse por la derecha o por abajo)
-  React.useLayoutEffect(() => {
-    if (!context) return;
-    const pad = 12;
-    const menuEl = menuRef.current;
-    const w = menuEl ? menuEl.offsetWidth : 210;
-    const h = menuEl ? menuEl.offsetHeight : 380;
-    const winW = window.innerWidth;
-    const winH = window.innerHeight;
-
-    let targetLeft = context.mouseX;
-    let targetTop = context.mouseY;
-
-    // Si se sale por la derecha (ej. abierto desde el sidebar), colocar hacia la izquierda
-    if (targetLeft + w > winW - pad) {
-      targetLeft = targetLeft - w;
-      if (targetLeft < pad) {
-        targetLeft = Math.max(pad, winW - w - pad);
-      }
-    }
-
-    // Si se sale por abajo, colocar hacia arriba
-    if (targetTop + h > winH - pad) {
-      targetTop = targetTop - h;
-      if (targetTop < pad) {
-        targetTop = Math.max(pad, winH - h - pad);
-      }
-    }
-
-    // Mínimos seguros
-    targetLeft = Math.max(pad, targetLeft);
-    targetTop = Math.max(pad, targetTop);
-
-    setCoords({ top: targetTop, left: targetLeft });
-  }, [context?.mouseX, context?.mouseY, context]);
-
-  if (!context) return null;
-  const isPredio = context.type !== 'generico';
-  const p = context.feature?.properties || {};
-  const featId = context.featureId ?? p.id ?? context.feature?.id ?? p.OBJECTID ?? p.objectid ?? p.ObjectId ?? p.gid ?? p.fid ?? p.FID ?? p.cod_catastral ?? p.COD_CATASTRAL ?? p.codigo_dpa;
-  const isHidden = hiddenFeatureIds.includes(featId) || false;
-
-  let title = 'Elemento';
-  if (isPredio) {
-    title = `Predio: ${p.cod_catastral || p.id || 'N/A'}`;
-  } else if (p.tipo_limite?.includes('Cantonal') || context.layerType?.includes('cantonal')) {
-    title = `Límite Cantonal: ${p.nombre || p.canton || 'Urdaneta'}`;
-  } else if (p.tipo_limite?.includes('Parroquial') || context.layerType?.includes('parroquial')) {
-    title = `Límite Parroquial: ${getFeatureDisplayName(context.feature, context.featureIndex || 0)}`;
-  } else {
-    title = `${context.layerName || 'Elemento'}: ${getFeatureDisplayName(context.feature, context.featureIndex || 0)}`;
-  }
-
-  return (
-    <>
-      <div
-        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998, pointerEvents: 'auto' }}
-        onClick={onClose}
-        onContextMenu={(e) => { e.preventDefault(); onClose(); }}
-      />
-      <div
-        ref={menuRef}
-        tabIndex={-1}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape' || e.key === 'Esc') {
-            e.stopPropagation();
-            onClose();
-          }
-        }}
-        style={{
-          outline: 'none',
-          position: 'fixed',
-          top: coords.top,
-          left: coords.left,
-          zIndex: 9999,
-          background: 'var(--bg-panel)',
-          border: '1px solid var(--card-border)',
-          borderRadius: '8px',
-          padding: '5px 0',
-          minWidth: '200px',
-          maxWidth: '280px',
-          maxHeight: 'calc(100vh - 24px)',
-          overflowY: 'auto',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(20px)',
-          display: 'flex',
-          flexDirection: 'column',
-          pointerEvents: 'auto'
-        }}
-      >
-        <div style={{ padding: '6px 14px', fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={title}>
-          {title}
-        </div>
-
-        {/* 1. Acercar */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('zoom', context.feature); onClose(); }}
-          style={{ padding: '8px 14px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <Target size={15} color="#fbbf24" /> Acercar
-        </div>
-
-        {/* 2. Tabla de atributos */}
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isPredio) onAction('table', context.feature);
-            else onAction('table_layer', context);
-            onClose();
-          }}
-          style={{ padding: '8px 14px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <TableProperties size={15} color="#3b82f6" /> Tabla de atributos
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
-
-        {/* 3. Fraccionar polígono / lote */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('split', context.feature); onClose(); }}
-          style={{ padding: '8px 14px', color: '#f59e0b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem', fontWeight: '500' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <Scissors size={15} color="#f59e0b" /> Fraccionar {isPredio ? 'lote' : 'polígono'}
-        </div>
-
-        {/* 4. Editar predio / polígono */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('edit', context.feature); onClose(); }}
-          style={{ padding: '8px 14px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <Edit size={15} color="#3b82f6" /> Editar {isPredio ? 'predio' : 'polígono'}
-        </div>
-
-        {/* 4.1. Personalizar color y estilo del polígono */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('custom_style', context); onClose(); }}
-          style={{ padding: '8px 14px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <Palette size={15} color="#06b6d4" /> Personalizar color y estilo
-        </div>
-
-        {/* 5. Ocultar / Mostrar polígono */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('hide', context.feature); onClose(); }}
-          style={{ padding: '8px 14px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          {isHidden ? <Eye size={15} color="#10b981" /> : <EyeOff size={15} color="#94a3b8" />}
-          {isHidden ? (isPredio ? 'Mostrar predio' : 'Mostrar polígono') : (isPredio ? 'Ocultar predio' : 'Ocultar polígono')}
-        </div>
-
-        {/* 6. Imprimir planimetría */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('report_linderacion', context.feature); onClose(); }}
-          style={{ padding: '8px 14px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <FileText size={15} color="#8b5cf6" /> Imprimir planimetría
-        </div>
-
-        {/* 7. Exportar Shapefile */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('export', context.feature); onClose(); }}
-          style={{ padding: '8px 14px', color: 'var(--success)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <DownloadCloud size={15} color="var(--success)" /> Exportar shapefile
-        </div>
-
-        {/* 8. Incorporar a predio (si no es predio base) */}
-        {!isPredio && (
-          <div
-            onClick={(e) => { e.stopPropagation(); onAction('atlas_single', context.feature); onClose(); }}
-            style={{ padding: '8px 14px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <Sparkles size={15} color="#0284c7" /> Incorporar a predio (Atlas)
-          </div>
-        )}
-
-        <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
-
-        {/* 9. Eliminar */}
-        <div
-          onClick={(e) => { e.stopPropagation(); onAction('delete', context.feature); onClose(); }}
-          style={{ padding: '8px 14px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem' }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <Trash2 size={15} color="var(--danger)" /> Eliminar {isPredio ? 'predio' : 'elemento'}
-        </div>
-      </div>
-    </>
-  );
-}
-
-function FreeDrawHandler({ drawingMode, setDrawingMode, currentDrawing, setCurrentDrawing, addCompletedDrawing, removeLastDrawing, setMousePos, freeDrawings, setIsSnapped }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (drawingMode) {
-      map.doubleClickZoom.disable();
-    } else {
-      map.doubleClickZoom.enable();
-    }
-  }, [drawingMode, map]);
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Enter') {
-        if ((drawingMode === 'Polyline' || drawingMode === 'Polygon') && currentDrawing.length > 1) {
-          addCompletedDrawing({ type: drawingMode, positions: currentDrawing });
-          setCurrentDrawing([]);
-        }
-      } else if (e.key === 'Escape') {
-        setCurrentDrawing([]);
-        setDrawingMode(null);
-      } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
-        if (currentDrawing.length > 0) {
-          setCurrentDrawing(prev => prev.slice(0, -1));
-        } else {
-          removeLastDrawing();
-        }
-      }
-    };
-    if (drawingMode) window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [drawingMode, currentDrawing, addCompletedDrawing, setCurrentDrawing, setDrawingMode, removeLastDrawing]);
-
-  const getSnappedPoint = (latlng) => {
-    let snapped = null;
-    let minDistance = 20;
-    const checkSnap = (pt) => {
-      const ptPoint = map.latLngToContainerPoint(pt);
-      const mousePoint = map.latLngToContainerPoint(latlng);
-      const distance = ptPoint.distanceTo(mousePoint);
-      if (distance < minDistance) {
-        minDistance = distance;
-        snapped = pt;
-      }
-    };
-    currentDrawing.forEach(checkSnap);
-    freeDrawings.forEach(d => d.positions.forEach(checkSnap));
-    return snapped;
-  };
-
-  const freeDrawRaf = useRef(null);
-  useMapEvents({
-    mousemove(e) {
-      if (!drawingMode) return;
-      if (freeDrawRaf.current) return;
-      freeDrawRaf.current = requestAnimationFrame(() => {
-        freeDrawRaf.current = null;
-        const snapped = getSnappedPoint(e.latlng);
-        if (snapped) {
-          setIsSnapped(true);
-          setMousePos(snapped);
-        } else {
-          setIsSnapped(false);
-          setMousePos(e.latlng);
-        }
-      });
-    },
-    click(e) {
-      if (!drawingMode) return;
-      const finalPt = getSnappedPoint(e.latlng) || e.latlng;
-
-      if (drawingMode === 'Point') {
-        addCompletedDrawing({ type: 'Point', positions: [finalPt] });
-      } else if (drawingMode === 'Line') {
-        if (currentDrawing.length === 0) {
-          setCurrentDrawing([finalPt]);
-        } else {
-          addCompletedDrawing({ type: 'Line', positions: [currentDrawing[0], finalPt] });
-          setCurrentDrawing([]);
-        }
-      } else if (drawingMode === 'Polyline' || drawingMode === 'Polygon') {
-        setCurrentDrawing(prev => {
-          // Evitar agregar el mismo punto exacto dos veces seguidas
-          if (prev.length > 0 && prev[prev.length - 1].lat === finalPt.lat && prev[prev.length - 1].lng === finalPt.lng) {
-            return prev;
-          }
-          return [...prev, finalPt];
-        });
-      }
-    },
-    dblclick(e) {
-      if (!drawingMode) return;
-      if ((drawingMode === 'Polyline' || drawingMode === 'Polygon') && currentDrawing.length > 1) {
-        addCompletedDrawing({ type: drawingMode, positions: currentDrawing });
-        setCurrentDrawing([]);
-      }
-    }
-  });
-  return null;
-}
+import FreeDrawHandler from './components/Map/FreeDrawHandler';
 
 // Define UTM Zone 17S
 proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
 
-const FeatureEditor = ({ feature, onUpdate }) => {
-  const lineRef = useRef(null);
-  const polygonRef = useRef(null);
-
-  const [positions, setPositions] = useState(feature.positions);
-
-  useEffect(() => {
-    setPositions(feature.positions);
-  }, [feature]);
-
-  const handleDrag = (idx, e) => {
-    const newLatLng = e.target.getLatLng();
-    const newPositions = [...positions];
-    newPositions[idx] = newLatLng;
-
-    // Live update the leaflet element without re-rendering React
-    if (lineRef.current) {
-      lineRef.current.setLatLngs(newPositions);
-    }
-    if (polygonRef.current) {
-      polygonRef.current.setLatLngs(newPositions);
-    }
-  };
-
-  const handleDragEnd = (idx, e) => {
-    const newLatLng = e.target.getLatLng();
-    const newPositions = [...positions];
-    newPositions[idx] = newLatLng;
-    setPositions(newPositions);
-    onUpdate(newPositions);
-  };
-
-  return (
-    <>
-      {feature.type === 'Point' && <CircleMarker center={positions[0]} radius={5} color="#ef4444" fillColor="#fca5a5" fillOpacity={1} weight={2} />}
-      {(feature.type === 'Line' || feature.type === 'Polyline') && <Polyline ref={lineRef} positions={positions} color="#ef4444" weight={3} dashArray="4, 6" />}
-      {feature.type === 'Polygon' && <Polygon ref={polygonRef} positions={positions} color="#ef4444" fillColor="#ef4444" weight={3} fillOpacity={0.2} dashArray="4, 6" />}
-
-      {positions.map((pos, idx) => (
-        <Marker
-          key={`edit-${idx}`}
-          position={pos}
-          draggable={true}
-          icon={L.divIcon({ html: '<div style="width:14px;height:14px;background:#fff;border:3px solid #ef4444;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>', iconSize: [0, 0] })}
-          eventHandlers={{
-            drag: (e) => handleDrag(idx, e),
-            dragend: (e) => handleDragEnd(idx, e)
-          }}
-        />
-      ))}
-    </>
-  );
-};
-
-
-const PredioVertexEditor = ({ positions, onUpdate }) => {
-  const map = useMap();
-  const polygonRef = useRef(null);
-  const currentPositionsRef = useRef(positions);
-
-  useEffect(() => {
-    currentPositionsRef.current = positions;
-    if (polygonRef.current) {
-      polygonRef.current.setLatLngs(positions.map(p => [p.lat, p.lng]));
-    }
-  }, [positions]);
-
-  const handleDrag = (idx, e) => {
-    const newLatLng = e.target.getLatLng();
-    const updated = [...currentPositionsRef.current];
-    updated[idx] = { lat: newLatLng.lat, lng: newLatLng.lng };
-    currentPositionsRef.current = updated;
-
-    // Actualizar el polígono en vivo sin re-renderizar React
-    if (polygonRef.current) {
-      polygonRef.current.setLatLngs(updated.map(p => [p.lat, p.lng]));
-    }
-  };
-
-  const handleDragEnd = (idx, e) => {
-    if (map && map.dragging) map.dragging.enable();
-    const newLatLng = e.target.getLatLng();
-    const updated = [...currentPositionsRef.current];
-    updated[idx] = { lat: newLatLng.lat, lng: newLatLng.lng };
-    currentPositionsRef.current = updated;
-    onUpdate(updated);
-  };
-
-  return (
-    <>
-      <Polygon
-        ref={polygonRef}
-        positions={positions.map(p => [p.lat, p.lng])}
-        interactive={false}
-        pathOptions={{
-          color: '#3b82f6',
-          weight: 3.5,
-          fillColor: '#3b82f6',
-          fillOpacity: 0.25,
-          dashArray: '6, 6'
-        }}
-      />
-      {positions.map((pos, idx) => (
-        <Marker
-          key={`vert-marker-${idx}`}
-          position={[pos.lat, pos.lng]}
-          draggable={true}
-          autoPan={true}
-          zIndexOffset={10000}
-          icon={L.divIcon({
-            className: 'draggable-predio-vertex',
-            html: `<div style="
-              width: 28px;
-              height: 28px;
-              background: #2563eb;
-              border: 3px solid #ffffff;
-              border-radius: 50%;
-              box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: #ffffff;
-              font-size: 13px;
-              font-weight: 800;
-              cursor: grab;
-              user-select: none;
-              touch-action: none;
-            ">${idx + 1}</div>`,
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
-          })}
-          eventHandlers={{
-            add: (e) => {
-              const marker = e.target;
-              if (marker.dragging) {
-                marker.dragging.enable();
-              }
-              const el = marker.getElement();
-              if (el) {
-                el.addEventListener('touchstart', (ev) => {
-                  ev.stopPropagation();
-                  if (map && map.dragging) map.dragging.disable();
-                }, { passive: false });
-                el.addEventListener('touchend', () => {
-                  if (map && map.dragging) map.dragging.enable();
-                }, { passive: true });
-                el.addEventListener('touchcancel', () => {
-                  if (map && map.dragging) map.dragging.enable();
-                }, { passive: true });
-              }
-            },
-            dragstart: () => {
-              if (map && map.dragging) map.dragging.disable();
-            },
-            drag: (e) => handleDrag(idx, e),
-            dragend: (e) => handleDragEnd(idx, e)
-          }}
-        />
-      ))}
-    </>
-  );
-};
+import { FeatureEditor, PredioVertexEditor } from './components/Map/FeatureEditor';
+import SidebarContextMenu from './components/Sidebar/SidebarContextMenu';
+import GeoportalSidebar from './components/Sidebar/GeoportalSidebar';
 
 // Funciones optimizadas para popups bajo demanda (Lazy Popups) para reducir uso de RAM
 const buildPredioPopupHtml = (properties = {}) => {
@@ -939,7 +99,7 @@ const ensurePredioPopup = (layer, feature) => {
   if (!layer || !feature) return;
   if (layer.getPopup && layer.getPopup()) return;
   if (layer.bindPopup && feature.properties) {
-    layer.bindPopup(buildPredioPopupHtml(feature.properties));
+    layer.bindPopup(buildPredioPopupHtml(feature.properties), { autoPan: false });
   }
 };
 
@@ -1624,6 +784,9 @@ export default function Geoportal() {
   });
   const [showVertices, setShowVertices] = useState(false);
   const [showLineas, setShowLineas] = useState(false);
+  const [showReferenciasSql, setShowReferenciasSql] = useState(false);
+  const [referenciasSqlData, setReferenciasSqlData] = useState(null);
+  const [loadingReferenciasSql, setLoadingReferenciasSql] = useState(false);
 
   // CRUD Predios
   const [isAddingPredio, setIsAddingPredio] = useState(false);
@@ -1657,6 +820,10 @@ export default function Geoportal() {
 
   const filteredPrediosGeoJSON = useMemo(() => {
     if (!prediosData || !prediosData.features) return null;
+    // Optimización masiva: si no hay ningún filtro activo, retornar el objeto base directamente sin iterar 4,524 predios
+    if (hiddenFeatureIds.length === 0 && !searchResults && selectedYear === 'Todos' && disabledSectors.size === 0) {
+      return prediosData;
+    }
     const filtered = (prediosData.features || []).filter(f => {
       if (!f || !f.geometry || !f.properties) return false;
       const pid = String(f.properties.id);
@@ -1669,7 +836,7 @@ export default function Geoportal() {
       return true;
     });
     return { ...prediosData, features: filtered };
-  }, [prediosData, hiddenFeatureSet, searchResultSet, selectedYear, disabledSectors]);
+  }, [prediosData, hiddenFeatureSet, searchResultSet, selectedYear, disabledSectors, hiddenFeatureIds.length, searchResults]);
 
   useEffect(() => {
     if (location.state?.selectPredioId) {
@@ -1743,8 +910,28 @@ export default function Geoportal() {
       setSelectedPredioId(id);
       setActiveTableData('predios');
     };
+
+    window.usarReferenciaSql = (cod, titular, prop, sitio, rcx, rcy) => {
+      const sqlCod = String(cod || '').trim();
+
+      setTempPredioFormData({
+        cod_catastral: sqlCod,
+        cedula: titular,
+        nombre_posesionario: prop,
+        sector: sitio,
+        geom_text: ''
+      });
+      setIsAddingPredio(true);
+      setToastMsg({
+        type: 'info',
+        title: 'Referencia SQL Seleccionada',
+        message: `Clave SQL ${sqlCod} asignada. Ahora puedes ingresar coordenadas o dibujar el polígono.`
+      });
+    };
+
     return () => {
       delete window.openPredioAttributeTable;
+      delete window.usarReferenciaSql;
     };
   }, []);
   const prediosGeoJsonRef = useRef(null);
@@ -1841,15 +1028,111 @@ export default function Geoportal() {
     const file = e.target.files[0];
     if (!file) return;
     setAtlasFileName(file.name);
+    const isExcel = /\.(xlsx|xls|csv)$/i.test(file.name);
+
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const buffer = evt.target.result;
-        const geojson = await shp(buffer);
+        let geojson;
+        if (isExcel) {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+          if (!rows || rows.length < 2) {
+            throw new Error('El archivo Excel no contiene suficientes filas.');
+          }
+
+          // Detectar columnas
+          const headerRow = rows[0].map(h => (h !== undefined && h !== null ? String(h).trim() : ''));
+          let codCol = -1, verticeCol = -1, xCol = -1, yCol = -1, colindantesCol = -1, propCol = -1, sectorCol = -1;
+
+          headerRow.forEach((colName, idx) => {
+            const c = colName.toUpperCase();
+            if (c.includes('COD') || c.includes('CLAVE') || c.includes('CATAST')) codCol = idx;
+            else if (c.includes('VERT') || c.includes('PUNTO') || c === 'N°' || c === 'NUM' || c === 'N') verticeCol = idx;
+            else if (c.includes('ESTE') || c.includes('COORDENADA X') || c === 'X') xCol = idx;
+            else if (c.includes('NORTE') || c.includes('COORDENADA Y') || c === 'Y') yCol = idx;
+            else if (c.includes('COLINDANT')) colindantesCol = idx;
+            else if (c.includes('PROP') || c.includes('NOMBRE')) propCol = idx;
+            else if (c.includes('SECTOR') || c.includes('ZONA')) sectorCol = idx;
+          });
+
+          if (xCol === -1) xCol = 0;
+          if (yCol === -1) yCol = 1;
+
+          // Agrupar filas por código catastral
+          const prediosMap = new Map();
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0) continue;
+
+            const cod = (codCol !== -1 && row[codCol]) ? String(row[codCol]).trim() : 'PREDIO_01';
+            const vOrder = (verticeCol !== -1 && !isNaN(Number(row[verticeCol]))) ? Number(row[verticeCol]) : i;
+            const x = parseFloat(row[xCol]);
+            const y = parseFloat(row[yCol]);
+            if (isNaN(x) || isNaN(y)) continue;
+
+            if (!prediosMap.has(cod)) {
+              prediosMap.set(cod, {
+                cod_catastral: cod,
+                propietario: (propCol !== -1 && row[propCol]) ? String(row[propCol]).trim() : 'Propietario no asignado',
+                sector: (sectorCol !== -1 && row[sectorCol]) ? String(row[sectorCol]).trim() : 'RURAL',
+                vertices: []
+              });
+            }
+            prediosMap.get(cod).vertices.push({ vOrder, x, y, colindante: (colindantesCol !== -1 && row[colindantesCol]) ? String(row[colindantesCol]).trim() : '' });
+          }
+
+          if (prediosMap.size === 0) {
+            throw new Error('No se encontraron coordenadas válidas en el Excel.');
+          }
+
+          const features = [];
+          prediosMap.forEach((pData, cod) => {
+            pData.vertices.sort((a, b) => a.vOrder - b.vOrder);
+            if (pData.vertices.length < 3) return;
+
+            // Coordenadas WGS84 para Leaflet GeoJSON
+            const wgsCoords = pData.vertices.map(v => {
+              const [lng, lat] = proj4('EPSG:32717', 'EPSG:4326', [v.x, v.y]);
+              return [lng, lat];
+            });
+
+            // Cerrar polígono
+            if (wgsCoords[0][0] !== wgsCoords[wgsCoords.length - 1][0] || wgsCoords[0][1] !== wgsCoords[wgsCoords.length - 1][1]) {
+              wgsCoords.push([...wgsCoords[0]]);
+            }
+
+            features.push({
+              type: 'Feature',
+              properties: {
+                id: `excel_${cod}_${Date.now()}`,
+                cod_catastral: cod,
+                nombre_posesionario: pData.propietario,
+                sector: pData.sector,
+                area_ha: 0
+              },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [wgsCoords]
+              }
+            });
+          });
+
+          geojson = {
+            type: 'FeatureCollection',
+            features
+          };
+        } else {
+          const buffer = evt.target.result;
+          geojson = await shp(buffer);
+        }
+
         setImportedShapes(geojson);
         setShowImportedShapes(true);
         setShowAtlasModal(true);
-        setToastMsg({ type: 'success', title: 'Atlas de Importación', message: 'Shapefile cargado en modo Atlas interactivo.' });
+        setToastMsg({ type: 'success', title: isExcel ? 'Excel Masivo Cargado' : 'Shapefile Atlas', message: `Se cargaron ${geojson.features.length} polígonos exitosamente.` });
 
         if (map && geojson.features && geojson.features.length > 0) {
           const group = L.geoJSON(geojson);
@@ -1857,7 +1140,7 @@ export default function Geoportal() {
         }
       } catch (err) {
         console.error(err);
-        setToastMsg({ type: 'error', title: 'Error', message: 'Error leyendo Shapefile ZIP.' });
+        setToastMsg({ type: 'error', title: 'Error', message: 'Error procesando archivo: ' + (err.message || 'Formato no soportado') });
       }
     };
     reader.readAsArrayBuffer(file);
@@ -2686,6 +1969,25 @@ export default function Geoportal() {
   const [measurePoints, setMeasurePoints] = useState([]);
   const [mousePos, setMousePos] = useState(null);
 
+  // Determinar si hay alguna acción o herramienta activa sobre el mapa
+  const isMapActionActive = Boolean(
+    isDrawingPredio ||
+    isMeasuring ||
+    isSplittingPredio ||
+    isEditingPredioVertices ||
+    drawingMode ||
+    zoomMode
+  );
+  const isMapActionActiveRef = useRef(isMapActionActive);
+  useEffect(() => {
+    isMapActionActiveRef.current = isMapActionActive;
+    if (isMapActionActive && mapRef.current) {
+      try {
+        mapRef.current.closePopup();
+      } catch (err) {}
+    }
+  }, [isMapActionActive]);
+
   // Estados del Modal de Procesamiento
   const [toastMsg, setToastMsg] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -2858,6 +2160,44 @@ export default function Geoportal() {
     }
   };
 
+  const toggleReferenciasSql = async () => {
+    const nextState = !showReferenciasSql;
+    setShowReferenciasSql(nextState);
+    if (nextState && !referenciasSqlData) {
+      try {
+        setLoadingReferenciasSql(true);
+        const token = localStorage.getItem('catastro_token');
+        const res = await fetch(`${API_URL}/api/gis/referencias-prediales-sql`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setReferenciasSqlData(data);
+          setToastMsg({
+            type: 'success',
+            title: 'Puntos de Referencia',
+            message: `Se cargaron ${data.total || data.features?.length || 0} puntos desde SQL Server.`
+          });
+        } else {
+          setToastMsg({
+            type: 'error',
+            title: 'Error SQL Server',
+            message: 'No se pudieron obtener los puntos de SQL Server.'
+          });
+        }
+      } catch (err) {
+        console.error('Error cargando puntos SQL Server:', err);
+        setToastMsg({
+          type: 'error',
+          title: 'Error de Conexión',
+          message: 'No se pudo conectar con el servidor SQL Server.'
+        });
+      } finally {
+        setLoadingReferenciasSql(false);
+      }
+    }
+  };
+
   const toggleIndividualOrthophoto = (filename) => {
     setIndividualOrthophotos(prev => ({
       ...prev,
@@ -2922,6 +2262,63 @@ export default function Geoportal() {
     });
     return map;
   }, [availableSectors]);
+
+  // Estilo memoizado para los 4,524 predios: evita recalcular y re-aplicar estilos SVG en cada render
+  const getPredioStyle = useCallback((feature) => {
+    if (!feature || !feature.properties) return {};
+    const isSelected = (selectedPredioId && String(selectedPredioId) === String(feature.properties?.id)) || (searchResultSet && searchResultSet.has(String(feature.properties?.id)));
+    const isOffline = feature.properties?.isOffline;
+    const sec = feature.properties?.sector ? feature.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
+    const sectorColor = (colorBySector && sectorColorMap[sec]) ? sectorColorMap[sec] : '#3b82f6';
+    const baseColor = isOffline ? '#f59e0b' : sectorColor;
+    return {
+      color: isSelected ? '#00ffff' : baseColor,
+      weight: isSelected ? 4 : (isOffline ? 3 : 2),
+      dashArray: isOffline ? '6, 6' : undefined,
+      fillColor: isSelected ? '#00ffff' : baseColor,
+      fillOpacity: isSelected ? 0.4 : (isOffline ? 0.3 : 0.18)
+    };
+  }, [selectedPredioId, searchResultSet, colorBySector, sectorColorMap]);
+
+  const pendingColorFrameRef = useRef(null);
+
+  const handleSectorColorChange = useCallback((sectorName, val, isFinal) => {
+    if (isFinal) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('geoportal_sector_colors') || '{}');
+        saved[sectorName] = val;
+        localStorage.setItem('geoportal_sector_colors', JSON.stringify(saved));
+      } catch (err) { }
+    }
+
+    if (pendingColorFrameRef.current) {
+      cancelAnimationFrame(pendingColorFrameRef.current);
+    }
+    pendingColorFrameRef.current = requestAnimationFrame(() => {
+      setCustomSectorColors(prev => ({ ...prev, [sectorName]: val }));
+    });
+  }, []);
+
+  // Actualizar estilos SVG de predios al vuelo cuando cambian los colores de sectores SIN remontar la capa
+  useEffect(() => {
+    if (prediosGeoJsonRef.current && typeof prediosGeoJsonRef.current.setStyle === 'function') {
+      prediosGeoJsonRef.current.setStyle(getPredioStyle);
+    }
+  }, [sectorColorMap, colorBySector, getPredioStyle]);
+
+  const importedShapesStyle = useMemo(() => ({
+    color: '#10b981',
+    weight: 2,
+    fillColor: '#10b981',
+    fillOpacity: 0.3,
+    dashArray: '4, 4'
+  }), []);
+
+  const lineasStyle = useMemo(() => ({
+    color: '#f97316',
+    weight: 3,
+    dashArray: '5, 5'
+  }), []);
 
   const toggleSectorVisibility = (sectorName) => {
     setDisabledSectors(prev => {
@@ -3325,7 +2722,14 @@ export default function Geoportal() {
   const displayDistance = totalDistance + dynamicDistance;
 
   const handleFinishDrawing = (points) => {
-    if (points.length < 3) {
+    const safePoints = (Array.isArray(points) ? points : []).map(p => {
+      if (!p) return null;
+      if (typeof p.lat === 'number' && typeof p.lng === 'number') return p;
+      if (Array.isArray(p) && p.length >= 2) return L.latLng(p[0], p[1]);
+      return null;
+    }).filter(Boolean);
+
+    if (safePoints.length < 3) {
       setToastMsg({ type: 'error', title: 'Error', message: 'Un polígono debe tener al menos 3 puntos' });
       setIsDrawingPredio(false);
       setDrawPoints([]);
@@ -3335,12 +2739,12 @@ export default function Geoportal() {
     }
 
     let coordsText = '';
-    points.forEach(pt => {
+    safePoints.forEach(pt => {
       const utm = proj4('EPSG:4326', 'EPSG:32717', [pt.lng, pt.lat]);
       coordsText += `${utm[0].toFixed(2)} ${utm[1].toFixed(2)}\n`;
     });
 
-    const detected = detectarUbicacionCliente(points);
+    const detected = detectarUbicacionCliente(safePoints);
     setIsDrawingPredio(false);
     setDrawPoints([]);
     setMousePos(null);
@@ -3349,7 +2753,7 @@ export default function Geoportal() {
       geom_text: coordsText,
       es_utm: true,
       parroquia: detected ? detected.parroquia : (prev?.parroquia || ''),
-      cod_catastral: detected ? (detected.prefijo_clave + '             ') : (prev?.cod_catastral || '')
+      cod_catastral: detected ? (detected.prefijo_clave + '        ') : (prev?.cod_catastral || '')
     }));
     setIsAddingPredio(true);
   };
@@ -3469,6 +2873,7 @@ export default function Geoportal() {
     isAddingPredio ||
     editingPredio ||
     isSplittingPredio ||
+    isEditingPredioVertices ||
     drawingMode ||
     zoomMode ||
     editingFeatureId ||
@@ -3501,6 +2906,11 @@ export default function Geoportal() {
       setIsSnapped(false);
       setDrawPoints([]);
       setMousePos(null);
+      hadAction = true;
+    }
+    if (isEditingPredioVertices) {
+      setIsEditingPredioVertices(false);
+      setEditingVerticesPositions([]);
       hadAction = true;
     }
     if (isAddingPredio) {
@@ -3713,470 +3123,6 @@ export default function Geoportal() {
   const capasCantonales = capasAdicionales.filter(c => c.tipo_capa === 'limite_cantonal');
   const capasParroquiales = capasAdicionales.filter(c => c.tipo_capa === 'limite_parroquial');
 
-  const renderCustomLayerItem = (capa) => {
-    const isCapaActive = !!activeCapasAdicionales[capa.tabla_db];
-    const isExp = !!expandedCapasAdicionales[capa.tabla_db];
-    const st = layerStyles[capa.tabla_db] || {};
-    const currentColor = st.color || capa.color || (capa.tipo_capa === 'limite_cantonal' ? '#ef4444' : capa.tipo_capa === 'limite_parroquial' ? '#06b6d4' : '#a855f7');
-    const currentOpacity = st.opacity !== undefined ? Number(st.opacity) : (capa.opacidad !== undefined ? Number(capa.opacidad) : 0.35);
-    const isStyleOpen = activeStylePopover === capa.tabla_db;
-
-    return (
-      <div key={capa.tabla_db} style={{ marginBottom: '4px' }}>
-        <div
-          className={`layer-item ${isCapaActive ? 'active' : ''}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', borderRadius: '5px', transition: 'background 0.2s' }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: capa.tabla_db, isAdicional: true });
-          }}
-        >
-          <span
-            onClick={(e) => { e.stopPropagation(); toggleExpandCapaAdicional(capa.tabla_db); }}
-            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-muted)' }}
-            title={isExp ? "Colapsar elementos" : "Expandir elementos"}
-          >
-            {isExp ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-          </span>
-
-          <span
-            onClick={() => toggleExpandCapaAdicional(capa.tabla_db)}
-            style={{ flex: 1, fontSize: '0.82rem', display: 'flex', alignItems: 'center', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-            title={capa.nombre_capa}
-          >
-            <span
-              style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '2px',
-                backgroundColor: currentColor,
-                marginRight: '6px',
-                flexShrink: 0,
-                display: 'inline-block',
-                border: '1px solid rgba(0,0,0,0.25)'
-              }}
-            />
-            {getGeometryIcon(capa.tipo_geometria)}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '500' }}>{capa.nombre_capa}</span>
-          </span>
-
-          {/* Botón para cambiar Color y Opacidad */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveStylePopover(prev => prev === capa.tabla_db ? null : capa.tabla_db);
-            }}
-            style={{
-              background: isStyleOpen ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-              border: isStyleOpen ? '1px solid var(--primary)' : '1px solid transparent',
-              borderRadius: '4px',
-              padding: '2px 4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              color: isStyleOpen ? 'var(--primary)' : 'var(--text-muted)'
-            }}
-            title="Personalizar color y opacidad de la capa"
-          >
-            <Palette size={14} />
-          </button>
-
-          {/* Botón Ojo Visibilidad */}
-          <span
-            onClick={(e) => { e.stopPropagation(); toggleCapaAdicional(capa.tabla_db); }}
-            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px' }}
-            title={isCapaActive ? "Ocultar capa en el mapa" : "Mostrar capa en el mapa"}
-          >
-            {isCapaActive ? <Eye size={16} /> : <EyeOff size={16} color="#64748b" />}
-          </span>
-        </div>
-
-        {/* Panel desplegable de Estilo (Color y Opacidad) */}
-        {isStyleOpen && (
-          <div style={{
-            margin: '4px 0 6px 16px',
-            padding: '8px 10px',
-            background: 'var(--bg-lighter, rgba(255,255,255,0.06))',
-            borderRadius: '6px',
-            border: '1px solid var(--card-border)',
-            fontSize: '0.78rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Estilo de Capa</span>
-              <span
-                onClick={() => setActiveStylePopover(null)}
-                style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 4px' }}
-              >
-                ✕
-              </span>
-            </div>
-
-            {/* Selector de Color */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                Color:
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <input
-                  type="color"
-                  value={currentColor}
-                  onChange={(e) => {
-                    const newColor = e.target.value;
-                    handleUpdateLayerStyle(capa.tabla_db, { color: newColor, borderColor: newColor });
-                  }}
-                  style={{
-                    width: '28px',
-                    height: '24px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    background: 'none'
-                  }}
-                />
-                <span style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                  {currentColor}
-                </span>
-              </div>
-            </div>
-
-            {/* Slider de Opacidad */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-main)' }}>Opacidad:</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                  {Math.round(currentOpacity * 100)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0.05"
-                max="1"
-                step="0.05"
-                value={currentOpacity}
-                onChange={(e) => {
-                  const newOp = parseFloat(e.target.value);
-                  handleUpdateLayerStyle(capa.tabla_db, { opacidad: newOp });
-                }}
-                style={{
-                  width: '100%',
-                  cursor: 'pointer',
-                  accentColor: currentColor || 'var(--primary)'
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Lista de elementos expandida */}
-        {isExp && (
-          <div className="feature-list" style={{ marginLeft: '16px', marginTop: '4px', marginBottom: '8px', maxHeight: '180px', overflowY: 'auto', borderLeft: '2px solid var(--card-border)', paddingLeft: '8px' }}>
-            {!geoJsonCacheAdicionales[capa.tabla_db] ? (
-              <div style={{ padding: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                Cargando elementos...
-              </div>
-            ) : (!geoJsonCacheAdicionales[capa.tabla_db].features || geoJsonCacheAdicionales[capa.tabla_db].features.length === 0) ? (
-              <div style={{ padding: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                No hay elementos en esta capa.
-              </div>
-            ) : (() => {
-              const allFeatures = geoJsonCacheAdicionales[capa.tabla_db].features || [];
-              const limit = visibleCounts[capa.tabla_db] || 20;
-              const visibleFeatures = allFeatures.slice(0, limit);
-
-              return (
-                <>
-                  {visibleFeatures.map((f, i) => {
-                    const featId = f.properties?.id ?? f.id ?? i;
-                    const isHidden = hiddenFeatureIds.includes(featId);
-                    const name = getFeatureDisplayName(f, i);
-                    const isSelected = selectedPredioId && String(selectedPredioId) === String(featId);
-
-                    const featCustomStyle = getFeatureCustomStyle(capa.tabla_db, featId, f);
-                    const polyColor = featCustomStyle?.color || currentColor;
-                    const polyOpacity = featCustomStyle?.opacidad !== undefined
-                      ? Number(featCustomStyle.opacidad)
-                      : (featCustomStyle?.opacity !== undefined ? Number(featCustomStyle.opacity) : currentOpacity);
-                    const hasCustomStyle = !!featCustomStyle;
-                    const isFeatStyleOpen = activeFeatureStylePopover?.id === featId && activeFeatureStylePopover?.capa === capa.tabla_db;
-
-                    return (
-                      <div key={featId || i} style={{ marginBottom: '2px' }}>
-                        <div
-                          className="feature-item"
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '5px 8px',
-                            borderBottom: '1px solid var(--card-border)',
-                            fontSize: '0.78rem',
-                            cursor: 'pointer',
-                            color: isHidden ? 'var(--text-muted)' : 'var(--text-main)',
-                            opacity: isHidden ? 0.6 : 1,
-                            background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                            borderRadius: '4px',
-                            transition: 'background 0.2s ease'
-                          }}
-                          onClick={() => {
-                            setSelectedPredioId(featId);
-                            zoomToFeature(f);
-                          }}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setFeatureContextMenu({
-                              feature: f,
-                              featureIndex: i,
-                              featureId: featId,
-                              mouseX: e.clientX,
-                              mouseY: e.clientY,
-                              type: 'generico',
-                              layerName: capa.nombre_capa,
-                              layerType: capa.tabla_db
-                            });
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', maxWidth: '60%' }}>
-                            {/* Color Swatch interactivo del polígono */}
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveFeatureStylePopover(prev => (prev?.id === featId && prev?.capa === capa.tabla_db) ? null : { id: featId, capa: capa.tabla_db, name });
-                              }}
-                              style={{
-                                width: '10px',
-                                height: '10px',
-                                borderRadius: '2px',
-                                backgroundColor: polyColor,
-                                flexShrink: 0,
-                                display: 'inline-block',
-                                border: hasCustomStyle ? '1.5px solid var(--primary)' : '1px solid rgba(0,0,0,0.25)',
-                                boxShadow: hasCustomStyle ? '0 0 4px var(--primary)' : 'none',
-                                cursor: 'pointer'
-                              }}
-                              title={`Color de este polígono: ${polyColor} (Clic para personalizar)`}
-                            />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSelected ? '600' : '500' }} title={name}>
-                              {name}
-                            </span>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {/* Centrar / Zoom */}
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedPredioId(featId);
-                                zoomToFeature(f);
-                              }}
-                              title="Acercar al polígono"
-                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Target size={13} style={{ color: '#fbbf24', opacity: 0.9 }} />
-                            </span>
-
-                            {/* Editar / Atlas */}
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleExportSingleFeatureToAtlas(f, i, capa.nombre_capa);
-                              }}
-                              title="Editar polígono / atributos"
-                              style={{ cursor: 'pointer', color: '#3b82f6', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Edit size={13} />
-                            </span>
-
-                            {/* Botón Estilo del Polígono (Paleta) */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveFeatureStylePopover(prev => (prev?.id === featId && prev?.capa === capa.tabla_db) ? null : { id: featId, capa: capa.tabla_db, name });
-                              }}
-                              style={{
-                                background: isFeatStyleOpen ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                                border: isFeatStyleOpen ? '1px solid var(--primary)' : '1px solid transparent',
-                                borderRadius: '3px',
-                                padding: '1px 3px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                color: isFeatStyleOpen ? 'var(--primary)' : (hasCustomStyle ? polyColor : 'var(--text-muted)')
-                              }}
-                              title="Personalizar color y opacidad de este polígono"
-                            >
-                              <Palette size={13} />
-                            </button>
-
-                            {/* Ocultar / Mostrar polígono */}
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (isHidden) {
-                                  setHiddenFeatureIds(prev => prev.filter(id => id !== featId));
-                                } else {
-                                  setHiddenFeatureIds(prev => [...prev, featId]);
-                                }
-                              }}
-                              title={isHidden ? "Mostrar polígono" : "Ocultar polígono"}
-                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                            >
-                              {isHidden ? <EyeOff size={13} style={{ color: '#94a3b8' }} /> : <Eye size={13} style={{ color: 'var(--text-muted)' }} />}
-                            </span>
-
-                            {/* Menú de opciones rápidas */}
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setFeatureContextMenu({
-                                  feature: f,
-                                  featureIndex: i,
-                                  featureId: featId,
-                                  mouseX: rect.left - 215,
-                                  mouseY: Math.min(rect.top, window.innerHeight - 380),
-                                  type: 'generico',
-                                  layerName: capa.nombre_capa,
-                                  layerType: capa.tabla_db
-                                });
-                              }}
-                              title="Más opciones de polígono"
-                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-muted)' }}
-                            >
-                              <MoreVertical size={13} />
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Panel emergente de Estilo de Polígono */}
-                        {isFeatStyleOpen && (
-                          <div style={{
-                            margin: '4px 0 6px 10px',
-                            padding: '8px 10px',
-                            background: 'var(--bg-lighter, rgba(255,255,255,0.06))',
-                            borderRadius: '6px',
-                            border: '1px solid var(--card-border)',
-                            fontSize: '0.78rem'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                              <span style={{ color: 'var(--text-muted)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                <Palette size={13} /> Estilo: {name}
-                              </span>
-                              <span
-                                onClick={(e) => { e.stopPropagation(); setActiveFeatureStylePopover(null); }}
-                                style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 4px' }}
-                              >
-                                ✕
-                              </span>
-                            </div>
-
-                            {/* Selector de Color */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <label style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                Color:
-                              </label>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <input
-                                  type="color"
-                                  value={polyColor}
-                                  onChange={(e) => {
-                                    const newColor = e.target.value;
-                                    handleUpdateFeatureStyle(capa.tabla_db, featId, { color: newColor, borderColor: newColor });
-                                  }}
-                                  style={{
-                                    width: '28px',
-                                    height: '24px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    background: 'none'
-                                  }}
-                                />
-                                <span style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                                  {polyColor}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Slider de Opacidad */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-main)' }}>Opacidad:</span>
-                                <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                                  {Math.round(polyOpacity * 100)}%
-                                </span>
-                              </div>
-                              <input
-                                type="range"
-                                min="0.05"
-                                max="1"
-                                step="0.05"
-                                value={polyOpacity}
-                                onChange={(e) => {
-                                  const newOp = parseFloat(e.target.value);
-                                  handleUpdateFeatureStyle(capa.tabla_db, featId, { opacidad: newOp });
-                                }}
-                                style={{
-                                  width: '100%',
-                                  cursor: 'pointer',
-                                  accentColor: polyColor || 'var(--primary)'
-                                }}
-                              />
-                            </div>
-
-                            {/* Botón para restablecer al color de la capa */}
-                            {hasCustomStyle && (
-                              <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px dashed var(--card-border)', display: 'flex', justifyContent: 'flex-end' }}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleResetFeatureStyle(capa.tabla_db, featId);
-                                  }}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#ef4444',
-                                    fontSize: '0.72rem',
-                                    cursor: 'pointer',
-                                    padding: '2px 4px'
-                                  }}
-                                  title="Eliminar personalización y usar el color de la capa"
-                                >
-                                  ↺ Restablecer a capa
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {allFeatures.length > limit && (
-                    <div style={{ padding: '6px 0', textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setVisibleCounts(prev => ({ ...prev, [capa.tabla_db]: (prev[capa.tabla_db] || 20) + 20 }));
-                        }}
-                        style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', cursor: 'pointer' }}
-                      >
-                        Cargar más (+20) • {limit} de {allFeatures.length}
-                      </button>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="app-wrapper" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {isDragging && !showShapefileUploader && !showReportModal && (
@@ -4306,9 +3252,23 @@ export default function Geoportal() {
           overflowX: 'auto'
         }}>
           <MousePointer2 size={16} color="var(--accent-color)" />
-          <span style={{ color: 'var(--text-main)', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap' }}>
-            {drawPoints.length === 0 ? 'Modo Dibujo' : `${drawPoints.length} vértice${drawPoints.length > 1 ? 's' : ''}`}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{
+              background: drawPoints.length === 0 ? '#f59e0b' : '#0284c7',
+              color: '#ffffff',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              fontWeight: '800',
+              fontSize: '11.5px',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.25)'
+            }}>
+              📍 Próximo Vértice: P{String(drawPoints.length + 1).padStart(2, '0')}
+            </span>
+            <span style={{ color: 'var(--text-main)', fontWeight: '600', fontSize: '12px', whiteSpace: 'nowrap' }}>
+              {drawPoints.length === 0 ? '(Vértice de Inicio)' : `(${drawPoints.length} vértice${drawPoints.length > 1 ? 's construidos' : ' construido'})`}
+            </span>
+          </div>
 
           <button
             type="button"
@@ -4392,364 +3352,45 @@ export default function Geoportal() {
       )}
 
       <div className="ui-overlay" style={{ pointerEvents: 'none' }}>
-        {sidebarContextMenu && (
-          <div
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998, pointerEvents: 'auto' }}
-            onClick={() => setSidebarContextMenu(null)}
-            onContextMenu={(e) => { e.preventDefault(); setSidebarContextMenu(null); }}
-          />
-        )}
-        {sidebarContextMenu && (() => {
-          const pad = 12;
-          const w = 220;
-          const h = 320;
-          let sLeft = sidebarContextMenu.x;
-          let sTop = sidebarContextMenu.y;
-          if (sLeft + w > window.innerWidth - pad) sLeft = Math.max(pad, sLeft - w);
-          if (sTop + h > window.innerHeight - pad) sTop = Math.max(pad, sTop - h);
-          return (
-            <div style={{
-              position: 'fixed',
-              top: sTop,
-              left: sLeft,
-              zIndex: 9999,
-              background: 'var(--bg-panel)',
-              border: '1px solid var(--card-border)',
-              borderRadius: '8px',
-              padding: '5px 0',
-              minWidth: '220px',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-              backdropFilter: 'blur(20px)',
-              display: 'flex',
-              flexDirection: 'column',
-              pointerEvents: 'auto'
-            }}>
-              {/* 1. MENÚ CONTEXTUAL: GRUPO VECTORIALES */}
-              {sidebarContextMenu.menuKind === 'group_vectores' && (
-                <>
-                  <div style={{ padding: '6px 15px', fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '4px' }}>
-                    GRUPO: CAPAS VECTORIALES
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleShowAllVectorLayers(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Eye size={16} color="#10b981" /> Mostrar todas las capas
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleHideAllVectorLayers(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <EyeOff size={16} color="#94a3b8" /> Ocultar todas las capas
-                  </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (prediosData) {
-                        if (!showPredios) setShowPredios(true);
-                        zoomToVectorLayer(prediosData);
-                      } else {
-                        showError('No hay geometrías de predios cargadas aún.');
-                      }
-                      setSidebarContextMenu(null);
-                    }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Target size={16} color="#fbbf24" /> Acercar a todos los predios
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); setActiveTableData('predios'); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <TableProperties size={16} color="#3b82f6" /> Ver Tabla de Predios
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); fetchMapData(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <RotateCw size={16} color="#38bdf8" /> Recargar capas vectoriales
-                  </div>
-                </>
-              )}
-
-              {/* 2. MENÚ CONTEXTUAL: GRUPO CAPAS ADICIONALES */}
-              {sidebarContextMenu.menuKind === 'group_adicionales' && (
-                <>
-                  <div style={{ padding: '6px 15px', fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '4px' }}>
-                    GRUPO: CAPAS ADICIONALES ({capasAdicionales.length})
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleShowAllCapasAdicionales(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Eye size={16} color="#10b981" /> Mostrar todas las capas
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleHideAllCapasAdicionales(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <EyeOff size={16} color="#94a3b8" /> Ocultar todas las capas
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); setShowShapefileUploader(true); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: '#0284c7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '500' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <UploadCloud size={16} color="#0284c7" /> Cargar nueva capa (Shapefile / GeoJSON)
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); fetchCapasAdicionales(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <RotateCw size={16} color="#38bdf8" /> Recargar lista de capas
-                  </div>
-                </>
-              )}
-
-              {/* 3. MENÚ CONTEXTUAL: GRUPO CAPAS TEMPORALES */}
-              {sidebarContextMenu.menuKind === 'group_temporales' && (
-                <>
-                  <div style={{ padding: '6px 15px', fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '4px' }}>
-                    GRUPO: CAPAS TEMPORALES ({temporalLayers.length})
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleShowAllTemporalLayers(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Eye size={16} color="#10b981" /> Mostrar todas las capas
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleHideAllTemporalLayers(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <EyeOff size={16} color="#94a3b8" /> Ocultar todas las capas
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); setShowShapefileUploader(true); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: '#0284c7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '500' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Upload size={16} color="#0284c7" /> Cargar nueva capa temporal
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleDeleteAllTemporalLayers(); setSidebarContextMenu(null); }}
-                    style={{ padding: '9px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Trash2 size={16} color="var(--danger)" /> Limpiar todas las capas temporales
-                  </div>
-                </>
-              )}
-
-              {/* 4. MENÚ CONTEXTUAL: CAPA TEMPORAL INDIVIDUAL */}
-              {sidebarContextMenu.menuKind === 'layer_temporal' && (
-                <>
-                  <div style={{ padding: '6px 15px', fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '4px' }}>
-                    {sidebarContextMenu.capaObj?.name || 'Capa Temporal'}
-                  </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleZoomToTemporalLayer(sidebarContextMenu.capaObj);
-                      setSidebarContextMenu(null);
-                    }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Target size={16} color="#fbbf24" /> Acercar a esta capa
-                  </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const capa = sidebarContextMenu.capaObj;
-                      setSidebarContextMenu(null);
-                      if (capa && capa.geojson && capa.geojson.features && capa.geojson.features.length > 0) {
-                        setAtlasInitialIndex(0);
-                        setAtlasFileName(capa.name || 'Capa Temporal');
-                        setImportedShapes(capa.geojson);
-                        setShowAtlasModal(true);
-                      } else {
-                        showError('No se encontraron elementos en esta capa temporal.');
-                      }
-                    }}
-                    style={{ padding: '9px 15px', color: 'var(--accent-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '500' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Sparkles size={16} color="var(--accent-color)" /> Abrir en Asistente Atlas
-                  </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const capa = sidebarContextMenu.capaObj;
-                      setSidebarContextMenu(null);
-                      if (capa && capa.geojson && capa.geojson.features && capa.geojson.features.length > 0) {
-                        handlePrintTransientLayerOrFeature(capa.geojson.features, 0, capa.name || 'Capa Temporal', false);
-                      } else {
-                        showError('No se encontraron polígonos en esta capa temporal.');
-                      }
-                    }}
-                    style={{ padding: '9px 15px', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '600' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <FileText size={16} color="#8b5cf6" /> Imprimir Planimetría (Sin BD)
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
-                  <div
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      const capaId = sidebarContextMenu.layerId;
-                      setSidebarContextMenu(null);
-                      try {
-                        await deleteTemporalLayer(capaId);
-                        setTemporalLayers(prev => prev.filter(c => c.id !== capaId));
-                        showSuccess('Capa temporal eliminada.');
-                      } catch (err) {
-                        console.error(err);
-                      }
-                    }}
-                    style={{ padding: '9px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Trash2 size={16} color="var(--danger)" /> Eliminar Capa
-                  </div>
-                </>
-              )}
-
-              {/* 5. MENÚ CONTEXTUAL: CAPA VECTORIAL O ADICIONAL INDIVIDUAL */}
-              {!sidebarContextMenu.menuKind && (
-                <>
-                  <div style={{ padding: '6px 15px', fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)', marginBottom: '4px' }}>
-                    {sidebarContextMenu.isAdicional
-                      ? (capasAdicionales.find(c => c.tabla_db === sidebarContextMenu.layerType)?.nombre_capa || sidebarContextMenu.layerType)
-                      : (sidebarContextMenu.layerType === 'predios' ? 'Predios (Polígonos)' : sidebarContextMenu.layerType === 'lineas' ? 'Linderos (Líneas)' : 'Vértices (Puntos)')}
-                  </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveTableData(sidebarContextMenu.layerType);
-                      setSidebarContextMenu(null);
-                    }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <TableProperties size={16} color="#3b82f6" /> Ver Tabla de Atributos
-                  </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const data = sidebarContextMenu.isAdicional
-                        ? geoJsonCacheAdicionales[sidebarContextMenu.layerType]
-                        : sidebarContextMenu.layerType === 'predios' ? prediosData : sidebarContextMenu.layerType === 'lineas' ? lineasData : verticesData;
-                      if (data) {
-                        zoomToVectorLayer(data);
-                      }
-                      setSidebarContextMenu(null);
-                    }}
-                    style={{ padding: '9px 15px', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Target size={16} color="#fbbf24" /> Acercar a la Capa
-                  </div>
-
-                  {sidebarContextMenu.isAdicional && (
-                    <>
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const tabla = sidebarContextMenu.layerType;
-                          const capaObj = capasAdicionales.find(c => c.tabla_db === tabla);
-                          setSidebarContextMenu(null);
-                          handleExportLayerToAtlas(tabla, capaObj?.nombre_capa || tabla, 0);
-                        }}
-                        style={{ padding: '9px 15px', color: 'var(--accent-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '500' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <Sparkles size={16} color="var(--accent-color)" /> Exportar capa a Base de Datos
-                      </div>
-                      <div
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const tabla = sidebarContextMenu.layerType;
-                          const capaObj = capasAdicionales.find(c => c.tabla_db === tabla);
-                          setSidebarContextMenu(null);
-                          let geojsonData = geoJsonCacheAdicionales[tabla];
-                          if (!geojsonData) {
-                            try {
-                              const res = await fetch(`${API_URL}/api/gis/capa-adicional/${tabla}`, {
-                                headers: { 'Authorization': `Bearer ${authToken}` }
-                              });
-                              if (res.ok) {
-                                geojsonData = await res.json();
-                                setGeoJsonCacheAdicionales(prev => ({ ...prev, [tabla]: geojsonData }));
-                              }
-                            } catch (err) { }
-                          }
-                          if (geojsonData?.features?.length > 0) {
-                            handlePrintTransientLayerOrFeature(geojsonData.features, 0, capaObj?.nombre_capa || tabla, false);
-                          } else {
-                            showError('No se encontraron polígonos válidos en esta capa.');
-                          }
-                        }}
-                        style={{ padding: '9px 15px', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: '600' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <FileText size={16} color="#8b5cf6" /> Imprimir Planimetría (Sin subir a Catastro)
-                      </div>
-
-                      <div style={{ borderTop: '1px solid var(--card-border)', margin: '4px 0' }}></div>
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteCapaAdicional(sidebarContextMenu.layerType);
-                          setSidebarContextMenu(null);
-                        }}
-                        style={{ padding: '9px 15px', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--sidebar-hover)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <Trash2 size={16} color="var(--danger)" /> Eliminar Capa
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })()}
+        <SidebarContextMenu
+          sidebarContextMenu={sidebarContextMenu}
+          onClose={() => setSidebarContextMenu(null)}
+          handleShowAllVectorLayers={handleShowAllVectorLayers}
+          handleHideAllVectorLayers={handleHideAllVectorLayers}
+          prediosData={prediosData}
+          showPredios={showPredios}
+          setShowPredios={setShowPredios}
+          zoomToVectorLayer={zoomToVectorLayer}
+          setActiveTableData={setActiveTableData}
+          fetchMapData={fetchMapData}
+          showError={showError}
+          showSuccess={showSuccess}
+          capasAdicionales={capasAdicionales}
+          handleShowAllCapasAdicionales={handleShowAllCapasAdicionales}
+          handleHideAllCapasAdicionales={handleHideAllCapasAdicionales}
+          setShowShapefileUploader={setShowShapefileUploader}
+          fetchCapasAdicionales={fetchCapasAdicionales}
+          temporalLayers={temporalLayers}
+          handleShowAllTemporalLayers={handleShowAllTemporalLayers}
+          handleHideAllTemporalLayers={handleHideAllTemporalLayers}
+          handleDeleteAllTemporalLayers={handleDeleteAllTemporalLayers}
+          handleZoomToTemporalLayer={handleZoomToTemporalLayer}
+          setAtlasInitialIndex={setAtlasInitialIndex}
+          setAtlasFileName={setAtlasFileName}
+          setImportedShapes={setImportedShapes}
+          setShowAtlasModal={setShowAtlasModal}
+          handlePrintTransientLayerOrFeature={handlePrintTransientLayerOrFeature}
+          deleteTemporalLayer={deleteTemporalLayer}
+          setTemporalLayers={setTemporalLayers}
+          geoJsonCacheAdicionales={geoJsonCacheAdicionales}
+          setGeoJsonCacheAdicionales={setGeoJsonCacheAdicionales}
+          lineasData={lineasData}
+          verticesData={verticesData}
+          handleExportLayerToAtlas={handleExportLayerToAtlas}
+          handleDeleteCapaAdicional={handleDeleteCapaAdicional}
+          API_URL={API_URL}
+          authToken={authToken}
+        />
 
         <FeatureContextMenuComponent
           context={featureContextMenu}
@@ -5290,1299 +3931,123 @@ export default function Geoportal() {
           </div>
         )}
 
-        <aside className={`map-sidebar ${isSidebarOpen ? 'open' : ''}`}>
-          <div style={{ padding: '20px', borderBottom: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <X
-              size={24}
-              color="var(--text-main)"
-              style={{ cursor: 'pointer' }}
-              onClick={() => setIsSidebarOpen(false)}
-              title="Ocultar panel"
-            />
-            <h3 style={{ margin: 0, color: 'var(--accent-color)' }}>Controles del Mapa</h3>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-            {/* PANEL: BÚSQUEDA Y HERRAMIENTAS */}
-            <div className="sidebar-section">
-              <div className="section-title" onClick={() => toggleCategory('buscar')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Search size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Buscar Predio</span>
-                </div>
-                {collapsedCategories.buscar ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-
-              {!collapsedCategories.buscar && (
-                <form onSubmit={handleSearch} style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
-                    <input
-                      className="sidebar-input"
-                      type="text"
-                      placeholder="Cédula, Código, Nombre o Sector..."
-                      value={searchQuery}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setSearchQuery(val);
-                        if (!val.trim()) setSearchResults(null);
-                      }}
-                      style={{ width: '100%', paddingRight: '22px', boxSizing: 'border-box' }}
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setSearchResults(null);
-                        }}
-                        style={{
-                          position: 'absolute',
-                          right: '6px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          padding: '2px',
-                          fontSize: '12px'
-                        }}
-                        title="Limpiar búsqueda"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  <button type="submit" style={{ padding: '5px 12px', background: 'var(--success)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Buscar</button>
-                </form>
-              )}
-
-            </div>
-
-            {/* PANEL: GESTIÓN DE DATOS Y HERRAMIENTAS */}
-            <div className="sidebar-section">
-              <div className="section-title" onClick={() => toggleCategory('gestion')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Database size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Gestión de Datos</span>
-                </div>
-                {collapsedCategories.gestion ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-
-              {!collapsedCategories.gestion && (
-                <>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', marginTop: '10px' }}>
-                    <button className="btn-primary" onClick={handleProcesarClick} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Procesar Nueva Ortofoto">
-                      <UploadCloud size={16} /> Ortofoto
-                    </button>
-                    <input
-                      type="file"
-                      accept=".zip"
-                      style={{ display: 'none' }}
-                      ref={shapefileInputRef}
-                      onChange={handleImportShapefile}
-                    />
-                    <button className="btn-primary" onClick={() => shapefileInputRef.current?.click()} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile para Asistente Atlas">
-                      <UploadCloud size={16} /> Shapefile Atlas
-                    </button>
-                    <button className="btn-primary" onClick={() => setShowShapefileUploader(true)} style={{ padding: '8px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Subir Shapefile a Tablas Crudas / BD">
-                      <Database size={16} />
-                    </button>
-                  </div>
-
-                  {/* Tarjeta del Shapefile Temporal Atlas Cargado */}
-                  {importedShapes && (
-                    <div style={{
-                      marginBottom: '12px',
-                      padding: '10px 12px',
-                      background: 'rgba(2, 132, 199, 0.08)',
-                      border: '1.5px solid #0284c7',
-                      borderRadius: '10px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Sparkles size={16} color="#0284c7" />
-                          <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#0369a1' }}>
-                            Shapefile Atlas ({importedShapes.features?.length || 0})
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.7rem', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '10px', fontWeight: '700' }}>
-                          Temporal
-                        </span>
-                      </div>
-
-                      {atlasFileName && (
-                        <div style={{ fontSize: '0.72rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={atlasFileName}>
-                          📁 {atlasFileName}
-                        </div>
-                      )}
-
-                      <button
-                        onClick={() => setShowAtlasModal(true)}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          fontSize: '0.82rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-                          color: '#fff',
-                          fontWeight: 'bold',
-                          borderRadius: '8px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)'
-                        }}
-                      >
-                        <Sparkles size={15} /> 📖 Ver Asistente Atlas
-                      </button>
-
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          onClick={() => setShowImportedShapes(prev => !prev)}
-                          style={{
-                            flex: 1,
-                            padding: '6px 8px',
-                            fontSize: '0.75rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                            background: showImportedShapes ? '#f1f5f9' : '#e2e8f0',
-                            color: '#334155',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontWeight: '600'
-                          }}
-                          title={showImportedShapes ? "Ocultar polígonos del mapa temporalmente" : "Mostrar polígonos temporales en el mapa"}
-                        >
-                          {showImportedShapes ? <EyeOff size={14} /> : <Eye size={14} />}
-                          {showImportedShapes ? 'Ocultar' : 'Mostrar'}
-                        </button>
-
-                        <button
-                          onClick={handleCancelTempShapes}
-                          style={{
-                            flex: 1,
-                            padding: '6px 8px',
-                            fontSize: '0.75rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                            background: '#fee2e2',
-                            color: '#dc2626',
-                            border: '1px solid #fca5a5',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontWeight: '600'
-                          }}
-                          title="Cancelar y descartar este shapefile del mapa"
-                        >
-                          <Trash2 size={14} />
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
-                    <button className="btn-primary" onClick={handleExportAll} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                      <DownloadCloud size={16} /> Descargar DB
-                    </button>
-                    <button className="btn-primary" onClick={handleCatalogarMasivo} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} title="Catalogar Carpeta Entera de Ortofotos">
-                      <FolderSearch size={16} /> Catalogar
-                    </button>
-                  </div>
-                </>
-              )}
-
-              <div className="section-title" onClick={() => toggleCategory('historico')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Clock size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)' }}>Catastro Histórico (4D)</span>
-                </div>
-                {collapsedCategories.historico ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-
-              {!collapsedCategories.historico && (
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Ver estado a la fecha:</label>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    <input
-                      className="sidebar-input"
-                      type="date"
-                      value={fechaHistorica}
-                      onChange={e => setFechaHistorica(e.target.value)}
-                      style={{ flex: 1 }}
-                      title="Filtrar en el backend por fecha exacta"
-                    />
-                    <select
-                      className="sidebar-input"
-                      value={selectedYear}
-                      onChange={e => setSelectedYear(e.target.value)}
-                      style={{ flex: 1, padding: '2px', fontSize: '0.75rem' }}
-                      title="Filtrar resultados visualmente por año"
-                    >
-                      <option value="Todos">Todos los años</option>
-                      {Array.from(
-                        new Set(
-                          (prediosData?.features || [])
-                            .map(f => f.properties?.fecha_creacion ? String(f.properties.fecha_creacion).substring(0, 4) : null)
-                            .filter(y => y && !isNaN(y))
-                        )
-                      )
-                        .sort((a, b) => b - a)
-                        .map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
-                    <button
-                      onClick={() => {
-                        setPrediosData(null);
-                        fetchMapData();
-                      }}
-                      style={{ padding: '5px 10px', background: '#eab308', color: '#1e293b', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      Aplicar
-                    </button>
-                  </div>
-                  {fechaHistorica && (
-                    <div style={{ fontSize: '0.75rem', color: '#38bdf8', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }} onClick={() => {
-                      setFechaHistorica('');
-                      setTimeout(() => {
-                        // Needs to fetch using empty state. Since setState is async, we do it after timeout or better yet:
-                        let currentUrl = `${API_URL}/api/gis/predios`;
-                        const urlParams = new URLSearchParams();
-                        if (activeEmpresa) urlParams.append('empresa_id', activeEmpresa.id);
-                        if (activeProyecto) urlParams.append('proyecto_id', activeProyecto.id);
-                        if (urlParams.toString()) currentUrl += `?${urlParams.toString()}`;
-                        fetch(currentUrl, { headers: { 'Authorization': `Bearer ${authToken}` } })
-                          .then(r => r.json())
-                          .then(d => setPrediosData(d))
-                          .catch(console.error);
-                      }, 50);
-                    }}>
-                      Volver a la actualidad
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* PANEL: ÁRBOL DE CAPAS ESTRUCTURADO (1. Capas) */}
-            <div className="sidebar-section">
-              <div
-                className="layer-category"
-                onClick={() => toggleCategory('vectores')}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setSidebarContextMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    menuKind: 'group_vectores'
-                  });
-                }}
-                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                title="1. Capas (Clic para colapsar/expandir)"
-              >
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Layers size={16} color="var(--primary)" />
-                  <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>1. Capas</span>
-                </div>
-                {collapsedCategories.vectores ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-              </div>
-
-              {!collapsedCategories.vectores && (
-                <div style={{ paddingLeft: '4px', marginTop: '6px' }}>
-
-                  {/* 1.1. Capas generales */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <div
-                      onClick={() => toggleCategory('capas_generales')}
-                      style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)' }}
-                      title="1.1. Capas generales (Predios, Linderos, Vértices)"
-                    >
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.84rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                        <Hexagon size={14} color="#3b82f6" />
-                        <span>1.1. Capas generales</span>
-                      </div>
-                      {collapsedCategories.capas_generales ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                    </div>
-
-                    {!collapsedCategories.capas_generales && (
-                      <div style={{ paddingLeft: '8px', marginTop: '4px' }}>
-                        {/* Predios (Polígonos) */}
-                        <div
-                          className={`layer-item ${showPredios ? 'active' : ''}`}
-                          style={{ display: 'flex', alignItems: 'center' }}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'predios' });
-                          }}
-                        >
-                          <span
-                            onClick={(e) => { e.stopPropagation(); setExpandedPredios(!expandedPredios); }}
-                            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', marginRight: '6px', color: 'var(--text-muted)' }}
-                            title={expandedPredios ? "Colapsar lista de predios" : "Expandir lista de predios"}
-                          >
-                            {expandedPredios ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                          </span>
-                          <span onClick={() => setExpandedPredios(!expandedPredios)} style={{ flex: 1, cursor: 'pointer' }}>Predios (Polígonos)</span>
-                          <span onClick={togglePredios} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px' }} title={showPredios ? "Ocultar en mapa" : "Mostrar en mapa"}>
-                            {showPredios ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                          </span>
-                        </div>
-
-                        {expandedPredios && (() => {
-                          const renderPredioRow = (f) => {
-                            const isHidden = hiddenFeatureIds.includes(f.properties.id);
-                            let displayText = '';
-                            if (listDisplayMode === 'codigo') {
-                              displayText = f.properties.cod_catastral || `Predio ${f.properties.id}`;
-                            } else if (listDisplayMode === 'nombre') {
-                              displayText = f.properties.nombre_posesionario || 'Sin Nombre';
-                            } else if (listDisplayMode === 'sector') {
-                              displayText = f.properties.sector ? `${f.properties.sector} • ${f.properties.cod_catastral || ''}` : (f.properties.cod_catastral || `Predio ${f.properties.id}`);
-                            } else {
-                              displayText = f.properties.cod_catastral || `Predio ${f.properties.id}`;
-                            }
-
-                            return (
-                              <div
-                                key={f.properties.id}
-                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px', borderBottom: '1px solid var(--card-border)', fontSize: '0.76rem', color: isHidden ? 'var(--text-muted)' : 'var(--text-main)', opacity: isHidden ? 0.6 : 1, cursor: 'pointer' }}
-                                onClick={() => zoomToFeature(f)}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  setFeatureContextMenu({
-                                    feature: f,
-                                    mouseX: e.clientX,
-                                    mouseY: e.clientY
-                                  });
-                                }}
-                              >
-                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '72%' }}>
-                                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }} title={displayText}>
-                                    {displayText}
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                  <span
-                                    style={{ cursor: 'pointer', color: '#3b82f6' }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingPredio({
-                                        id: f.properties.id,
-                                        predio_id: f.properties.id,
-                                        posesionario_id: f.properties.posesionario_id || null,
-                                        cod_catastral: f.properties.cod_catastral,
-                                        cedula: f.properties.cedula || '',
-                                        nombre_posesionario: f.properties.nombre_posesionario || '',
-                                        empresa_id: f.properties.empresa_id,
-                                        proyecto_id: f.properties.proyecto_id,
-                                        geom_geojson: f.geometry ? JSON.stringify(f.geometry, null, 2) : '',
-                                        sector: f.properties.sector || '',
-                                        parroquia: f.properties.parroquia || '',
-                                        isOffline: f.properties.isOffline,
-                                        offline_id: f.properties.offline_id || f.properties.id
-                                      });
-                                    }}
-                                    title="Editar predio"
-                                  >
-                                    <Edit size={14} />
-                                  </span>
-
-                                  <span
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (isHidden) setHiddenFeatureIds(hiddenFeatureIds.filter(id => id !== f.properties.id));
-                                      else setHiddenFeatureIds([...hiddenFeatureIds, f.properties.id]);
-                                    }}
-                                    title={isHidden ? "Mostrar lote" : "Ocultar lote"}
-                                  >
-                                    {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          };
-
-                          const hasAnyExpandedSectors = Object.values(expandedSectors).some(Boolean);
-
-                          return (
-                            <div style={{ padding: '6px 10px 10px 14px', backgroundColor: 'var(--bg-main)', borderLeft: '2px solid var(--card-border)', marginLeft: '12px' }}>
-                              {/* Pestañas de Navegación: Sectores vs Predios individuales */}
-                              <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', background: 'var(--bg-panel)', padding: '2px', borderRadius: '6px', border: '1px solid var(--card-border)' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setPredioViewTab('sectores')}
-                                  style={{
-                                    flex: 1,
-                                    padding: '4px 6px',
-                                    fontSize: '0.74rem',
-                                    fontWeight: predioViewTab === 'sectores' ? 600 : 400,
-                                    color: predioViewTab === 'sectores' ? 'var(--accent-color, #2563eb)' : 'var(--text-muted)',
-                                    background: predioViewTab === 'sectores' ? 'var(--bg-main)' : 'transparent',
-                                    border: predioViewTab === 'sectores' ? '1px solid var(--card-border)' : '1px solid transparent',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px'
-                                  }}
-                                >
-                                  Por Sectores ({availableSectors.length})
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setPredioViewTab('predios')}
-                                  style={{
-                                    flex: 1,
-                                    padding: '4px 6px',
-                                    fontSize: '0.74rem',
-                                    fontWeight: predioViewTab === 'predios' ? 600 : 400,
-                                    color: predioViewTab === 'predios' ? 'var(--accent-color, #2563eb)' : 'var(--text-muted)',
-                                    background: predioViewTab === 'predios' ? 'var(--bg-main)' : 'transparent',
-                                    border: predioViewTab === 'predios' ? '1px solid var(--card-border)' : '1px solid transparent',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  Lista Predios
-                                </button>
-                              </div>
-
-                              {predioViewTab === 'sectores' ? (
-                                /* VISTA POR SECTORES: SWITCHBOARD HUMANO Y ELEGANTE */
-                                <div>
-                                  {/* Fila 1: Resumen y Switch de Color */}
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.72rem' }}>
-                                    <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      <strong style={{ color: 'var(--text-main)' }}>{availableSectors.length - disabledSectors.size}</strong> de {availableSectors.length} activos
-                                    </span>
-                                    <label
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        cursor: 'pointer',
-                                        fontSize: '0.71rem',
-                                        color: colorBySector ? 'var(--accent-color, #2563eb)' : 'var(--text-muted)',
-                                        fontWeight: colorBySector ? 600 : 400,
-                                        userSelect: 'none',
-                                        flexShrink: 0
-                                      }}
-                                      title="Colorear predios en el mapa según el color de su sector"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={colorBySector}
-                                        onChange={e => setColorBySector(e.target.checked)}
-                                        style={{ margin: 0, cursor: 'pointer', width: '12px', height: '12px' }}
-                                      />
-                                      <span>Color mapa</span>
-                                    </label>
-                                  </div>
-
-                                  {/* Fila 2: Acciones Rápidas (Grid Responsivo de 3 botones) */}
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', marginBottom: '6px' }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => setDisabledSectors(new Set())}
-                                      title="Mostrar todos los sectores en el mapa"
-                                      style={{
-                                        padding: '3px 4px',
-                                        fontSize: '0.69rem',
-                                        fontWeight: 500,
-                                        borderRadius: '4px',
-                                        border: '1px solid var(--card-border)',
-                                        background: 'var(--bg-panel)',
-                                        color: 'var(--text-main)',
-                                        cursor: 'pointer',
-                                        textAlign: 'center'
-                                      }}
-                                    >
-                                      Ver todos
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setDisabledSectors(new Set(availableSectors.map(s => s.name)))}
-                                      title="Ocultar todos los sectores del mapa"
-                                      style={{
-                                        padding: '3px 4px',
-                                        fontSize: '0.69rem',
-                                        borderRadius: '4px',
-                                        border: '1px solid var(--card-border)',
-                                        background: 'var(--bg-panel)',
-                                        color: 'var(--text-muted)',
-                                        cursor: 'pointer',
-                                        textAlign: 'center'
-                                      }}
-                                    >
-                                      Ocultar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (hasAnyExpandedSectors) {
-                                          setExpandedSectors({});
-                                        } else {
-                                          const allExp = {};
-                                          filteredAvailableSectors.forEach(s => { allExp[s.name] = true; });
-                                          setExpandedSectors(allExp);
-                                        }
-                                      }}
-                                      title={hasAnyExpandedSectors ? "Colapsar todos los sectores" : "Desplegar todos los sectores"}
-                                      style={{
-                                        padding: '3px 4px',
-                                        fontSize: '0.69rem',
-                                        fontWeight: 600,
-                                        borderRadius: '4px',
-                                        border: '1px solid var(--card-border)',
-                                        background: 'var(--bg-panel)',
-                                        color: 'var(--accent-color, #2563eb)',
-                                        cursor: 'pointer',
-                                        textAlign: 'center'
-                                      }}
-                                    >
-                                      {hasAnyExpandedSectors ? 'Colapsar' : 'Desplegar'}
-                                    </button>
-                                  </div>
-
-                                  {/* Buscador de Sector */}
-                                  <div style={{ marginBottom: '6px' }}>
-                                    <input
-                                      type="text"
-                                      value={sectorSearchTerm}
-                                      onChange={e => setSectorSearchTerm(e.target.value)}
-                                      placeholder="Filtrar sectores por nombre..."
-                                      className="sidebar-input"
-                                      style={{ width: '100%', padding: '4px 8px', fontSize: '0.74rem', height: 'auto', boxSizing: 'border-box' }}
-                                    />
-                                  </div>
-
-                                  {/* Lista de Sectores con Ojo, Zoom y Acordeón Desplegable */}
-                                  <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '6px', background: 'var(--bg-panel)' }}>
-                                    {filteredAvailableSectors.length === 0 ? (
-                                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                        No se encontraron sectores
-                                      </div>
-                                    ) : (
-                                      filteredAvailableSectors.map(s => {
-                                        const isVisible = !disabledSectors.has(s.name);
-                                        const isExp = !!expandedSectors[s.name];
-                                        const sectorPredios = (prediosBySector[s.name] || []).filter(f => {
-                                          if (searchResults && !searchResults.includes(f.properties?.id)) return false;
-                                          if (selectedYear !== 'Todos' && (!f.properties?.fecha_creacion || !String(f.properties.fecha_creacion).startsWith(selectedYear))) return false;
-                                          return true;
-                                        });
-                                        const secLimit = visibleCounts[`sec_${s.name}`] || 15;
-                                        const visibleFeats = sectorPredios.slice(0, secLimit);
-
-                                        return (
-                                          <div
-                                            key={s.name}
-                                            style={{
-                                              borderBottom: '1px solid var(--card-border)',
-                                              background: isVisible ? 'transparent' : 'rgba(0,0,0,0.03)',
-                                              opacity: isVisible ? 1 : 0.55,
-                                              transition: 'opacity 0.2s ease'
-                                            }}
-                                          >
-                                            <div
-                                              style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                padding: '5px 8px',
-                                                cursor: 'pointer'
-                                              }}
-                                              onClick={() => setExpandedSectors(prev => ({ ...prev, [s.name]: !prev[s.name] }))}
-                                            >
-                                              {/* Info del Sector: Flecha + Color Picker Interactivo + Nombre + Total Predios */}
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', flex: 1, minWidth: 0, marginRight: '4px' }}>
-                                                <span
-                                                  style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    color: 'var(--text-muted)',
-                                                    flexShrink: 0
-                                                  }}
-                                                >
-                                                  {isExp ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                                </span>
-                                                <label
-                                                  style={{
-                                                    position: 'relative',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    cursor: 'pointer',
-                                                    margin: 0,
-                                                    padding: 0,
-                                                    flexShrink: 0
-                                                  }}
-                                                  title="Clic para cambiar color de este sector"
-                                                  onClick={(e) => e.stopPropagation()}
-                                                >
-                                                  <span
-                                                    style={{
-                                                      width: '12px',
-                                                      height: '12px',
-                                                      borderRadius: '3px',
-                                                      backgroundColor: isVisible ? s.color : '#94a3b8',
-                                                      border: '1px solid rgba(0,0,0,0.2)',
-                                                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                                                      display: 'inline-block'
-                                                    }}
-                                                  />
-                                                  <input
-                                                    type="color"
-                                                    value={s.color}
-                                                    onChange={(e) => {
-                                                      const val = e.target.value;
-                                                      setCustomSectorColors(prev => {
-                                                        const next = { ...prev, [s.name]: val };
-                                                        try {
-                                                          localStorage.setItem('geoportal_sector_colors', JSON.stringify(next));
-                                                        } catch (err) { }
-                                                        return next;
-                                                      });
-                                                    }}
-                                                    style={{
-                                                      position: 'absolute',
-                                                      top: 0,
-                                                      left: 0,
-                                                      width: '100%',
-                                                      height: '100%',
-                                                      opacity: 0,
-                                                      cursor: 'pointer',
-                                                      border: 'none',
-                                                      padding: 0
-                                                    }}
-                                                  />
-                                                </label>
-                                                <span
-                                                  style={{
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: 600,
-                                                    color: isVisible ? 'var(--text-main)' : 'var(--text-muted)',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
-                                                  }}
-                                                  title={`${s.displayName} (${s.count} predios)`}
-                                                >
-                                                  {s.displayName}
-                                                </span>
-                                                <span
-                                                  style={{
-                                                    fontSize: '0.67rem',
-                                                    color: 'var(--text-muted)',
-                                                    background: 'var(--bg-main)',
-                                                    padding: '1px 5px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid var(--card-border)',
-                                                    flexShrink: 0
-                                                  }}
-                                                >
-                                                  {s.count}
-                                                </span>
-                                              </div>
-
-                                              {/* Acciones: Enfocar (Zoom) y Toggle Ojo */}
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                                <span
-                                                  style={{ cursor: 'pointer', color: 'var(--accent-color, #2563eb)', display: 'flex', alignItems: 'center' }}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    zoomToSector(s.name);
-                                                  }}
-                                                  title={`Enfocar sector ${s.displayName}`}
-                                                >
-                                                  <Target size={14} />
-                                                </span>
-                                                <span
-                                                  style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleSectorVisibility(s.name);
-                                                  }}
-                                                  title={isVisible ? `Ocultar sector ${s.displayName} en el mapa` : `Mostrar sector ${s.displayName} en el mapa`}
-                                                >
-                                                  {isVisible ? <Eye size={15} color="var(--accent-color, #2563eb)" /> : <EyeOff size={15} color="var(--text-muted)" />}
-                                                </span>
-                                              </div>
-                                            </div>
-
-                                            {/* Predios del Sector (Acordeón desplegable) */}
-                                            {isExp && (
-                                              <div style={{ padding: '2px 8px 6px 24px', backgroundColor: 'var(--bg-main)', borderTop: '1px solid var(--card-border)' }}>
-                                                {visibleFeats.length === 0 ? (
-                                                  <div style={{ padding: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                                                    Sin predios coincidentes con filtros
-                                                  </div>
-                                                ) : (
-                                                  visibleFeats.map(renderPredioRow)
-                                                )}
-                                                {sectorPredios.length > secLimit && (
-                                                  <div style={{ padding: '4px 0', textAlign: 'center' }}>
-                                                    <button
-                                                      type="button"
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setVisibleCounts(prev => ({
-                                                          ...prev,
-                                                          [`sec_${s.name}`]: (prev[`sec_${s.name}`] || 15) + 20
-                                                        }));
-                                                      }}
-                                                      style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-muted)', cursor: 'pointer' }}
-                                                    >
-                                                      Cargar más (+20) • {secLimit} de {sectorPredios.length}
-                                                    </button>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                /* VISTA DE LISTA COMPLETA DE PREDIOS (ORIGINAL MEJORADA) */
-                                <div>
-                                  <div style={{ marginBottom: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '45px' }}>Sector:</label>
-                                    <select
-                                      value={selectedSectorFilter}
-                                      onChange={e => {
-                                        const val = e.target.value;
-                                        setSelectedSectorFilter(val);
-                                        if (val !== 'Todos') {
-                                          zoomToSector(val);
-                                        }
-                                      }}
-                                      className="sidebar-input"
-                                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: 'auto', flex: 1 }}
-                                    >
-                                      <option value="Todos">Todos ({prediosData?.features?.length || 0})</option>
-                                      {availableSectors.map(s => (
-                                        <option key={s.name} value={s.name}>
-                                          {s.name} ({s.count})
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  <div style={{ marginBottom: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '45px' }}>Mostrar:</label>
-                                    <select
-                                      value={listDisplayMode}
-                                      onChange={e => setListDisplayMode(e.target.value)}
-                                      className="sidebar-input"
-                                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: 'auto', flex: 1 }}
-                                    >
-                                      <option value="codigo">Código Catastral</option>
-                                      <option value="nombre">Nombre Propietario</option>
-                                      <option value="sector">Sector</option>
-                                    </select>
-                                  </div>
-
-                                  <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--card-border)', borderRadius: '4px', padding: '4px' }}>
-                                    {loadingPredios && (
-                                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                                        Cargando predios...
-                                      </div>
-                                    )}
-                                    {!loadingPredios && (!prediosData?.features || prediosData.features.length === 0) && (
-                                      <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                                        No hay predios en esta empresa.
-                                      </div>
-                                    )}
-                                    {!loadingPredios && (() => {
-                                      const allFiltered = (prediosData?.features || [])
-                                        .filter(f => f && f.properties)
-                                        .filter(f => searchResults === null || searchResults.includes(f.properties.id))
-                                        .filter(f => selectedYear === 'Todos' || (f.properties.fecha_creacion && String(f.properties.fecha_creacion).startsWith(selectedYear)))
-                                        .filter(f => {
-                                          if (selectedSectorFilter === 'Todos') return true;
-                                          const sec = f.properties.sector ? f.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
-                                          return sec === selectedSectorFilter;
-                                        });
-
-                                      const limit = visibleCounts['predios'] || 20;
-                                      const visibleList = allFiltered.slice(0, limit);
-
-                                      return (
-                                        <>
-                                          {visibleList.map(renderPredioRow)}
-                                          {allFiltered.length > limit && (
-                                            <div style={{ padding: '6px 0', textAlign: 'center' }}>
-                                              <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setVisibleCounts(prev => ({ ...prev, predios: (prev['predios'] || 20) + 20 }));
-                                                }}
-                                                style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', border: '1px solid var(--card-border)', background: 'var(--bg-panel)', color: 'var(--text-main)', cursor: 'pointer' }}
-                                              >
-                                                Cargar más (+20) • {limit} de {allFiltered.length}
-                                              </button>
-                                            </div>
-                                          )}
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-
-                        {/* Linderos (Líneas) */}
-                        <div
-                          className={`layer-item ${showLineas ? 'active' : ''}`}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'lineas' });
-                          }}
-                        >
-                          <span onClick={toggleLineas} style={{ flex: 1 }}>Linderos (Líneas)</span>
-                          <span onClick={toggleLineas} style={{ cursor: 'pointer' }}>{showLineas ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
-                        </div>
-
-                        {/* Vértices (Puntos) */}
-                        <div
-                          className={`layer-item ${showVertices ? 'active' : ''}`}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setSidebarContextMenu({ x: e.clientX, y: e.clientY, layerType: 'vertices' });
-                          }}
-                        >
-                          <span onClick={toggleVertices} style={{ flex: 1 }}>Vértices (Puntos)</span>
-                          <span onClick={toggleVertices} style={{ cursor: 'pointer' }}>{showVertices ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 1.2. Capas Adicionales */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <div
-                      onClick={() => toggleCategory('capas_adicionales')}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setSidebarContextMenu({
-                          x: e.clientX,
-                          y: e.clientY,
-                          menuKind: 'group_adicionales'
-                        });
-                      }}
-                      style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)' }}
-                      title="1.2. Capas Adicionales"
-                    >
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.84rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                        <Boxes size={14} color="#a855f7" />
-                        <span>1.2. Capas Adicionales ({capasGenericas.length})</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShapefileInitialType('capa_adicional');
-                            setShowShapefileUploader(true);
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid #a855f7',
-                            borderRadius: '4px',
-                            color: '#a855f7',
-                            padding: '1px 5px',
-                            fontSize: '0.7rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '2px'
-                          }}
-                          title="Subir Capa Adicional (Shapefile / GeoJSON)"
-                        >
-                          <Plus size={11} /> Subir
-                        </button>
-                        {collapsedCategories.capas_adicionales ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                      </div>
-                    </div>
-
-                    {!collapsedCategories.capas_adicionales && (
-                      <div style={{ paddingLeft: '8px', marginTop: '4px' }}>
-                        {capasGenericas.length === 0 ? (
-                          <div style={{ padding: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', textAlign: 'center', border: '1px dashed var(--card-border)', borderRadius: '6px', margin: '4px 0' }}>
-                            <p style={{ margin: '0 0 5px 0' }}>No hay capas adicionales cargadas.</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShapefileInitialType('capa_adicional');
-                                setShowShapefileUploader(true);
-                              }}
-                              style={{
-                                background: 'rgba(168, 85, 247, 0.1)',
-                                border: '1px solid #a855f7',
-                                color: '#a855f7',
-                                padding: '3px 8px',
-                                borderRadius: '4px',
-                                fontSize: '0.73rem',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              + Cargar Capa Adicional
-                            </button>
-                          </div>
-                        ) : (
-                          capasGenericas.map(renderCustomLayerItem)
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 1.3. Capas Limites */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <div
-                      onClick={() => toggleCategory('capas_limites')}
-                      style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}
-                      title="1.3. Capas Limitrofes."
-                    >
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.84rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                        <Shield size={14} color="#ef4444" />
-                        <span>1.3. Capas Limitrofes.</span>
-                      </div>
-                      {collapsedCategories.capas_limites ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                    </div>
-
-                    {!collapsedCategories.capas_limites && (
-                      <div style={{ paddingLeft: '8px', marginTop: '4px' }}>
-
-                        {/* 1.3.1.: Limite cantonal */}
-                        <div style={{ marginBottom: '6px', padding: '6px', background: 'rgba(239, 68, 68, 0.04)', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.15)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: '600', color: '#ef4444' }}>
-                              <Shield size={13} />
-                              <span>1.3.1.: Limite cantonal</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShapefileInitialType('limite_cantonal');
-                                setShowShapefileUploader(true);
-                              }}
-                              style={{
-                                background: 'transparent',
-                                border: '1px solid #ef4444',
-                                color: '#ef4444',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                fontSize: '0.7rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '2px'
-                              }}
-                              title="Subir o actualizar Límite Cantonal"
-                            >
-                              <UploadCloud size={11} /> Subir
-                            </button>
-                          </div>
-
-                          {capasCantonales.length === 0 ? (
-                            <div style={{ padding: '6px', textAlign: 'center', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                              <div style={{ marginBottom: '4px' }}>Sin límite cantonal activo</div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShapefileInitialType('limite_cantonal');
-                                  setShowShapefileUploader(true);
-                                }}
-                                style={{
-                                  background: 'rgba(239, 68, 68, 0.1)',
-                                  border: '1px dashed #ef4444',
-                                  color: '#ef4444',
-                                  padding: '3px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '0.72rem',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                + Subir Límite Cantonal
-                              </button>
-                            </div>
-                          ) : (
-                            capasCantonales.map(renderCustomLayerItem)
-                          )}
-                        </div>
-
-                        {/* 1.3.2.: Limite Parroquial */}
-                        <div style={{ marginBottom: '6px', padding: '6px', background: 'rgba(6, 182, 212, 0.04)', borderRadius: '6px', border: '1px solid rgba(6, 182, 212, 0.15)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: '600', color: '#06b6d4' }}>
-                              <ShieldAlert size={13} />
-                              <span>1.3.2.: Limite Parroquial</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShapefileInitialType('limite_parroquial');
-                                setShowShapefileUploader(true);
-                              }}
-                              style={{
-                                background: 'transparent',
-                                border: '1px solid #06b6d4',
-                                color: '#06b6d4',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                fontSize: '0.7rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '2px'
-                              }}
-                              title="Subir o actualizar Límites Parroquiales"
-                            >
-                              <UploadCloud size={11} /> Subir
-                            </button>
-                          </div>
-
-                          {capasParroquiales.length === 0 ? (
-                            <div style={{ padding: '6px', textAlign: 'center', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                              <div style={{ marginBottom: '4px' }}>Sin límites parroquiales activos</div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShapefileInitialType('limite_parroquial');
-                                  setShowShapefileUploader(true);
-                                }}
-                                style={{
-                                  background: 'rgba(6, 182, 212, 0.1)',
-                                  border: '1px dashed #06b6d4',
-                                  color: '#06b6d4',
-                                  padding: '3px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '0.72rem',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                + Subir Límite Parroquial
-                              </button>
-                            </div>
-                          ) : (
-                            capasParroquiales.map(renderCustomLayerItem)
-                          )}
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Capas Temporales (Local IndexedDB) */}
-                  {temporalLayers.length > 0 && (
-                    <>
-                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
-                      <div
-                        className="layer-group-header"
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setSidebarContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            menuKind: 'group_temporales'
-                          });
-                        }}
-                        style={{
-                          padding: '4px 10px',
-                          fontSize: '0.8rem',
-                          color: 'var(--text-muted)',
-                          marginBottom: '5px',
-                          fontWeight: 'bold',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'context-menu',
-                          borderRadius: '4px'
-                        }}
-                        title="Capas Temporales (Clic derecho para opciones de grupo)"
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Clock size={14} color="#f59e0b" />
-                          <span>Capas Temporales ({temporalLayers.length})</span>
-                        </div>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.7 }}>clic derecho</span>
-                      </div>
-                      {temporalLayers.map(capa => (
-                        <div
-                          key={capa.id}
-                          className={`layer-item ${activeTemporalLayers[capa.id] ? 'active' : ''}`}
-                          style={{ display: 'flex', alignItems: 'center' }}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setSidebarContextMenu({
-                              x: e.clientX,
-                              y: e.clientY,
-                              menuKind: 'layer_temporal',
-                              layerId: capa.id,
-                              capaObj: capa
-                            });
-                          }}
-                          title="Clic derecho para opciones de capa"
-                        >
-                          <span onClick={() => setActiveTemporalLayers(prev => ({ ...prev, [capa.id]: !prev[capa.id] }))} style={{ flex: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={capa.name}>
-                            <div style={{ width: '12px', height: '12px', background: capa.color || '#3b82f6', borderRadius: '2px', marginRight: '8px', flexShrink: 0 }}></div>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{capa.name}</span>
-                          </span>
-                          <span onClick={() => setActiveTemporalLayers(prev => ({ ...prev, [capa.id]: !prev[capa.id] }))} style={{ cursor: 'pointer', marginRight: '10px' }} title={activeTemporalLayers[capa.id] ? "Ocultar" : "Mostrar"}>
-                            {activeTemporalLayers[capa.id] ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}
-                          </span>
-                          <span onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              await deleteTemporalLayer(capa.id);
-                              setTemporalLayers(prev => prev.filter(c => c.id !== capa.id));
-                            } catch (e) { console.error(e); }
-                          }} style={{ cursor: 'pointer', color: '#ef4444' }} title="Eliminar capa temporal local">
-                            <Trash2 size={16} />
-                          </span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-
-                </div>
-              )}
-              <div className="sidebar-section">
-                <div className="layer-category" onClick={() => toggleCategory('basemap')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <Map size={16} color="var(--primary)" />
-                    <span style={{ color: 'var(--text-main)' }}>Mapas Base</span>
-                  </div>
-                  {collapsedCategories.basemap ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-                </div>
-              </div>
-
-              {!collapsedCategories.basemap && (
-                <>
-                  <div className={`layer-item ${baseMap === 'osm' ? 'active' : ''}`} onClick={() => setBaseMap('osm')}>
-                    <span>OpenStreetMap</span>
-                    {baseMap === 'osm' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-                  <div className={`layer-item ${baseMap === 'esri' ? 'active' : ''}`} onClick={() => setBaseMap('esri')}>
-                    <span>Satélite (Esri)</span>
-                    {baseMap === 'esri' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-                  <div className={`layer-item ${baseMap === 'osm-hybrid' ? 'active' : ''}`} onClick={() => setBaseMap('osm-hybrid')}>
-                    <span>Satélite + Calles</span>
-                    {baseMap === 'osm-hybrid' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-                  <div className={`layer-item ${baseMap === 'carto' ? 'active' : ''}`} onClick={() => setBaseMap('carto')}>
-                    <span>Carto ({theme === 'dark' ? 'Oscuro' : 'Claro'})</span>
-                    {baseMap === 'carto' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-                  <div className={`layer-item ${baseMap === 'none' ? 'active' : ''}`} onClick={() => setBaseMap('none')}>
-                    <span>Fondo Blanco (Ninguno)</span>
-                    {baseMap === 'none' ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
-                  <div style={{ padding: '0 10px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>Capas Superpuestas</div>
-                  <div className={`layer-item ${showCartoLabels ? 'active' : ''}`} onClick={() => setShowCartoLabels(!showCartoLabels)}>
-                    <span>Etiquetas de Calles (Carto)</span>
-                    {showCartoLabels ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-                </>
-              )}
-
-              <div className="sidebar-section">
-                <div className="layer-category" onClick={() => toggleCategory('raster')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <Image size={16} color="var(--primary)" />
-                    <span style={{ color: 'var(--text-main)' }}>Capas Raster Adicionales</span>
-                  </div>
-                  {collapsedCategories.raster ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-                </div>
-              </div>
-
-              {!collapsedCategories.raster && (
-                <>
-                  <div className={`layer-item ${showMasterOrthophoto ? 'active' : ''}`} onClick={() => setShowMasterOrthophoto(!showMasterOrthophoto)}>
-                    <span>Mosaico Maestro (Todas)</span>
-                    {showMasterOrthophoto ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                  </div>
-
-                  <div className="layer-item" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '10px 15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px' }}>Opacidad: {Math.round(ortofotoOpacity * 100)}%</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={ortofotoOpacity}
-                      onChange={(e) => setOrtofotoOpacity(parseFloat(e.target.value))}
-                      style={{ width: '100%', cursor: 'pointer' }}
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="sidebar-section">
-                <div className="layer-category" onClick={() => toggleCategory('ortofotos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <Layers size={16} color="var(--primary)" />
-                    <span style={{ color: 'var(--text-main)' }}>Ortofotos (WMS)</span>
-                  </div>
-                  {collapsedCategories.ortofotos ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-                </div>
-              </div>
-
-              {!collapsedCategories.ortofotos && catalogData?.features?.map((f, i) => {
-                const filename = f.properties.nombre_archivo;
-                const isVisible = individualOrthophotos[filename];
-                return (
-                  <div key={i} className={`layer-item ${isVisible ? 'active' : ''}`} style={{ paddingLeft: '20px', fontSize: '0.85rem' }}>
-                    <span onClick={() => toggleIndividualOrthophoto(filename)} style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}>{filename}</span>
-                    <Trash2 size={16} color="#ef4444" style={{ marginRight: '8px' }} onClick={() => deleteOrthophoto(filename)} />
-                    {isVisible && <Target size={16} color="#fbbf24" style={{ marginRight: '8px' }} onClick={() => zoomToOrtofoto(filename)} />}
-                    <span onClick={() => toggleIndividualOrthophoto(filename)}>{isVisible ? <Eye size={16} /> : <EyeOff size={16} color="#475569" />}</span>
-                  </div>
-                );
-              })}
-
-              <div className="sidebar-section">
-                <div className="layer-category" onClick={() => toggleCategory('metadatos')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <Settings size={16} color="var(--primary)" />
-                    <span style={{ color: 'var(--text-main)' }}>Metadatos y Utilidades</span>
-                  </div>
-                  {collapsedCategories.metadatos ? <ChevronRight size={16} color="var(--primary)" /> : <ChevronDown size={16} color="var(--primary)" />}
-                </div>
-              </div>
-
-              {!collapsedCategories.metadatos && (
-                <div className={`layer-item ${showFootprints ? 'active' : ''}`} onClick={() => setShowFootprints(!showFootprints)}>
-                  <span>Cuadros de Ortofotos</span>
-                  {showFootprints ? <Eye size={18} /> : <EyeOff size={18} color="#475569" />}
-                </div>
-              )}
-            </div>
-
-
-          </div>
-        </aside>
+        <GeoportalSidebar
+          isSidebarOpen={isSidebarOpen}
+          setIsSidebarOpen={setIsSidebarOpen}
+          collapsedCategories={collapsedCategories}
+          toggleCategory={toggleCategory}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          handleSearch={handleSearch}
+          setSearchResults={setSearchResults}
+          handleProcesarClick={handleProcesarClick}
+          shapefileInputRef={shapefileInputRef}
+          handleImportShapefile={handleImportShapefile}
+          setShowShapefileUploader={setShowShapefileUploader}
+          importedShapes={importedShapes}
+          atlasFileName={atlasFileName}
+          setShowAtlasModal={setShowAtlasModal}
+          showImportedShapes={showImportedShapes}
+          setShowImportedShapes={setShowImportedShapes}
+          handleCancelTempShapes={handleCancelTempShapes}
+          handleExportAll={handleExportAll}
+          handleCatalogarMasivo={handleCatalogarMasivo}
+          fechaHistorica={fechaHistorica}
+          setFechaHistorica={setFechaHistorica}
+          selectedYear={selectedYear}
+          setSelectedYear={setSelectedYear}
+          prediosData={prediosData}
+          setPrediosData={setPrediosData}
+          fetchMapData={fetchMapData}
+          activeEmpresa={activeEmpresa}
+          activeProyecto={activeProyecto}
+          API_URL={API_URL}
+          authToken={authToken}
+          setSidebarContextMenu={setSidebarContextMenu}
+          showPredios={showPredios}
+          togglePredios={togglePredios}
+          expandedPredios={expandedPredios}
+          setExpandedPredios={setExpandedPredios}
+          showLineas={showLineas}
+          toggleLineas={toggleLineas}
+          showVertices={showVertices}
+          toggleVertices={toggleVertices}
+          showReferenciasSql={showReferenciasSql}
+          toggleReferenciasSql={toggleReferenciasSql}
+          referenciasSqlData={referenciasSqlData}
+          loadingReferenciasSql={loadingReferenciasSql}
+          predioViewTab={predioViewTab}
+          setPredioViewTab={setPredioViewTab}
+          availableSectors={availableSectors}
+          disabledSectors={disabledSectors}
+          setDisabledSectors={setDisabledSectors}
+          colorBySector={colorBySector}
+          setColorBySector={setColorBySector}
+          expandedSectors={expandedSectors}
+          setExpandedSectors={setExpandedSectors}
+          filteredAvailableSectors={filteredAvailableSectors}
+          sectorSearchTerm={sectorSearchTerm}
+          setSectorSearchTerm={setSectorSearchTerm}
+          prediosBySector={prediosBySector}
+          searchResults={searchResults}
+          visibleCounts={visibleCounts}
+          setVisibleCounts={setVisibleCounts}
+          handleSectorColorChange={handleSectorColorChange}
+          zoomToSector={zoomToSector}
+          toggleSectorVisibility={toggleSectorVisibility}
+          hiddenFeatureIds={hiddenFeatureIds}
+          setHiddenFeatureIds={setHiddenFeatureIds}
+          listDisplayMode={listDisplayMode}
+          setListDisplayMode={setListDisplayMode}
+          zoomToFeature={zoomToFeature}
+          setFeatureContextMenu={setFeatureContextMenu}
+          setEditingPredio={setEditingPredio}
+          selectedSectorFilter={selectedSectorFilter}
+          setSelectedSectorFilter={setSelectedSectorFilter}
+          loadingPredios={loadingPredios}
+          capasGenericas={capasGenericas}
+          capasCantonales={capasCantonales}
+          capasParroquiales={capasParroquiales}
+          setShapefileInitialType={setShapefileInitialType}
+          activeCapasAdicionales={activeCapasAdicionales}
+          expandedCapasAdicionales={expandedCapasAdicionales}
+          layerStyles={layerStyles}
+          activeStylePopover={activeStylePopover}
+          setActiveStylePopover={setActiveStylePopover}
+          activeFeatureStylePopover={activeFeatureStylePopover}
+          setActiveFeatureStylePopover={setActiveFeatureStylePopover}
+          toggleExpandCapaAdicional={toggleExpandCapaAdicional}
+          toggleCapaAdicional={toggleCapaAdicional}
+          handleUpdateLayerStyle={handleUpdateLayerStyle}
+          geoJsonCacheAdicionales={geoJsonCacheAdicionales}
+          selectedPredioId={selectedPredioId}
+          setSelectedPredioId={setSelectedPredioId}
+          getFeatureCustomStyle={getFeatureCustomStyle}
+          handleUpdateFeatureStyle={handleUpdateFeatureStyle}
+          handleResetFeatureStyle={handleResetFeatureStyle}
+          handleExportSingleFeatureToAtlas={handleExportSingleFeatureToAtlas}
+          temporalLayers={temporalLayers}
+          activeTemporalLayers={activeTemporalLayers}
+          setActiveTemporalLayers={setActiveTemporalLayers}
+          deleteTemporalLayer={deleteTemporalLayer}
+          setTemporalLayers={setTemporalLayers}
+          baseMap={baseMap}
+          setBaseMap={setBaseMap}
+          theme={theme}
+          showCartoLabels={showCartoLabels}
+          setShowCartoLabels={setShowCartoLabels}
+          showMasterOrthophoto={showMasterOrthophoto}
+          setShowMasterOrthophoto={setShowMasterOrthophoto}
+          ortofotoOpacity={ortofotoOpacity}
+          setOrtofotoOpacity={setOrtofotoOpacity}
+          catalogData={catalogData}
+          individualOrthophotos={individualOrthophotos}
+          toggleIndividualOrthophoto={toggleIndividualOrthophoto}
+          deleteOrthophoto={deleteOrthophoto}
+          zoomToOrtofoto={zoomToOrtofoto}
+          showFootprints={showFootprints}
+          setShowFootprints={setShowFootprints}
+        />
       </div>
 
       <MapContainer
@@ -6592,7 +4057,7 @@ export default function Geoportal() {
         maxZoom={32}
         preferCanvas={true}
         ref={setMap}
-        className={`map-container ${isMeasuring ? 'measuring-active' : ''}`}
+        className={`map-container ${isMeasuring ? 'measuring-active' : ''} ${isMapActionActive ? 'map-action-active' : ''}`}
         zoomControl={false}
       >
         <MeasureTool
@@ -6602,7 +4067,7 @@ export default function Geoportal() {
           setMousePos={setMousePos}
         />
 
-        {!isMeasuring && !isDrawingPredio && (
+        {!isMapActionActive && (
           <MapContextMenu
             isFeatureMenuOpen={!!featureContextMenu}
             onAction={(action, latlng) => {
@@ -7106,22 +4571,9 @@ export default function Geoportal() {
         {showPredios && filteredPrediosGeoJSON && filteredPrediosGeoJSON.features && (
           <GeoJSON
             ref={prediosGeoJsonRef}
-            key={`predios-${prediosData._key || 'init'}-${showPredios}-${hiddenFeatureIds.length}-${searchResults ? searchResults.length : 'all'}-${selectedYear}-${disabledSectorsHash}-${colorBySector}-${customColorsKey}`}
+            key={`predios-${prediosData._key || 'init'}-${showPredios}-${hiddenFeatureIds.length}-${searchResults ? searchResults.length : 'all'}-${selectedYear}-${disabledSectorsHash}-${colorBySector}`}
             data={filteredPrediosGeoJSON}
-            style={(feature) => {
-              const isSelected = (selectedPredioId && String(selectedPredioId) === String(feature.properties?.id)) || (searchResultSet && searchResultSet.has(String(feature.properties?.id)));
-              const isOffline = feature.properties?.isOffline;
-              const sec = feature.properties?.sector ? feature.properties.sector.trim().toUpperCase() : 'SIN SECTOR';
-              const sectorColor = (colorBySector && sectorColorMap[sec]) ? sectorColorMap[sec] : '#3b82f6';
-              const baseColor = isOffline ? '#f59e0b' : sectorColor;
-              return {
-                color: isSelected ? '#00ffff' : baseColor,
-                weight: isSelected ? 4 : (isOffline ? 3 : 2),
-                dashArray: isOffline ? '6, 6' : undefined,
-                fillColor: isSelected ? '#00ffff' : baseColor,
-                fillOpacity: isSelected ? 0.4 : (isOffline ? 0.3 : 0.18)
-              };
-            }}
+            style={getPredioStyle}
             onEachFeature={(feature, layer) => {
               if (feature.properties) {
                 const { isOffline } = feature.properties;
@@ -7134,7 +4586,25 @@ export default function Geoportal() {
                 }
 
                 // Popup bajo demanda (lazy binding): evita 4,524 instancias DOM al montar
-                layer.on('click', () => {
+                layer.on('click', (e) => {
+                  if (isMapActionActiveRef.current) {
+                    if (e.originalEvent && e.originalEvent.stopPropagation) {
+                      e.originalEvent.stopPropagation();
+                    }
+                    if (layer.closePopup) {
+                      try { layer.closePopup(); } catch (err) {}
+                    }
+                    if (mapRef.current) {
+                      try { mapRef.current.closePopup(); } catch (err) {}
+                      mapRef.current.fire('click', {
+                        latlng: e.latlng,
+                        layerPoint: e.layerPoint,
+                        containerPoint: e.containerPoint,
+                        originalEvent: e.originalEvent
+                      });
+                    }
+                    return;
+                  }
                   ensurePredioPopup(layer, feature);
                   if (layer.openPopup) layer.openPopup();
                   setSelectedPredioId(prev => {
@@ -7155,6 +4625,12 @@ export default function Geoportal() {
                 });
 
                 layer.on('contextmenu', (e) => {
+                  if (isMapActionActiveRef.current) {
+                    if (mapRef.current) {
+                      mapRef.current.fire('contextmenu', e);
+                    }
+                    return;
+                  }
                   if (e.originalEvent) {
                     e.originalEvent._featureHandled = true;
                     if (e.originalEvent.stopPropagation) e.originalEvent.stopPropagation();
@@ -7177,20 +4653,34 @@ export default function Geoportal() {
           <GeoJSON
             key={`imported-shapes-${importedShapes.features.length}-${showImportedShapes}`}
             data={importedShapes}
-            style={() => ({
-              color: '#10b981', // Verde esmeralda
-              weight: 2,
-              fillColor: '#10b981',
-              fillOpacity: 0.3,
-              dashArray: '4, 4'
-            })}
+            style={importedShapesStyle}
             onEachFeature={(feature, layer) => {
-              layer.bindPopup(`
-                <div style="font-family: Inter, sans-serif;">
-                  <h4 style="margin:0 0 5px 0; color: #1e293b;">Polígono Importado (Shapefile)</h4>
-                  <p style="margin:0; font-size: 13px;">Haz clic en <b>"Nuevo Predio"</b> en la barra de herramientas para registrar este polígono manualmente. Puedes usar este polígono como referencia visual.</p>
-                </div>
-              `);
+              layer.on('click', (e) => {
+                if (isMapActionActiveRef.current) {
+                  if (e.originalEvent && e.originalEvent.stopPropagation) {
+                    e.originalEvent.stopPropagation();
+                  }
+                  if (layer.closePopup) {
+                    try { layer.closePopup(); } catch (err) {}
+                  }
+                  if (mapRef.current) {
+                    try { mapRef.current.closePopup(); } catch (err) {}
+                    mapRef.current.fire('click', {
+                      latlng: e.latlng,
+                      layerPoint: e.layerPoint,
+                      containerPoint: e.containerPoint,
+                      originalEvent: e.originalEvent
+                    });
+                  }
+                  return;
+                }
+                layer.bindPopup(`
+                  <div style="font-family: Inter, sans-serif;">
+                    <h4 style="margin:0 0 5px 0; color: #1e293b;">Polígono Importado (Shapefile / Excel)</h4>
+                    <p style="margin:0; font-size: 13px;">Haz clic en <b>"Nuevo Predio"</b> en la barra de herramientas para registrar este polígono manualmente. Puedes usar este polígono como referencia visual.</p>
+                  </div>
+                `, { autoPan: false }).openPopup();
+              });
             }}
           />
         )}
@@ -7200,11 +4690,7 @@ export default function Geoportal() {
           <GeoJSON
             key={`lineas-${lineasData._key || 'init'}`}
             data={{ ...lineasData, features: (lineasData.features || []).filter(f => f && f.geometry) }}
-            style={() => ({
-              color: '#f97316', // Naranja
-              weight: 3,
-              dashArray: '5, 5' // Línea punteada
-            })}
+            style={lineasStyle}
           />
         )}
 
@@ -7227,6 +4713,54 @@ export default function Geoportal() {
               if (feature.properties) {
                 layer.bindPopup(`Vértice: ${feature.properties.codigo || 'N/A'}`);
               }
+            }}
+          />
+        )}
+
+        {/* VECTOR: Puntos de Referencia Predial (SQL Server) */}
+        {showReferenciasSql && referenciasSqlData && referenciasSqlData.features && (
+          <GeoJSON
+            key={`ref-sql-${referenciasSqlData._key || 'init'}`}
+            data={{ ...referenciasSqlData, features: (referenciasSqlData.features || []).filter(f => f && f.geometry) }}
+            pointToLayer={(feature, latlng) => {
+              return L.circleMarker(latlng, {
+                radius: 5,
+                fillColor: "#f59e0b",
+                color: "#78350f",
+                weight: 1.5,
+                opacity: 1,
+                fillOpacity: 0.85
+              });
+            }}
+            onEachFeature={(feature, layer) => {
+              const p = feature.properties || {};
+              const popupHtml = `
+                <div style="font-family: Inter, sans-serif; min-width: 220px;">
+                  <div style="background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-bottom: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                    📍 Punto de Ref. (SQL Server)
+                  </div>
+                  <h4 style="margin: 0 0 5px 0; color: #1e293b; font-size: 13.5px; font-weight: 700;">
+                    ${p.cod_catastral || 'Sin Código'}
+                  </h4>
+                  <div style="font-size: 12px; color: #334155; line-height: 1.45;">
+                    <div><b>Cédula:</b> ${p.id_titular || 'S/N'}</div>
+                    <div><b>Propietario:</b> ${p.propietario || 'No registrado'}</div>
+                    ${p.nombre_predio ? `<div><b>Predio:</b> ${p.nombre_predio}</div>` : ''}
+                    ${p.sitio ? `<div><b>Sitio:</b> ${p.sitio}</div>` : ''}
+                  </div>
+                  <div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #64748b; font-family: monospace;">
+                    UTM 17S: X=${p.rcx} | Y=${p.rcy}
+                  </div>
+                  <button
+                    type="button"
+                    onclick="window.usarReferenciaSql('${p.cod_catastral}', '${p.id_titular || ''}', '${(p.propietario || '').replace(/'/g, "\\'")}', '${(p.sitio || '').replace(/'/g, "\\'")}', ${p.rcx}, ${p.rcy})"
+                    style="margin-top: 8px; width: 100%; background: #f59e0b; color: #ffffff; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 2px 4px rgba(245,158,11,0.25);"
+                  >
+                    ⚡ Registrar Predio con esta Clave
+                  </button>
+                </div>
+              `;
+              layer.bindPopup(popupHtml, { autoPan: false });
             }}
           />
         )}
@@ -7353,7 +4887,14 @@ export default function Geoportal() {
                     layer.bindPopup(popupContent);
                   }
 
-                  const handleHighlight = () => {
+                  const handleHighlight = (e) => {
+                    if (isMapActionActiveRef.current) {
+                      if (mapRef.current) {
+                        try { mapRef.current.closePopup(); } catch (err) {}
+                        mapRef.current.fire('click', e);
+                      }
+                      return;
+                    }
                     const featId = getFeatId(feature, layer);
                     if (activePredioLayerRef.current && activePredioLayerRef.current !== layer) {
                       try {
@@ -7387,6 +4928,12 @@ export default function Geoportal() {
                   });
 
                   layer.on('contextmenu', (e) => {
+                    if (isMapActionActiveRef.current) {
+                      if (mapRef.current) {
+                        mapRef.current.fire('contextmenu', e);
+                      }
+                      return;
+                    }
                     L.DomEvent.stopPropagation(e);
                     const allFeats = geoJsonCacheAdicionales[capa.tabla_db]?.features || [];
                     const featIdx = allFeats.indexOf(feature);
@@ -7467,7 +5014,14 @@ export default function Geoportal() {
                     layer.bindPopup(popupContent);
                   }
 
-                  const handleHighlight = () => {
+                  const handleHighlight = (e) => {
+                    if (isMapActionActiveRef.current) {
+                      if (mapRef.current) {
+                        try { mapRef.current.closePopup(); } catch (err) {}
+                        mapRef.current.fire('click', e);
+                      }
+                      return;
+                    }
                     const featId = getFeatId(feature, layer);
                     if (activePredioLayerRef.current && activePredioLayerRef.current !== layer) {
                       try {
@@ -7494,6 +5048,12 @@ export default function Geoportal() {
                   });
 
                   layer.on('contextmenu', (e) => {
+                    if (isMapActionActiveRef.current) {
+                      if (mapRef.current) {
+                        mapRef.current.fire('contextmenu', e);
+                      }
+                      return;
+                    }
                     L.DomEvent.stopPropagation(e);
                     const allFeats = capa.geojson?.features || [];
                     const featIdx = allFeats.indexOf(feature);
@@ -7520,7 +5080,16 @@ export default function Geoportal() {
             data={catalogData}
             style={geojsonStyle}
             onEachFeature={(feature, layer) => {
-              layer.bindPopup(`<b>Archivo:</b> ${feature.properties.nombre_archivo}`);
+              layer.on('click', (e) => {
+                if (isMapActionActiveRef.current) {
+                  if (mapRef.current) {
+                    try { mapRef.current.closePopup(); } catch (err) {}
+                    mapRef.current.fire('click', e);
+                  }
+                  return;
+                }
+                layer.bindPopup(`<b>Archivo:</b> ${feature.properties.nombre_archivo}`).openPopup();
+              });
             }}
           />
         )}

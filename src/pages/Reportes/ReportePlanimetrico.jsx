@@ -825,7 +825,7 @@ export default function ReportePlanimetrico() {
   const dpaProvincia = activeEmpresa?.provincia || predio?.provincia || 'LOS RÍOS';
   const dpaCanton = activeEmpresa?.canton || predio?.canton || 'URDANETA';
   const dpaParroquia = parroquiaCarta || predio?.parroquia || predio?.ciudad || activeEmpresa?.ciudad || 'CATARAMA - URDANETA - PIJULLO';
-  const dpaSector = sectorCarta || predio?.sector || activeEmpresa?.sector || 'RURAL';
+  const dpaSector = (sectorCarta && sectorCarta.trim()) ? sectorCarta.trim() : ((predio?.sector && predio.sector.trim()) ? predio.sector.trim() : 'S/N');
 
   const displayScale = scale === 'custom' ? customScale : scale;
 
@@ -851,15 +851,35 @@ export default function ReportePlanimetrico() {
   const [isPrinting, setIsPrinting] = useState(false);
 
   useEffect(() => {
-    const handleBeforePrint = () => setIsPrinting(true);
-    const handleAfterPrint = () => setIsPrinting(false);
+    const handleBeforePrint = () => {
+      setIsPrinting(true);
+      document.body.classList.add('is-printing-report');
+    };
+    const handleAfterPrint = () => {
+      setIsPrinting(false);
+      document.body.classList.remove('is-printing-report');
+    };
     window.addEventListener('beforeprint', handleBeforePrint);
     window.addEventListener('afterprint', handleAfterPrint);
     return () => {
       window.removeEventListener('beforeprint', handleBeforePrint);
       window.removeEventListener('afterprint', handleAfterPrint);
+      document.body.classList.remove('is-printing-report');
     };
   }, []);
+
+  const handlePrint = () => {
+    setReportZoom(1);
+    setIsPrinting(true);
+    document.body.classList.add('is-printing-report');
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('is-printing-report');
+        setIsPrinting(false);
+      }, 500);
+    }, 250);
+  };
 
   useEffect(() => {
     if (predio?.angulo_texto && predio.angulo_texto !== 0) {
@@ -1103,7 +1123,7 @@ export default function ReportePlanimetrico() {
           <button
             type="button"
             className="rh-btn-print"
-            onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }}
+            onClick={handlePrint}
             disabled={!data}
             title="Imprimir plano actual en PDF"
           >
@@ -1309,17 +1329,17 @@ export default function ReportePlanimetrico() {
 
             {/* Sección 7: Modo Dúplex Inteligente */}
             <div className="rfp-group">
-              <label 
-                className="rfp-label" 
+              <label
+                className="rfp-label"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
                 onClick={() => setDuplexMode(prev => !prev)}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Copy size={13} color="#059669" /> Modo Dúplex Inteligente
                 </span>
-                <input 
-                  type="checkbox" 
-                  checked={duplexMode} 
+                <input
+                  type="checkbox"
+                  checked={duplexMode}
                   onChange={(e) => setDuplexMode(e.target.checked)}
                   style={{ accentColor: '#059669', cursor: 'pointer', width: '15px', height: '15px' }}
                   onClick={(e) => e.stopPropagation()}
@@ -1437,7 +1457,7 @@ export default function ReportePlanimetrico() {
                       value={sectorCarta}
                       onChange={(e) => setSectorCarta(e.target.value)}
                       style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
-                      placeholder="Ej: RURAL, ASUNCION"
+                      placeholder="Ej: ASUNCION"
                     />
                   </div>
                 </div>
@@ -1517,7 +1537,7 @@ export default function ReportePlanimetrico() {
 
                   {/* Botón Imprimir Lote */}
                   <button
-                    onClick={() => { setReportZoom(1); setTimeout(() => window.print(), 100); }}
+                    onClick={handlePrint}
                     style={{
                       background: 'white',
                       color: '#059669',
@@ -1612,8 +1632,11 @@ export default function ReportePlanimetrico() {
                   codigoCarta={item.predio?.codigo_carta || codigoCarta}
                   nombreCarta={item.predio?.nombre_carta || nombreCarta}
                   nombreCuadricula={item.predio?.cuadricula_carta || nombreCuadricula}
+                  parroquiaCarta={item.predio?.parroquia || parroquiaCarta}
+                  sectorCarta={item.predio?.sector || sectorCarta}
                   MapScaleUpdater={MapScaleUpdater}
                   UtmGrid={UtmGrid}
+                  isPrinting={isPrinting}
                 />
               ))}
             </div>
@@ -1634,10 +1657,13 @@ export default function ReportePlanimetrico() {
                 codigoCarta={codigoCarta}
                 nombreCarta={nombreCarta}
                 nombreCuadricula={nombreCuadricula}
+                parroquiaCarta={parroquiaCarta}
+                sectorCarta={sectorCarta}
                 onPrevisualizarPlano={() => { setModalLayerType('blanco'); setPreviewModal({ isOpen: true, type: 'plano' }); }}
                 onPrevisualizarMinimapa={() => { setModalLayerType(fondoMinimapa); setPreviewModal({ isOpen: true, type: 'minimapa' }); }}
                 MapScaleUpdater={MapScaleUpdater}
                 UtmGrid={UtmGrid}
+                isPrinting={isPrinting}
               />
             </div>
           )}
@@ -1718,101 +1744,101 @@ export default function ReportePlanimetrico() {
                 <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                   {!isNaN(center[0]) && !isNaN(center[1]) && (
                     <MapContainer
-                    preferCanvas={true}
-                    center={center}
-                    zoom={previewModal.type === 'plano' ? 18 : 14}
-                    style={{ width: '100%', height: '100%' }}
-                    zoomControl={true}
-                    scrollWheelZoom={true}
-                    doubleClickZoom={true}
-                    dragging={true}
-                    touchZoom={true}
-                  >
-                    {modalLayerType === 'osm' && (
-                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-                    )}
-                    {modalLayerType === 'satelital' && (
-                      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
-                    )}
-                    {modalLayerType === 'cad' && cadGeoJson && (
-                      <GeoJSON
-                        key={'modal_cad_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
-                        data={cadGeoJson}
-                        filter={(feature) => {
-                          if (feature?.geometry?.type === 'Point' || feature?.geometry?.type === 'MultiPoint') {
+                      preferCanvas={true}
+                      center={center}
+                      zoom={previewModal.type === 'plano' ? 18 : 14}
+                      style={{ width: '100%', height: '100%' }}
+                      zoomControl={true}
+                      scrollWheelZoom={true}
+                      doubleClickZoom={true}
+                      dragging={true}
+                      touchZoom={true}
+                    >
+                      {modalLayerType === 'osm' && (
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+                      )}
+                      {modalLayerType === 'satelital' && (
+                        <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                      )}
+                      {modalLayerType === 'cad' && cadGeoJson && (
+                        <GeoJSON
+                          key={'modal_cad_' + selectedCadFile + (cadGeoJson?.features?.length || 0)}
+                          data={cadGeoJson}
+                          filter={(feature) => {
+                            if (feature?.geometry?.type === 'Point' || feature?.geometry?.type === 'MultiPoint') {
+                              const textVal = feature?.properties?.texto || feature?.properties?.text;
+                              return Boolean(textVal && String(textVal).trim());
+                            }
+                            return true;
+                          }}
+                          style={(feature) => {
+                            const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
+                            if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.8, opacity: 0.6 };
+                            if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.4, opacity: 0.9 };
+                            if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.2, opacity: 0.9 };
+                            if (capa.includes('CURVA') || capa.includes('NIVEL')) return { color: '#ca8a04', weight: 0.7, opacity: 0.8 };
+                            return { color: '#475569', weight: 0.8, opacity: 0.7 };
+                          }}
+                          pointToLayer={(feature, latlng) => {
                             const textVal = feature?.properties?.texto || feature?.properties?.text;
-                            return Boolean(textVal && String(textVal).trim());
-                          }
-                          return true;
-                        }}
-                        style={(feature) => {
-                          const capa = (feature?.properties?.capa_cad || feature?.properties?.capa || feature?.properties?.layer || '').toUpperCase();
-                          if (capa.includes('CUADRICULA')) return { color: '#94a3b8', weight: 0.8, opacity: 0.6 };
-                          if (capa.includes('RIO') || capa.includes('AGUA') || capa.includes('CAUCE')) return { color: '#0284c7', weight: 1.4, opacity: 0.9 };
-                          if (capa.includes('CAMINO') || capa.includes('VIA')) return { color: '#b45309', weight: 1.2, opacity: 0.9 };
-                          if (capa.includes('CURVA') || capa.includes('NIVEL')) return { color: '#ca8a04', weight: 0.7, opacity: 0.8 };
-                          return { color: '#475569', weight: 0.8, opacity: 0.7 };
-                        }}
-                        pointToLayer={(feature, latlng) => {
-                          const textVal = feature?.properties?.texto || feature?.properties?.text;
-                          if (textVal && String(textVal).trim()) {
-                            return L.marker(latlng, {
-                              icon: L.divIcon({
-                                className: 'cad-text-label',
-                                html: `<div style="font-size: 8px; font-weight: bold; color: #0f172a; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
-                                iconSize: [0, 0]
-                              })
-                            });
-                          }
-                          return L.circleMarker(latlng, { radius: 0, opacity: 0, fillOpacity: 0 });
-                        }}
-                      />
-                    )}
-
-                    <UtmGrid isMinimap={previewModal.type === 'minimapa'} />
-                    <Polygon
-                      positions={polygonCoords}
-                      pathOptions={{
-                        color: previewModal.type === 'minimapa' ? '#b91c1c' : '#0f172a',
-                        weight: 3,
-                        fillColor: previewModal.type === 'minimapa' ? '#ef4444' : '#f97316',
-                        fillOpacity: previewModal.type === 'minimapa' ? 0.9 : 0.35
-                      }}
-                    />
-
-                    {/* Resaltado con círculo y etiqueta de código catastral en el mapa de ubicación */}
-                    {previewModal.type === 'minimapa' && (
-                      <>
-                        <CircleMarker
-                          center={center}
-                          radius={30}
-                          pathOptions={{
-                            color: '#dc2626',
-                            weight: 2.5,
-                            dashArray: '5, 4',
-                            fillColor: '#ef4444',
-                            fillOpacity: 0.12
+                            if (textVal && String(textVal).trim()) {
+                              return L.marker(latlng, {
+                                icon: L.divIcon({
+                                  className: 'cad-text-label',
+                                  html: `<div style="font-size: 8px; font-weight: bold; color: #0f172a; white-space: nowrap; text-shadow: 1px 1px 0 #fff, -1px 1px 0 #fff; transform: translate(-50%, -50%);">${textVal}</div>`,
+                                  iconSize: [0, 0]
+                                })
+                              });
+                            }
+                            return L.circleMarker(latlng, { radius: 0, opacity: 0, fillOpacity: 0 });
                           }}
                         />
-                      </>
-                    )}
+                      )}
 
-                    {/* Vértices del Predio solo en plano principal */}
-                    {previewModal.type === 'plano' && vertices.map(v => {
-                      let lat = 0, lng = 0;
-                      if (v.geom_wkt) {
-                        const pt = parseWktPointCoords(v.geom_wkt);
-                        if (pt) {
-                          lat = pt.lat;
-                          lng = pt.lng;
+                      <UtmGrid isMinimap={previewModal.type === 'minimapa'} />
+                      <Polygon
+                        positions={polygonCoords}
+                        pathOptions={{
+                          color: previewModal.type === 'minimapa' ? '#b91c1c' : '#0f172a',
+                          weight: 3,
+                          fillColor: previewModal.type === 'minimapa' ? '#ef4444' : '#f97316',
+                          fillOpacity: previewModal.type === 'minimapa' ? 0.9 : 0.35
+                        }}
+                      />
+
+                      {/* Resaltado con círculo y etiqueta de código catastral en el mapa de ubicación */}
+                      {previewModal.type === 'minimapa' && (
+                        <>
+                          <CircleMarker
+                            center={center}
+                            radius={30}
+                            pathOptions={{
+                              color: '#dc2626',
+                              weight: 2.5,
+                              dashArray: '5, 4',
+                              fillColor: '#ef4444',
+                              fillOpacity: 0.12
+                            }}
+                          />
+                        </>
+                      )}
+
+                      {/* Vértices del Predio solo en plano principal */}
+                      {previewModal.type === 'plano' && vertices.map(v => {
+                        let lat = 0, lng = 0;
+                        if (v.geom_wkt) {
+                          const pt = parseWktPointCoords(v.geom_wkt);
+                          if (pt) {
+                            lat = pt.lat;
+                            lng = pt.lng;
+                          }
                         }
-                      }
-                      if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
-                      return (
-                        <Marker key={v.id} position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label', 7, 11, lat, lng, center[0], center[1])} />
-                      );
-                    })}
-                  </MapContainer>
+                        if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
+                        return (
+                          <Marker key={v.id} position={[lat, lng]} icon={createTextIcon(v.codigo, 'vertex-label', 7, 11, lat, lng, center[0], center[1])} />
+                        );
+                      })}
+                    </MapContainer>
                   )}
                 </div>
               </div>

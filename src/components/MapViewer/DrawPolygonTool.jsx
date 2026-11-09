@@ -10,9 +10,35 @@ if (!proj4.defs('EPSG:32717')) {
   proj4.defs('EPSG:32717', '+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs');
 }
 
+// Función utilitaria robusta para normalizar cualquier coordenada geográfica
+function normalizeLatLng(p) {
+  if (!p) return null;
+  if (p instanceof L.LatLng) return p;
+  if (typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng)) {
+    return L.latLng(p.lat, p.lng);
+  }
+  if (Array.isArray(p) && p.length >= 2) {
+    const lat = Number(p[0]);
+    const lng = Number(p[1]);
+    if (!isNaN(lat) && !isNaN(lng)) return L.latLng(lat, lng);
+  }
+  if (typeof p.latitude === 'number' && typeof p.longitude === 'number' && !isNaN(p.latitude) && !isNaN(p.longitude)) {
+    return L.latLng(p.latitude, p.longitude);
+  }
+  return null;
+}
+
 // Convertir latlng a UTM 17S
-function toUtm(lat, lng) {
+function toUtm(p, maybeLng) {
   try {
+    let lat = p;
+    let lng = maybeLng;
+    if (typeof p === 'object' && p !== null) {
+      const norm = normalizeLatLng(p);
+      if (!norm) return { x: 0, y: 0 };
+      lat = norm.lat;
+      lng = norm.lng;
+    }
     const [x, y] = proj4('EPSG:4326', 'EPSG:32717', [lng, lat]);
     return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
   } catch (e) {
@@ -30,42 +56,65 @@ function fromUtm(x, y) {
   }
 }
 
-// Icono para pin de vértices P01, P02... con elevación para visibilidad
-const manualVertexIcon = (num, isSelected = false) => {
+// Icono para pin de vértices P01, P02... con diseño profesional idéntico a la referencia
+const manualVertexIcon = (num, isFirstOrSelected = false) => {
   const label = 'P' + String(num).padStart(2, '0');
-  const color = isSelected ? '#f59e0b' : '#0284c7';
-  const width = isSelected ? 36 : 32;
-  const height = isSelected ? 40 : 36;
+  const bg = isFirstOrSelected ? '#f59e0b' : '#0284c7';
+  const glow = isFirstOrSelected 
+    ? '0 0 12px rgba(245, 158, 11, 0.8), 0 3px 6px rgba(0,0,0,0.4)' 
+    : '0 2px 6px rgba(0,0,0,0.35)';
 
   return L.divIcon({
-    className: 'manual-vertex-marker' + (isSelected ? ' selected-vertex' : ''),
+    className: 'manual-vertex-pin-marker',
     html: `
-      <div style="position: relative; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; align-items: center; pointer-events: auto; cursor: pointer;">
+      <div style="
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: grab;
+        transform: translate(-50%, -100%);
+        pointer-events: auto;
+      ">
         <div style="
-          background: ${color}; 
-          color: #ffffff; 
-          padding: 2px 5px; 
-          border-radius: 999px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center; 
-          border: 2px solid #ffffff; 
-          box-shadow: ${isSelected ? '0 0 14px #f59e0b, 0 3px 8px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.35)'}; 
-          transform: ${isSelected ? 'scale(1.15)' : 'scale(1)'}; 
-          transition: transform 0.15s ease, box-shadow 0.15s ease; 
-          white-space: nowrap; 
-          z-index: 2;
+          background: ${bg};
+          color: #ffffff;
+          padding: 2.5px 7px;
+          border-radius: 6px;
+          border: 2px solid #ffffff;
+          box-shadow: ${glow};
+          font-size: 11px;
+          font-weight: 800;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          white-space: nowrap;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1.1;
         ">
-          <div style="font-size: 10.5px; font-weight: 900; line-height: 1; letter-spacing: -0.2px;">
-            ${label}
-          </div>
+          ${label}
         </div>
-        <div style="width: 2px; height: 13px; background: ${color}; box-shadow: 0 0 2px #ffffff; margin-top: -1px; z-index: 1;"></div>
-        <div style="width: 6px; height: 6px; background: #ffffff; border: 2px solid ${color}; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.6); margin-top: -1px; z-index: 1;"></div>
+        <div style="
+          width: 2px;
+          height: 8px;
+          background: ${bg};
+          margin-top: -1px;
+        "></div>
+        <div style="
+          width: 6px;
+          height: 6px;
+          background: #ffffff;
+          border: 2px solid ${bg};
+          border-radius: 50%;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+          margin-top: -1px;
+        "></div>
       </div>
     `,
-    iconSize: [width, height],
-    iconAnchor: [width / 2, height]
+    iconSize: [0, 0],
+    iconAnchor: [0, 0]
   });
 };
 
@@ -113,9 +162,27 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
   const [snappedLatLng, setSnappedLatLng] = useState(null);
   const [localMousePos, setLocalMousePos] = useState(null);
   const [cachedSnapPoints, setCachedSnapPoints] = useState([]);
-  const [selectedVertexIndex, setSelectedVertexIndex] = useState(null);
   const latestMousePos = useRef(null);
   const rafRef = useRef(null);
+
+  // Sanitizar drawPoints para que siempre sean instancias válidas de L.LatLng
+  const safeDrawPoints = (Array.isArray(drawPoints) ? drawPoints : []).map(normalizeLatLng).filter(Boolean);
+
+  const polylineRef = useRef(null);
+  const polygonRef = useRef(null);
+  const drawPointsRef = useRef(safeDrawPoints);
+  const isDraggingMarkerRef = useRef(false);
+  const dragJustEndedRef = useRef(false);
+
+  useEffect(() => {
+    drawPointsRef.current = safeDrawPoints;
+    if (polylineRef.current) {
+      polylineRef.current.setLatLngs(safeDrawPoints);
+    }
+    if (polygonRef.current) {
+      polygonRef.current.setLatLngs(safeDrawPoints);
+    }
+  }, [safeDrawPoints]);
 
   useEffect(() => {
     return () => {
@@ -148,70 +215,127 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     } else {
       map.doubleClickZoom.enable();
       setCachedSnapPoints([]);
-      setSelectedVertexIndex(null);
     }
   }, [isDrawing, map]);
 
-  // Insertar un nuevo vértice entre dos puntos existentes (re-indexando correlativamente P01, P02...)
+  // Insertar un nuevo vértice entre dos puntos existentes (re-indexando correlativamente 1, 2, 3...)
   const handleInsertVertexAt = (latlng, insertIndex) => {
-    const newPt = Array.isArray(latlng) ? L.latLng(latlng[0], latlng[1]) : L.latLng(latlng.lat, latlng.lng);
+    const newPt = normalizeLatLng(latlng);
+    if (!newPt) return;
     setDrawPoints(prev => {
-      const copy = [...prev];
+      const copy = Array.isArray(prev) ? prev.map(normalizeLatLng).filter(Boolean) : [];
       copy.splice(insertIndex, 0, newPt);
       return copy;
     });
-    setSelectedVertexIndex(insertIndex);
   };
 
-  // Modificar coordenadas de un vértice
+  // Modificar coordenadas de un vértice (Modal pop-up según diseño exacto solicitado)
   const handleEditVertexCoords = async (idx) => {
-    const pt = drawPoints[idx];
+    const rawPt = drawPointsRef.current[idx] || (Array.isArray(drawPoints) ? drawPoints[idx] : null);
+    const pt = normalizeLatLng(rawPt);
     if (!pt) return;
-    const utm = toUtm(pt.lat, pt.lng);
+    const utm = toUtm(pt);
     const pCode = 'P' + String(idx + 1).padStart(2, '0');
 
-    const { value: formValues } = await Swal.fire({
-      title: `Editar Coordenadas ${pCode}`,
+    const result = await Swal.fire({
+      title: 'Coordenada Manual (UTM 17S)',
       html: `
-        <div style="display:flex; flex-direction:column; gap:10px; text-align:left; font-size:12px;">
-          <div>
-            <label style="font-weight:700; color:#475569;">Este (X) [UTM 17S]:</label>
-            <input id="swal-edit-x" class="swal2-input" type="number" step="0.01" value="${utm.x}" style="width:100%; box-sizing:border-box; margin:4px 0 0 0; height:38px;">
-          </div>
-          <div>
-            <label style="font-weight:700; color:#475569;">Norte (Y) [UTM 17S]:</label>
-            <input id="swal-edit-y" class="swal2-input" type="number" step="0.01" value="${utm.y}" style="width:100%; box-sizing:border-box; margin:4px 0 0 0; height:38px;">
-          </div>
+        <div style="font-size:13px; font-weight:700; color:#0284c7; margin-bottom:12px; text-align:center;">
+          Vértice ${idx + 1} (${pCode})
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
+          <input 
+            id="swal-utm-x" 
+            class="swal2-input" 
+            placeholder="Coordenada X (Este)" 
+            type="number" 
+            step="0.01" 
+            value="${utm.x.toFixed(2)}"
+            style="margin:0; width:100%; box-sizing:border-box; font-family:'JetBrains Mono', monospace;"
+          >
+          <input 
+            id="swal-utm-y" 
+            class="swal2-input" 
+            placeholder="Coordenada Y (Norte)" 
+            type="number" 
+            step="0.01" 
+            value="${utm.y.toFixed(2)}"
+            style="margin:0; width:100%; box-sizing:border-box; font-family:'JetBrains Mono', monospace;"
+          >
         </div>
       `,
+      focusConfirm: false,
       showCancelButton: true,
+      showDenyButton: drawPoints.length > 3,
       confirmButtonText: 'Guardar',
+      denyButtonText: 'Eliminar Punto',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#0284c7',
-      cancelButtonColor: '#64748b',
       background: '#ffffff',
       color: '#0f172a',
+      confirmButtonColor: '#0284c7',
+      denyButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
       preConfirm: () => {
-        const x = parseFloat(document.getElementById('swal-edit-x').value);
-        const y = parseFloat(document.getElementById('swal-edit-y').value);
+        const x = parseFloat(document.getElementById('swal-utm-x').value);
+        const y = parseFloat(document.getElementById('swal-utm-y').value);
         if (isNaN(x) || isNaN(y)) {
-          Swal.showValidationMessage('Ingresa valores numéricos válidos');
+          Swal.showValidationMessage('Ambas coordenadas deben ser numéricas');
           return false;
         }
         return { x, y };
       }
     });
 
-    if (formValues) {
-      const newLatLng = fromUtm(formValues.x, formValues.y);
+    if (result.isConfirmed && result.value) {
+      const newLatLng = fromUtm(result.value.x, result.value.y);
       if (newLatLng) {
         setDrawPoints(prev => {
-          const copy = [...prev];
+          const copy = Array.isArray(prev) ? prev.map(normalizeLatLng).filter(Boolean) : [];
           copy[idx] = newLatLng;
           return copy;
         });
       }
+    } else if (result.isDenied) {
+      handleDeleteVertex(idx);
     }
+  };
+
+  // Arrastre fluido de vértices sin pérdida de cursor ni re-renders bruscos
+  const handleMarkerDragStart = (idx, e) => {
+    L.DomEvent.stopPropagation(e);
+    isDraggingMarkerRef.current = true;
+    dragJustEndedRef.current = false;
+    if (map && map.dragging) map.dragging.disable();
+  };
+
+  const handleMarkerDrag = (idx, e) => {
+    dragJustEndedRef.current = true;
+    const newLatLng = e.target.getLatLng();
+    if (!drawPointsRef.current) return;
+    const updated = [...drawPointsRef.current];
+    updated[idx] = newLatLng;
+    drawPointsRef.current = updated;
+
+    if (polylineRef.current) {
+      polylineRef.current.setLatLngs(updated);
+    }
+    if (polygonRef.current) {
+      polygonRef.current.setLatLngs(updated);
+    }
+  };
+
+  const handleMarkerDragEnd = (idx, e) => {
+    if (map && map.dragging) map.dragging.enable();
+    const newLatLng = e.target.getLatLng();
+    const updated = [...drawPointsRef.current];
+    updated[idx] = newLatLng;
+    drawPointsRef.current = updated;
+    setDrawPoints(updated);
+
+    setTimeout(() => {
+      isDraggingMarkerRef.current = false;
+      dragJustEndedRef.current = false;
+    }, 120);
   };
 
   // Eliminar vértice individual del dibujo con confirmación y renumerar
@@ -233,7 +357,6 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     }).then((result) => {
       if (result.isConfirmed) {
         setDrawPoints(prev => prev.filter((_, i) => i !== idx));
-        setSelectedVertexIndex(null);
       }
     });
   };
@@ -241,27 +364,30 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
   useMapEvents({
     click(e) {
       if (!isDrawing) return;
+      if (isDraggingMarkerRef.current || dragJustEndedRef.current) return;
 
-      const clickPt = snappedLatLng || e.latlng;
+      const rawPt = snappedLatLng || e?.latlng;
+      const clickPt = normalizeLatLng(rawPt);
+      if (!clickPt) return;
 
       // Si ya hay 2 o más vértices, verificar si el clic fue sobre cualquier parte de la línea
-      if (drawPoints.length >= 2) {
+      if (safeDrawPoints.length >= 2) {
         try {
           const ptClicked = map.latLngToLayerPoint(clickPt);
           let minPixelDist = Infinity;
           let bestInsertIdx = -1;
           let bestProjLatLng = null;
 
-          const count = drawPoints.length >= 3 ? drawPoints.length : drawPoints.length - 1;
+          const count = safeDrawPoints.length >= 3 ? safeDrawPoints.length : safeDrawPoints.length - 1;
 
           for (let i = 0; i < count; i++) {
-            const j = (i + 1) % drawPoints.length;
-            const pA = drawPoints[i];
-            const pB = drawPoints[j];
+            const j = (i + 1) % safeDrawPoints.length;
+            const pA = safeDrawPoints[i];
+            const pB = safeDrawPoints[j];
             if (!pA || !pB) continue;
 
-            const ptA = map.latLngToLayerPoint([pA.lat, pA.lng]);
-            const ptB = map.latLngToLayerPoint([pB.lat, pB.lng]);
+            const ptA = map.latLngToLayerPoint(pA);
+            const ptB = map.latLngToLayerPoint(pB);
 
             const dx = ptB.x - ptA.x;
             const dy = ptB.y - ptA.y;
@@ -294,15 +420,15 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
 
       // Agregar punto al final
       setDrawPoints(prev => {
-        if (prev.length > 0) {
-          const lastPoint = prev[prev.length - 1];
-          if (Math.abs(lastPoint.lat - clickPt.lat) < 1e-6 && Math.abs(lastPoint.lng - clickPt.lng) < 1e-6) {
-            return prev;
+        const safePrev = Array.isArray(prev) ? prev.map(normalizeLatLng).filter(Boolean) : [];
+        if (safePrev.length > 0) {
+          const lastPoint = safePrev[safePrev.length - 1];
+          if (lastPoint && Math.abs(lastPoint.lat - clickPt.lat) < 1e-6 && Math.abs(lastPoint.lng - clickPt.lng) < 1e-6) {
+            return safePrev;
           }
         }
-        return [...prev, clickPt];
+        return [...safePrev, clickPt];
       });
-      setSelectedVertexIndex(drawPoints.length);
     },
     contextmenu(e) {
       if (isDrawing) {
@@ -356,13 +482,17 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
       if (rafRef.current) return;
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        const curLatLng = latestMousePos.current || e.latlng;
+        const rawMouse = latestMousePos.current || e?.latlng;
+        const curLatLng = normalizeLatLng(rawMouse);
+        if (!curLatLng) return;
+
         let bestSnap = null;
         let minDistance = 20;
         const mousePoint = map.latLngToLayerPoint(curLatLng);
 
-        if (drawPoints.length > 0) {
-          drawPoints.forEach((ptLatLng, index) => {
+        if (safeDrawPoints.length > 0) {
+          safeDrawPoints.forEach((ptLatLng, index) => {
+            if (!ptLatLng) return;
             const vPoint = map.latLngToLayerPoint(ptLatLng);
             const dist = mousePoint.distanceTo(vPoint);
             const threshold = index === 0 ? 25 : 20;
@@ -438,9 +568,9 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
         onFinish([]);
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (drawPoints.length >= 3) {
+        if (safeDrawPoints.length >= 3) {
           if (setIsSnapped) setIsSnapped(false);
-          onFinish(drawPoints);
+          onFinish(safeDrawPoints);
         } else {
           Swal.fire({
             icon: 'warning',
@@ -454,27 +584,27 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
         }
       } else if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
-        setDrawPoints(prev => prev.length > 0 ? prev.slice(0, -1) : prev);
-      } else if (e.key === 'Delete' && selectedVertexIndex !== null) {
-        e.preventDefault();
-        handleDeleteVertex(selectedVertexIndex);
+        setDrawPoints(prev => {
+          const safePrev = Array.isArray(prev) ? prev.map(normalizeLatLng).filter(Boolean) : [];
+          return safePrev.length > 0 ? safePrev.slice(0, -1) : [];
+        });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDrawing, drawPoints, selectedVertexIndex, onFinish, setIsSnapped, setDrawPoints]);
+  }, [isDrawing, safeDrawPoints, onFinish, setIsSnapped, setDrawPoints]);
 
   if (!isDrawing) return null;
 
   // Medidas de los tramos
-  const count = drawPoints.length >= 3 ? drawPoints.length : drawPoints.length - 1;
+  const count = safeDrawPoints.length >= 3 ? safeDrawPoints.length : safeDrawPoints.length - 1;
   const segments = [];
-  if (drawPoints.length >= 2) {
+  if (safeDrawPoints.length >= 2) {
     for (let i = 0; i < count; i++) {
-      const nextIdx = (i + 1) % drawPoints.length;
-      const p1 = drawPoints[i];
-      const p2 = drawPoints[nextIdx];
-      if (!p1 || !p2) continue;
+      const nextIdx = (i + 1) % safeDrawPoints.length;
+      const p1 = safeDrawPoints[i];
+      const p2 = safeDrawPoints[nextIdx];
+      if (!p1 || !p2 || typeof p1.lat !== 'number' || typeof p2.lat !== 'number') continue;
 
       const dist = map.distance(p1, p2);
       const midLat = (p1.lat + p2.lat) / 2;
@@ -500,173 +630,133 @@ export default function DrawPolygonTool({ isDrawing, drawPoints, setDrawPoints, 
     }
   }
 
-  const selectedPt = selectedVertexIndex !== null ? drawPoints[selectedVertexIndex] : null;
-  const selectedUtm = selectedPt ? toUtm(selectedPt.lat, selectedPt.lng) : null;
-
   return (
     <>
       {/* Polilínea conectando los puntos existentes */}
-      {drawPoints.length >= 2 && (
+      {safeDrawPoints.length >= 2 && (
         <Polyline
-          positions={drawPoints}
+          ref={polylineRef}
+          positions={safeDrawPoints}
           pathOptions={{ color: '#0284c7', weight: 3, dashArray: '5, 5' }}
           interactive={false}
         />
       )}
 
       {/* Polígono cerrado si hay 3 o más puntos */}
-      {drawPoints.length >= 3 && (
+      {safeDrawPoints.length >= 3 && (
         <Polygon
-          positions={drawPoints}
+          ref={polygonRef}
+          positions={safeDrawPoints}
           pathOptions={{ color: '#0284c7', fillColor: '#0284c7', fillOpacity: 0.18, weight: 2.5 }}
           interactive={false}
         />
       )}
 
       {/* Línea elástica interactiva hacia el cursor (ultra rápida en componente local) */}
-      {drawPoints.length > 0 && localMousePos && (
+      {safeDrawPoints.length > 0 && localMousePos && (
         <Polyline
-          positions={[drawPoints[drawPoints.length - 1], localMousePos]}
+          positions={[safeDrawPoints[safeDrawPoints.length - 1], localMousePos]}
           pathOptions={{ color: '#0284c7', weight: 2, dashArray: '5, 5' }}
           interactive={false}
         />
       )}
 
-      {/* Cursor y punto de snap en tiempo real sin recargar Geoportal */}
+      {/* Cursor interactivo que identifica en tiempo real el vértice que será construido */}
       {localMousePos && (
         <Marker
           position={localMousePos}
           interactive={false}
+          zIndexOffset={2000}
           icon={L.divIcon({
-            className: 'current-drawing-cursor',
-            html: `<div style="width: ${snappedLatLng ? '16px' : '14px'}; height: ${snappedLatLng ? '16px' : '14px'}; border: 2px solid ${snappedLatLng ? '#10b981' : '#0284c7'}; border-radius: 50%; background: ${snappedLatLng ? 'rgba(16, 185, 129, 0.45)' : 'rgba(2, 132, 199, 0.35)'}; box-shadow: ${snappedLatLng ? '0 0 8px #10b981' : 'none'}; transform: translate(-50%, -50%);"></div>`,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
+            className: 'current-drawing-cursor-badge',
+            html: `
+              <div style="
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                pointer-events: none;
+                user-select: none;
+                transform: translate(-50%, -100%);
+              ">
+                <div style="
+                  background: ${safeDrawPoints.length === 0 ? '#f59e0b' : '#0284c7'};
+                  color: #ffffff;
+                  padding: 2px 7px;
+                  border-radius: 6px;
+                  border: 2px solid #ffffff;
+                  box-shadow: 0 0 12px ${safeDrawPoints.length === 0 ? 'rgba(245, 158, 11, 0.9)' : 'rgba(2, 132, 199, 0.85)'}, 0 3px 6px rgba(0,0,0,0.45);
+                  font-size: 11px;
+                  font-weight: 800;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  white-space: nowrap;
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                  letter-spacing: 0.3px;
+                ">
+                  <span>P${String(safeDrawPoints.length + 1).padStart(2, '0')}</span>
+                  <span style="font-size: 9px; opacity: 0.92; font-weight: 600;">(Clic para construir)</span>
+                </div>
+                <div style="
+                  width: 2px;
+                  height: 6px;
+                  background: ${safeDrawPoints.length === 0 ? '#f59e0b' : '#0284c7'};
+                  margin-top: -1px;
+                "></div>
+                <div style="
+                  width: 8px;
+                  height: 8px;
+                  background: ${snappedLatLng ? '#10b981' : '#ffffff'};
+                  border: 2px solid ${snappedLatLng ? '#10b981' : (safeDrawPoints.length === 0 ? '#f59e0b' : '#0284c7')};
+                  border-radius: 50%;
+                  box-shadow: 0 0 8px ${snappedLatLng ? '#10b981' : 'rgba(0,0,0,0.5)'};
+                  margin-top: -1px;
+                "></div>
+              </div>
+            `,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0]
           })}
+        />
+      )}
+
+      {/* Línea diagonal punteada de triangulación (como en imagen de referencia topográfica) */}
+      {safeDrawPoints.length >= 4 && safeDrawPoints[1] && safeDrawPoints[3] && (
+        <Polyline
+          positions={[safeDrawPoints[1], safeDrawPoints[3]]}
+          pathOptions={{ color: '#0284c7', weight: 2, dashArray: '6, 6', opacity: 0.85 }}
+          interactive={false}
         />
       )}
 
       {/* Badges de medidas en los segmentos */}
       {segments}
 
-      {/* Marcadores de vértices con etiquetas P01, P02... */}
-      {drawPoints.map((pt, i) => (
-        <Marker
-          key={`v-${i}`}
-          position={[pt.lat, pt.lng]}
-          icon={manualVertexIcon(i + 1, selectedVertexIndex === i)}
-          eventHandlers={{
-            click: (e) => {
-              L.DomEvent.stopPropagation(e);
-              setSelectedVertexIndex(selectedVertexIndex === i ? null : i);
-            }
-          }}
-        />
-      ))}
-
-      {/* Tarjeta flotante interactiva al tocar un vértice */}
-      {selectedVertexIndex !== null && selectedPt && selectedUtm && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 9999,
-          background: 'rgba(255, 255, 255, 0.98)',
-          backdropFilter: 'blur(10px)',
-          border: '1.5px solid #0284c7',
-          borderRadius: '14px',
-          boxShadow: '0 6px 24px rgba(0, 0, 0, 0.25)',
-          padding: '8px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          userSelect: 'none'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-              color: '#ffffff',
-              fontWeight: '900',
-              fontSize: '12px',
-              padding: '3px 8px',
-              borderRadius: '6px'
-            }}>
-              📍 P{String(selectedVertexIndex + 1).padStart(2, '0')}
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', fontSize: '11px', color: '#0f172a' }}>
-              <span className="mono" style={{ fontWeight: '700' }}>Este (X): {selectedUtm.x.toFixed(2)}</span>
-              <span className="mono" style={{ fontWeight: '700' }}>Norte (Y): {selectedUtm.y.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              type="button"
-              onClick={() => handleEditVertexCoords(selectedVertexIndex)}
-              style={{
-                height: '32px',
-                padding: '0 10px',
-                background: '#e0f2fe',
-                color: '#0369a1',
-                border: '1px solid #bae6fd',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-              title="Modificar coordenadas numéricas"
-            >
-              <Edit2 size={13} /> Modificar
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleDeleteVertex(selectedVertexIndex)}
-              style={{
-                height: '32px',
-                padding: '0 10px',
-                background: '#fee2e2',
-                color: '#dc2626',
-                border: '1px solid #fca5a5',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-              title="Eliminar este punto"
-            >
-              <Trash2 size={13} /> Eliminar Punto
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedVertexIndex(null)}
-              style={{
-                background: '#f1f5f9',
-                border: 'none',
-                borderRadius: '50%',
-                width: '26px',
-                height: '26px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#64748b',
-                cursor: 'pointer'
-              }}
-              title="Cerrar"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Marcadores de vértices con pines P01, P02... arrastrables */}
+      {safeDrawPoints.map((pt, i) => {
+        if (!pt || typeof pt.lat !== 'number' || typeof pt.lng !== 'number') return null;
+        return (
+          <Marker
+            key={`v-${i}`}
+            position={[pt.lat, pt.lng]}
+            draggable={true}
+            autoPan={false}
+            zIndexOffset={1000 + i}
+            icon={manualVertexIcon(i + 1, i === 0)}
+            eventHandlers={{
+              dragstart: (e) => handleMarkerDragStart(i, e),
+              drag: (e) => handleMarkerDrag(i, e),
+              dragend: (e) => handleMarkerDragEnd(i, e),
+              click: (e) => {
+                L.DomEvent.stopPropagation(e);
+                if (dragJustEndedRef.current) return;
+                handleEditVertexCoords(i);
+              }
+            }}
+          />
+        );
+      })}
     </>
   );
 }

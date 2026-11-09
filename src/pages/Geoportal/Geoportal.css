@@ -618,3 +618,36 @@
 .dock-button.fraccionar.active { background: rgba(245, 158, 11, 0.25); color: #fbbf24; border-color: #f59e0b; }
 [data-theme="light"] .dock-button.fraccionar { color: #d97706; }
 [data-theme="light"] .dock-button.fraccionar.active { background: #fef3c7; color: #b45309; border-color: #f59e0b; }
+
+
+/* Cuando hay una acción de mapa activa (dibujo, fraccionamiento, medición, edición de vértices),
+   las capas vectoriales no deben bloquear los clics del mouse sobre el mapa ni abrir popups */
+.map-container.map-action-active .leaflet-overlay-pane svg path,
+.map-container.map-action-active .leaflet-overlay-pane canvas {
+  pointer-events: none !important;
+  cursor: crosshair !important;
+}
+
+/* Mantener interactivos los vértices o marcadores en la capa de marcadores */
+.map-container.map-action-active .leaflet-marker-pane,
+.map-container.map-action-active .leaflet-marker-pane * {
+  pointer-events: auto !important;
+}
+
+/* Ocultar cualquier popup abierto durante el modo de dibujo/acción */
+.map-container.map-action-active .leaflet-popup-pane {
+  display: none !important;
+}
+
+/* Vértices manuales interactivos y arrastrables */
+.manual-vertex-marker,
+.manual-vertex-marker * {
+  cursor: grab !important;
+}
+
+.manual-vertex-marker:active,
+.manual-vertex-marker:active *,
+.leaflet-drag-target .manual-vertex-marker,
+.leaflet-drag-target .manual-vertex-marker * {
+  cursor: grabbing !important;
+}

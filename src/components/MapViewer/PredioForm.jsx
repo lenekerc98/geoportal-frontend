@@ -65,7 +65,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   let initCodCat = initialData?.cod_catastral || '';
   let initParr = initialData?.parroquia || '';
   if ((!initCodCat || initCodCat.trim().length < 6) && detectedInitLoc) {
-    initCodCat = (detectedInitLoc.prefijo_clave + (initCodCat.substring(6) || '')).padEnd(19, ' ');
+    initCodCat = (detectedInitLoc.prefijo_clave + (initCodCat.substring(6) || '')).padEnd(14, ' ');
   }
   if (!initParr && detectedInitLoc) {
     initParr = detectedInitLoc.parroquia;
@@ -76,7 +76,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     cod_catastral: initCodCat,
     geom_geojson: initialCoords,
     parroquia: initParr,
-    sector: (initialData?.sector && initialData.sector !== 'RURAL' && initialData.sector !== initialData?.nombre_posesionario) ? initialData.sector : '',
+    sector: (initialData?.sector && initialData.sector !== initialData.sector !== initialData?.nombre_posesionario) ? initialData.sector : '',
   });
   const [colindantes, setColindantes] = useState([]);
   const [rumbosCustom, setRumbosCustom] = useState([]);
@@ -91,7 +91,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         let parr = initialData.parroquia !== undefined ? initialData.parroquia : prev.parroquia;
 
         if ((!cod || cod.trim().length < 6) && detectedLoc) {
-          cod = (detectedLoc.prefijo_clave + (cod ? cod.substring(6) : '')).padEnd(19, ' ');
+          cod = (detectedLoc.prefijo_clave + (cod ? cod.substring(6) : '')).padEnd(14, ' ');
         }
         if (!parr && detectedLoc) {
           parr = detectedLoc.parroquia;
@@ -104,7 +104,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           cod_catastral: cod,
           geom_geojson: coords || prev.geom_geojson || '',
           parroquia: parr || '',
-          sector: (initialData.sector && initialData.sector !== 'RURAL' && initialData.sector !== initialData.nombre_posesionario && !isNameInSector) ? initialData.sector : (prev.sector && prev.sector !== 'RURAL' && !isNameInSector ? prev.sector : '')
+          sector: (initialData.sector && initialData.sector !== initialData.sector !== initialData.nombre_posesionario && !isNameInSector) ? initialData.sector : (prev.sector && prev.sector !== !isNameInSector ? prev.sector : '')
         };
       });
 
@@ -140,7 +140,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
             } else if (isNameInSector) {
               setNombrePosesionario(p.sector);
             }
-            if (p.sector && p.sector !== 'RURAL' && p.sector !== p.nombre_posesionario && !isNameInSector) {
+            if (p.sector && p.sector !== p.sector !== p.nombre_posesionario && !isNameInSector) {
               setFormData(prev => ({ ...prev, sector: p.sector }));
             } else {
               setFormData(prev => ({ ...prev, sector: '' }));
@@ -210,12 +210,53 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
   const [cedula, setCedula] = useState(initialData?.cedula || initialData?.cedula_posesionario || '');
   const [nombrePosesionario, setNombrePosesionario] = useState(
-    initialData?.nombre_posesionario || initialData?.posesionario_nombre || 
+    initialData?.nombre_posesionario || initialData?.posesionario_nombre ||
     (initialData?.sector && initialData.sector.includes(' ') && !initialData.sector.toUpperCase().startsWith('SECTOR') ? initialData.sector : '')
   );
   const [loadingCedula, setLoadingCedula] = useState(false);
   const [loadingCodigo, setLoadingCodigo] = useState(false);
   const [codigoMsg, setCodigoMsg] = useState('');
+  const [allowEditCodigo, setAllowEditCodigo] = useState(false);
+  const [sqlRefDetected, setSqlRefDetected] = useState(null);
+  const [territorialInfo, setTerritorialInfo] = useState(null);
+  const [codigoMode, setCodigoMode] = useState(() => {
+    const cod = String(initialData?.cod_catastral || '').replace(/\s/g, '');
+    return cod.length === 19 ? '19' : '14';
+  });
+
+  const convert19to14 = (cod19) => {
+    if (!cod19) return '';
+    const clean = String(cod19).replace(/\s/g, '');
+    if (clean.length === 19) {
+      const prov = clean.substring(0, 2);
+      const cant = clean.substring(2, 4);
+      const parr = clean.substring(4, 6);
+      const zona = clean.substring(7, 8) || clean.substring(6, 7);
+      const sect = clean.substring(9, 10) || '1';
+      const pol = clean.substring(10, 13);
+      const pred = clean.substring(13, 16);
+      return `${prov}${cant}${parr}${zona}${sect}${pol}${pred}`;
+    }
+    return clean;
+  };
+
+  const convert14to19 = (cod14) => {
+    if (!cod14) return '';
+    const clean = String(cod14).replace(/\s/g, '');
+    if (clean.length === 14) {
+      const prov = clean.substring(0, 2);
+      const cant = clean.substring(2, 4);
+      const parr = clean.substring(4, 6);
+      const zona = '5' + clean.substring(6, 7);
+      const sect = '0' + clean.substring(7, 8);
+      const pol = clean.substring(8, 11);
+      const pred = clean.substring(11, 14);
+      const div = '000';
+      return `${prov}${cant}${parr}${zona}${sect}${pol}${pred}${div}`;
+    }
+    return clean;
+  };
+
   const [inputMode, setInputMode] = useState('table');
   const [isNewPosesionario, setIsNewPosesionario] = useState(false);
   const fileInputRef = useRef(null);
@@ -270,14 +311,12 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     const clientLoc = detectarUbicacionCliente(formData.geom_geojson);
     if (clientLoc) {
       setFormData(prev => {
-        let currCod = prev.cod_catastral ? prev.cod_catastral.padEnd(19, ' ') : '                   ';
+        let currCod = prev.cod_catastral ? prev.cod_catastral.padEnd(14, ' ') : '              ';
         const prefix6 = currCod.substring(0, 6).trim();
         let updatedCod = currCod;
 
         if (!prefix6 || prefix6.startsWith('0') || prefix6.startsWith('TE') || prefix6.length < 6) {
-          updatedCod = (clientLoc.prefijo_clave + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
-        } else if (prefix6.substring(0, 4) === '1206' && prefix6.substring(4, 6) !== clientLoc.cod_parroquia) {
-          updatedCod = (prefix6.substring(0, 4) + clientLoc.cod_parroquia + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
+          updatedCod = (clientLoc.prefijo_clave + currCod.substring(6)).padEnd(14, ' ').substring(0, 14);
         }
 
         return {
@@ -306,31 +345,56 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
         if (res.ok) {
           const data = await res.json();
-          if (data && data.cod_parroquia) {
-            setFormData(prev => {
-              let currCod = prev.cod_catastral ? prev.cod_catastral.padEnd(19, ' ') : '                   ';
-              const prov = data.cod_provincia || '12';
-              const cant = data.cod_canton || '06';
-              const parr = data.cod_parroquia; // '50', '51', o '52'
+          if (data) {
+            setTerritorialInfo(data);
+            if (data.cod_parroquia) {
+              setFormData(prev => {
+                let currCod = prev.cod_catastral ? prev.cod_catastral.padEnd(14, ' ') : '              ';
+                const prov = data.cod_provincia || '12';
+                const cant = data.cod_canton || '06';
+                const parr = data.cod_parroquia; // '50', '51', o '52'
 
-              const prefix6 = currCod.substring(0, 6).trim();
-              let updatedCod = currCod;
+                const prefix6 = currCod.substring(0, 6).trim();
+                let updatedCod = currCod;
 
-              // Solo autocompletar o actualizar los 6 primeros dígitos si están vacíos, son temporales, o se detectó la parroquia
-              if (!prefix6 || prefix6.startsWith('0') || prefix6.startsWith('TE') || prefix6.length < 6) {
-                updatedCod = (prov + cant + parr + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
-              } else if (prefix6.substring(0, 4) === '1206') {
-                updatedCod = (prefix6.substring(0, 4) + parr + currCod.substring(6)).padEnd(19, ' ').substring(0, 19);
-              }
+                // Opción 2: Solo autocompletar si no tiene clave o es temporal (NO sobreescribir si ya tiene clave válida o adoptada de SQL)
+                if (!prefix6 || prefix6.startsWith('0') || prefix6.startsWith('TE') || prefix6.length < 6) {
+                  updatedCod = (prov + cant + parr + currCod.substring(6)).padEnd(14, ' ').substring(0, 14);
+                }
 
-              return {
-                ...prev,
-                parroquia: prev.parroquia || data.parroquia || '',
-                sector: (prev.sector && prev.sector !== 'RURAL') ? prev.sector : '',
-                cod_catastral: updatedCod
-              };
-            });
+                return {
+                  ...prev,
+                  parroquia: prev.parroquia || data.parroquia || '',
+                  sector: (prev.sector) ? prev.sector : '',
+                  cod_catastral: updatedCod
+                };
+              });
+            }
           }
+        }
+        // 3. Detección espacial de Punto de Referencia SQL Server dentro del predio
+        try {
+          const matchRes = await fetch(`${API_URL}/api/gis/match-referencia-espacial`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              geom_text: formData.geom_geojson,
+              es_utm: true
+            })
+          });
+          if (matchRes.ok) {
+            const matchData = await matchRes.json();
+            if (matchData && matchData.encontrado && matchData.referencia) {
+              setSqlRefDetected(matchData.referencia);
+            } else {
+              setSqlRefDetected(null);
+            }
+          }
+        } catch (matchErr) {
+          console.warn('Error verificando referencia SQL espacial:', matchErr);
         }
       } catch (err) {
         console.warn('Error en detección espacial de ubicación:', err);
@@ -339,6 +403,37 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
     return () => clearTimeout(timer);
   }, [formData.geom_geojson]);
+
+  const applySqlReference = (ref, targetMode = '19') => {
+    if (!ref) return;
+    const sqlCod = String(ref.cod_catastral || '').trim();
+    
+    let codToApply = sqlCod;
+    if (targetMode === '14') {
+      codToApply = convert19to14(sqlCod);
+      setCodigoMode('14');
+    } else {
+      setCodigoMode(sqlCod.length === 19 ? '19' : '14');
+    }
+
+    // Nombre de parroquia según la clave SQL adoptada
+    let nomParr = '';
+    const sqlParrNum = sqlCod.substring(4, 6);
+    if (sqlParrNum === '50') nomParr = 'CATARAMA';
+    else if (sqlParrNum === '51') nomParr = 'RICAURTE';
+    else if (sqlParrNum === '52') nomParr = 'PIJULLO';
+
+    setFormData(prev => ({
+      ...prev,
+      cod_catastral: codToApply || prev.cod_catastral,
+      parroquia: nomParr || prev.parroquia || '',
+      sector: ref.sitio || prev.sector || ''
+    }));
+
+    if (ref.id_titular) setCedula(ref.id_titular);
+    if (ref.propietario) setNombrePosesionario(ref.propietario);
+    if (isEditing) setAllowEditCodigo(true);
+  };
 
 
   const buscarCodigo = async () => {
@@ -392,7 +487,9 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.name.endsWith('.txt')) {
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith('.txt')) {
       const reader = new FileReader();
       reader.onload = (evt) => {
         const text = evt.target.result;
@@ -400,19 +497,118 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
         setInputMode('table');
       };
       reader.readAsText(file);
-    } else if (file.name.endsWith('.xlsx')) {
+    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
       const reader = new FileReader();
       reader.onload = (evt) => {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        if (json.length > 1) {
-          const rows = json.slice(1);
-          let text = rows.map(r => `${r[0] || ''} ${r[1] || ''}`).filter(r => r.trim().length > 3).join('\n');
-          setFormData(prev => ({ ...prev, geom_geojson: text }));
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+          if (!rows || rows.length === 0) {
+            alert('El archivo Excel no contiene filas con datos.');
+            return;
+          }
+
+          // Analizar dinámicamente las columnas disponibles
+          const firstRow = rows[0];
+          let codCol = null;
+          let vertCol = null;
+          let xCol = null;
+          let yCol = null;
+          let colindCol = null;
+
+          Object.keys(firstRow).forEach(key => {
+            const k = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (k.includes('cod') || k.includes('clave') || k === 'predio') codCol = key;
+            else if (k.includes('vert') || k.includes('pto') || k === 'punto' || k === 'n°' || k === 'no' || k === 'n') vertCol = key;
+            else if (k.includes('este') || k === 'x' || k.includes('coord x') || k.includes('coordenada x')) xCol = key;
+            else if (k.includes('norte') || k === 'y' || k.includes('coord y') || k.includes('coordenada y')) yCol = key;
+            else if (k.includes('colind') || k.includes('lindero')) colindCol = key;
+          });
+
+          // Si no se detectaron por nombre, buscar por posición
+          const keys = Object.keys(firstRow);
+          if (!xCol || !yCol) {
+            if (keys.length >= 4) {
+              codCol = keys[0];
+              vertCol = keys[1];
+              xCol = keys[2];
+              yCol = keys[3];
+              if (keys.length >= 5) colindCol = keys[4];
+            } else if (keys.length >= 2) {
+              xCol = keys[0];
+              yCol = keys[1];
+            }
+          }
+
+          const parsedPoints = [];
+          const detectedCodes = new Set();
+
+          rows.forEach((row, idx) => {
+            const rawX = xCol ? row[xCol] : null;
+            const rawY = yCol ? row[yCol] : null;
+            if (rawX !== null && rawX !== undefined && rawY !== null && rawY !== undefined) {
+              const xNum = parseFloat(String(rawX).replace(',', '.').trim());
+              const yNum = parseFloat(String(rawY).replace(',', '.').trim());
+              if (!isNaN(xNum) && !isNaN(yNum)) {
+                let order = idx + 1;
+                if (vertCol && row[vertCol]) {
+                  const pNum = parseInt(String(row[vertCol]), 10);
+                  if (!isNaN(pNum)) order = pNum;
+                }
+                const code = codCol && row[codCol] ? String(row[codCol]).trim() : '';
+                if (code) detectedCodes.add(code);
+
+                const colind = colindCol && row[colindCol] ? String(row[colindCol]).trim() : '';
+
+                parsedPoints.push({
+                  order,
+                  x: xNum.toFixed(2),
+                  y: yNum.toFixed(2),
+                  colind,
+                  code
+                });
+              }
+            }
+          });
+
+          if (parsedPoints.length === 0) {
+            alert('No se pudieron encontrar coordenadas numéricas X e Y válidas en el archivo Excel.');
+            return;
+          }
+
+          // Si hay múltiples códigos catastrales en el archivo, cargar el primero y avisar
+          if (detectedCodes.size > 1) {
+            const firstCode = Array.from(detectedCodes)[0];
+            const filtered = parsedPoints.filter(p => p.code === firstCode);
+            filtered.sort((a, b) => a.order - b.order);
+            const textLines = filtered.map(p => `${p.x} ${p.y}`).join('\n');
+            setFormData(prev => ({
+              ...prev,
+              cod_catastral: firstCode || prev.cod_catastral,
+              geom_geojson: textLines
+            }));
+            setColindantes(filtered.map(p => p.colind || ''));
+            alert(`ℹ️ Se detectaron ${detectedCodes.size} predios en este archivo. Se cargaron los vértices del primer predio (${firstCode}).\n\nPara importar todos los predios masivamente con sus polígonos, utiliza la opción "Importar Shapefile o Excel Masivo" en el menú de capas.`);
+          } else {
+            parsedPoints.sort((a, b) => a.order - b.order);
+            const textLines = parsedPoints.map(p => `${p.x} ${p.y}`).join('\n');
+            const singleCode = Array.from(detectedCodes)[0];
+            setFormData(prev => ({
+              ...prev,
+              cod_catastral: singleCode || prev.cod_catastral,
+              geom_geojson: textLines
+            }));
+            setColindantes(parsedPoints.map(p => p.colind || ''));
+          }
+
           setInputMode('table');
+        } catch (err) {
+          console.error('Error procesando Excel en PredioForm:', err);
+          alert('Hubo un error al leer el archivo Excel.');
         }
       };
       reader.readAsArrayBuffer(file);
@@ -421,25 +617,53 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
   };
 
   const handleDownloadTemplate = () => {
+    const defaultCod = formData.cod_catastral ? formData.cod_catastral.replace(/\s/g, '') : "1206500101001001001";
     const ws = XLSX.utils.json_to_sheet([
-      { "Coordenada X (Este)": "", "Coordenada Y (Norte)": "" }
+      {
+        "Codigo Catastral": defaultCod,
+        "Vertice": 1,
+        "Coordenada X (Este)": 667633.72,
+        "Coordenada Y (Norte)": 9825070.46,
+        "Colindantes": "Pedro Castillo"
+      },
+      {
+        "Codigo Catastral": defaultCod,
+        "Vertice": 2,
+        "Coordenada X (Este)": 668254.63,
+        "Coordenada Y (Norte)": 9825240.77,
+        "Colindantes": "Pedro Castillo"
+      },
+      {
+        "Codigo Catastral": defaultCod,
+        "Vertice": 3,
+        "Coordenada X (Este)": 668454.79,
+        "Coordenada Y (Norte)": 9824690.40,
+        "Colindantes": "Pedro Castillo"
+      },
+      {
+        "Codigo Catastral": defaultCod,
+        "Vertice": 4,
+        "Coordenada X (Este)": 667738.44,
+        "Coordenada Y (Norte)": 9824615.03,
+        "Colindantes": "Pedro Castillo"
+      }
     ]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
-    XLSX.writeFile(wb, "Plantilla_Coordenadas.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla_Coordenadas");
+    XLSX.writeFile(wb, "Plantilla_Coordenadas_Predio.xlsx");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const finalCod = formData.cod_catastral ? formData.cod_catastral.replace(/\s/g, '') : '';
-    if (!isEditing && finalCod.length !== 19) {
-      alert('La Clave Catastral debe tener exactamente 19 dígitos.');
+    if ((!isEditing || allowEditCodigo) && finalCod.length !== 14 && finalCod.length !== 19) {
+      alert(`La Clave Catastral debe tener 19 dígitos (formato SQL Server) o 14 dígitos (formato manual). Actualmente tiene ${finalCod.length} dígitos.`);
       return;
     }
 
-    if (finalCod.includes('999999') || finalCod.endsWith('9999999999999') || finalCod.startsWith('1206509999') || finalCod.startsWith('1206519999') || finalCod.startsWith('1206529999')) {
-      alert(`⚠️ Alerta: El predio con clave ${finalCod} se encuentra fuera del rango territorial o zona catastral válida. No se permite registrar esta clave ficticia.`);
+    if (finalCod.includes('999999') || finalCod.endsWith('99999999')) {
+      alert(`⚠️ Alerta: El predio con clave ${finalCod} contiene una secuencia ficticia no válida. Verifique la clave catastral.`);
       return;
     }
 
@@ -607,22 +831,30 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
   const nodeRef = useRef(null);
 
-  const isTemp = formData.cod_catastral && formData.cod_catastral.includes('TEMP');
+  const isTemp = Boolean(formData.cod_catastral && formData.cod_catastral.includes('TEMP'));
   const getBoxVal = (start, end) => {
-    if (isTemp && start >= 6) return '';
+    if (isTemp) {
+      if (start === 0 && end === 2) return territorialInfo?.cod_provincia || '12';
+      if (start === 2 && end === 4) return territorialInfo?.cod_canton || '06';
+      if (start === 4 && end === 6) return territorialInfo?.cod_parroquia || '50';
+      return '';
+    }
     return (formData.cod_catastral || '').substring(start, end).trim();
   };
 
   const handleBoxChange = (start, end, val, nextId) => {
-    let curr = formData.cod_catastral ? formData.cod_catastral.padEnd(19, ' ') : '                   ';
-    // Si era un código temporal (ej: 120650-TEMP-...), limpiar la parte posterior a los 6 dígitos
+    const targetLen = codigoMode === '19' ? 19 : 14;
+    let curr = formData.cod_catastral ? formData.cod_catastral.padEnd(targetLen, ' ') : ' '.repeat(targetLen);
+    // Si era un código temporal (ej: TEMP-de77abf9), sustituir base con los 6 dígitos territoriales
     if (isTemp) {
-      const prefix6 = curr.substring(0, 6).padEnd(6, ' ');
-      curr = prefix6 + '             '; // 6 + 13 = 19
+      const p = territorialInfo?.cod_provincia || '12';
+      const c = territorialInfo?.cod_canton || '06';
+      const pa = territorialInfo?.cod_parroquia || '50';
+      curr = (p + c + pa).padEnd(6, ' ') + ' '.repeat(targetLen - 6);
     }
     const len = end - start;
-    let newCod = (curr.substring(0, start) + val.padEnd(len, ' ') + curr.substring(end)).substring(0, 19);
-    setFormData({ ...formData, cod_catastral: newCod });
+    let newCod = (curr.substring(0, start) + val.padEnd(len, ' ') + curr.substring(end)).substring(0, targetLen);
+    setFormData(prev => ({ ...prev, cod_catastral: newCod }));
     if (val.length === len && nextId) {
       document.getElementById(nextId)?.focus();
     }
@@ -671,6 +903,102 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
           )}
 
           <form onSubmit={handleSubmit}>
+            {sqlRefDetected && (() => {
+              const sqlParr = (sqlRefDetected.cod_catastral || '').substring(4, 6);
+              const terrParr = sqlRefDetected.parroquia_territorial_cod || territorialInfo?.cod_parroquia;
+              const terrNom = sqlRefDetected.parroquia_territorial_nombre || territorialInfo?.parroquia || 'Pijullo';
+              const hayDiscrepancia = Boolean(sqlParr && terrParr && sqlParr !== terrParr);
+
+              return (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(217, 119, 6, 0.08))',
+                  border: '1.5px solid #f59e0b',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  marginBottom: '15px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 'bold', color: '#b45309' }}>
+                        <span>📍 Punto de Referencia SQL Detectado</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#334155', marginTop: '4px', lineHeight: '1.4' }}>
+                        <div><b>Código SQL:</b> <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{sqlRefDetected.cod_catastral}</span></div>
+                        {sqlRefDetected.propietario && <div><b>Propietario:</b> {sqlRefDetected.propietario}</div>}
+                        {sqlRefDetected.id_titular && <div><b>Cédula:</b> {sqlRefDetected.id_titular}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'stretch' }}>
+                      <button
+                        type="button"
+                        onClick={() => applySqlReference(sqlRefDetected, '19')}
+                        style={{
+                          background: '#f59e0b',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '7px 12px',
+                          borderRadius: '8px',
+                          fontSize: '11.5px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 5px rgba(245, 158, 11, 0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '5px',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Asignar la clave original completa de SQL Server (19 dígitos) y titular"
+                      >
+                        ⚡ Adoptar Clave SQL (19d)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applySqlReference(sqlRefDetected, '14')}
+                        style={{
+                          background: 'rgba(59, 130, 246, 0.12)',
+                          color: '#1d4ed8',
+                          border: '1px solid #3b82f6',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Adoptar titular y convertir inmediatamente al nuevo estándar de 14 dígitos"
+                      >
+                        ✨ Adoptar como Nueva Clave (14d)
+                      </button>
+                    </div>
+                  </div>
+
+                  {hayDiscrepancia && (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '8px 10px',
+                      background: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      color: '#1e40af',
+                      lineHeight: '1.4'
+                    }}>
+                      <div style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span>ℹ️ Opción 2: Parroquia Conservada de SQL</span>
+                      </div>
+                      <div style={{ marginTop: '2px' }}>
+                        La clave SQL original tiene Parroquia <b>{sqlParr} ({sqlParr === '51' ? 'Ricaurte' : sqlParr === '50' ? 'Catarama' : sqlParr})</b>, aunque territorialmente se ubica en <b>{terrNom} ({terrParr})</b>. Según la <b>Opción 2</b>, se conservará la clave con parroquia <b>{sqlParr}</b> para estandarizarla posteriormente.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {isTemp && (
               <div style={{
                 background: '#fef3c7',
@@ -687,17 +1015,54 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   <span style={{ fontFamily: 'monospace', background: '#fde68a', padding: '2px 6px', borderRadius: '4px' }}>{formData.cod_catastral}</span>
                 </div>
                 <div style={{ fontSize: '11.5px', color: '#b45309' }}>
-                  Los primeros 6 dígitos de la parroquia ya están asignados. Complete los casilleros de abajo para formalizar la clave catastral definitiva de 19 dígitos.
+                  Los primeros 6 dígitos de la parroquia ya están asignados. Complete los casilleros de abajo para formalizar la clave catastral definitiva de 14 dígitos.
                 </div>
               </div>
             )}
 
-            {isEditing ? (
+            {isEditing && !allowEditCodigo ? (
               <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
-                  <span>Clave Catastral</span>
-                  <span style={{ fontSize: '11.5px', color: '#3b82f6', fontWeight: '600' }}>🔒 Bloqueada (Modo Edición)</span>
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ margin: 0, color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
+                    Clave Catastral ({String(formData.cod_catastral || '').replace(/\s/g, '').length === 19 ? '19 dígitos - SQL' : '14 dígitos'})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formData.cod_catastral) {
+                        const cod = String(formData.cod_catastral).trim();
+                        if (cod.length === 19) {
+                          setCodigoMode('19');
+                        } else if (cod.length === 14) {
+                          setCodigoMode('14');
+                        } else if (cod.includes('TEMP')) {
+                          setCodigoMode('14');
+                          const p = territorialInfo?.cod_provincia || '12';
+                          const c = territorialInfo?.cod_canton || '06';
+                          const pa = territorialInfo?.cod_parroquia || '50';
+                          setFormData(prev => ({ ...prev, cod_catastral: (p + c + pa).padEnd(14, ' ') }));
+                        }
+                      }
+                      setAllowEditCodigo(true);
+                    }}
+                    style={{
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      color: '#2563eb',
+                      border: '1px solid #3b82f6',
+                      borderRadius: '6px',
+                      padding: '2px 8px',
+                      fontSize: '11.5px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Permite formalizar o reasignar la clave catastral de este predio"
+                  >
+                    ✏️ Modificar Clave
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={formData.cod_catastral || ''}
@@ -716,69 +1081,226 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                 />
               </div>
             ) : (
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600' }}>
-                <span>Clave Catastral (19 dígitos) *</span>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Prov-Cant-Parr-Zona-Sect-Pol-Pred-Div</span>
-              </label>
-              <div style={{ display: 'flex', gap: '4px', position: 'relative', width: '100%', overflowX: 'auto', paddingBottom: '5px' }}>
-                <input id="cc-0" type="text" maxLength="2" placeholder="Pr" title="Provincia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(0, 2)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  handleBoxChange(0, 2, val, 'cc-1');
-                }} required />
-                <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-1" type="text" maxLength="2" placeholder="Ca" title="Cantón (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(2, 4)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  handleBoxChange(2, 4, val, 'cc-2');
-                }} required />
-                <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-2" type="text" maxLength="2" placeholder="Pa" title="Parroquia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(4, 6)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  let currParr = formData.parroquia;
-                  if (!currParr) {
-                    if (val === '50') currParr = 'CATARAMA';
-                    else if (val === '51') currParr = 'RICAURTE';
-                    else if (val === '52') currParr = 'PIJULLO';
-                  }
-                  if (currParr !== formData.parroquia) setFormData(prev => ({ ...prev, parroquia: currParr }));
-                  handleBoxChange(4, 6, val, 'cc-3');
-                }} required />
-                <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-3" type="text" maxLength="2" placeholder="Zo" title="Zona (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(6, 8)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  handleBoxChange(6, 8, val, 'cc-4');
-                }} required />
-                <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-4" type="text" maxLength="2" placeholder="Se" title="Sector (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(8, 10)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  handleBoxChange(8, 10, val, 'cc-5');
-                }} required />
-                <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-5" type="text" maxLength="3" placeholder="Pol" title="Polígono (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(10, 13)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  handleBoxChange(10, 13, val, 'cc-6');
-                }} required />
-                <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-6" type="text" maxLength="3" placeholder="Pre" title="Predio (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(13, 16)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  handleBoxChange(13, 16, val, 'cc-7');
-                }} required />
-                <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
-                <input id="cc-7" type="text" maxLength="3" placeholder="Div" title="División (3 dígitos)" className="input-dynamic" style={{ width: '50px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(16, 19)} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  handleBoxChange(16, 19, val, null);
-                }} required />
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                  <div>
+                    <label style={{ margin: 0, color: 'var(--text-muted)', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>Clave Catastral ({codigoMode === '19' ? '19 dígitos - SQL' : '14 dígitos - Manual'}) *</span>
+                    </label>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                      {codigoMode === '19' ? 'Prov(2)-Cant(2)-Parr(2)-Zona(2)-Sect(2)-Pol(3)-Pred(3)-Div(3)' : 'Prov(2)-Cant(2)-Parr(2)-Zona(1)-Sect(1)-Pol(3)-Pred(3)'}
+                    </span>
+                  </div>
 
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', background: 'var(--bg-main, #f1f5f9)', borderRadius: '6px', padding: '2px', border: '1px solid var(--card-border, #cbd5e1)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (codigoMode !== '19') {
+                            const newCod = convert14to19(formData.cod_catastral);
+                            setFormData(prev => ({ ...prev, cod_catastral: newCod }));
+                            setCodigoMode('19');
+                          }
+                        }}
+                        style={{
+                          background: codigoMode === '19' ? '#f59e0b' : 'transparent',
+                          color: codigoMode === '19' ? '#ffffff' : 'var(--text-muted)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          fontWeight: codigoMode === '19' ? 'bold' : 'normal',
+                          cursor: 'pointer'
+                        }}
+                        title="Código completo original de SQL Server (19 dígitos)"
+                      >
+                        🏛️ SQL (19d)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (codigoMode !== '14') {
+                            const newCod = convert19to14(formData.cod_catastral);
+                            setFormData(prev => ({ ...prev, cod_catastral: newCod }));
+                            setCodigoMode('14');
+                          }
+                        }}
+                        style={{
+                          background: codigoMode === '14' ? '#3b82f6' : 'transparent',
+                          color: codigoMode === '14' ? '#ffffff' : 'var(--text-muted)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          fontWeight: codigoMode === '14' ? 'bold' : 'normal',
+                          cursor: 'pointer'
+                        }}
+                        title="Nueva clave manual estandarizada (14 dígitos)"
+                      >
+                        📐 Manual (14d)
+                      </button>
+                    </div>
 
-                <div style={{ position: 'absolute', right: '-25px', top: '50%', transform: 'translateY(-50%)' }}>
-                  {loadingCodigo && <Loader2 size={16} className="spin" color="var(--accent-color)" />}
-                  {!loadingCodigo && codigoMsg === 'Registrado' && <Check size={16} color="var(--warning)" />}
+                    {isEditing && allowEditCodigo && (
+                      <button
+                        type="button"
+                        onClick={() => setAllowEditCodigo(false)}
+                        style={{
+                          background: 'rgba(100, 116, 139, 0.1)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--card-border)',
+                          borderRadius: '6px',
+                          padding: '2px 8px',
+                          fontSize: '11px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar cambio
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {codigoMode === '19' ? (
+                  <div style={{ display: 'flex', gap: '3px', position: 'relative', width: '100%', overflowX: 'auto', paddingBottom: '5px' }}>
+                    <input id="cc19-0" type="text" maxLength="2" placeholder="Pr" title="Provincia (2 dígitos)" className="input-dynamic" style={{ width: '36px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(0, 2)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(0, 2, val, 'cc19-1');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc19-1" type="text" maxLength="2" placeholder="Ca" title="Cantón (2 dígitos)" className="input-dynamic" style={{ width: '36px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(2, 4)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(2, 4, val, 'cc19-2');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc19-2" type="text" maxLength="2" placeholder="Pa" title="Parroquia (2 dígitos)" className="input-dynamic" style={{ width: '36px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(4, 6)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      let currParr = formData.parroquia;
+                      if (!currParr) {
+                        if (val === '50') currParr = 'CATARAMA';
+                        else if (val === '51') currParr = 'RICAURTE';
+                        else if (val === '52') currParr = 'PIJULLO';
+                      }
+                      if (currParr !== formData.parroquia) setFormData(prev => ({ ...prev, parroquia: currParr }));
+                      handleBoxChange(4, 6, val, 'cc19-3');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc19-3" type="text" maxLength="2" placeholder="Zo" title="Zona (2 dígitos)" className="input-dynamic" style={{ width: '36px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(6, 8)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(6, 8, val, 'cc19-4');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc19-4" type="text" maxLength="2" placeholder="Se" title="Sector (2 dígitos)" className="input-dynamic" style={{ width: '36px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(8, 10)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(8, 10, val, 'cc19-5');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc19-5" type="text" maxLength="3" placeholder="Pol" title="Polígono (3 dígitos)" className="input-dynamic" style={{ width: '44px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(10, 13)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(10, 13, val, 'cc19-6');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc19-6" type="text" maxLength="3" placeholder="Pre" title="Predio (3 dígitos)" className="input-dynamic" style={{ width: '44px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(13, 16)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(13, 16, val, 'cc19-7');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc19-7" type="text" maxLength="3" placeholder="Div" title="División (3 dígitos)" className="input-dynamic" style={{ width: '44px', padding: '4px 2px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(16, 19)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(16, 19, val, null);
+                    }} required />
+
+                    <div style={{ position: 'absolute', right: '-25px', top: '50%', transform: 'translateY(-50%)' }}>
+                      {loadingCodigo && <Loader2 size={16} className="spin" color="var(--accent-color)" />}
+                      {!loadingCodigo && codigoMsg === 'Registrado' && <Check size={16} color="var(--warning)" />}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '4px', position: 'relative', width: '100%', overflowX: 'auto', paddingBottom: '5px' }}>
+                    <input id="cc-0" type="text" maxLength="2" placeholder="Pr" title="Provincia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(0, 2)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(0, 2, val, 'cc-1');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc-1" type="text" maxLength="2" placeholder="Ca" title="Cantón (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(2, 4)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(2, 4, val, 'cc-2');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc-2" type="text" maxLength="2" placeholder="Pa" title="Parroquia (2 dígitos)" className="input-dynamic" style={{ width: '40px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(4, 6)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      let currParr = formData.parroquia;
+                      if (!currParr) {
+                        if (val === '50') currParr = 'CATARAMA';
+                        else if (val === '51') currParr = 'RICAURTE';
+                        else if (val === '52') currParr = 'PIJULLO';
+                      }
+                      if (currParr !== formData.parroquia) setFormData(prev => ({ ...prev, parroquia: currParr }));
+                      handleBoxChange(4, 6, val, 'cc-3');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc-3" type="text" maxLength="1" placeholder="Zo" title="Zona (1 dígito)" className="input-dynamic" style={{ width: '36px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(6, 7)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(6, 7, val, 'cc-4');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc-4" type="text" maxLength="1" placeholder="Se" title="Sector (1 dígito)" className="input-dynamic" style={{ width: '36px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(7, 8)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(7, 8, val, 'cc-5');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc-5" type="text" maxLength="3" placeholder="Pol" title="Polígono (3 dígitos)" className="input-dynamic" style={{ width: '48px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(8, 11)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(8, 11, val, 'cc-6');
+                    }} required />
+                    <span style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>-</span>
+                    <input id="cc-6" type="text" maxLength="3" placeholder="Pre" title="Predio (3 dígitos)" className="input-dynamic" style={{ width: '48px', padding: '4px', textAlign: 'center', fontSize: '12px' }} value={getBoxVal(11, 14)} onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      handleBoxChange(11, 14, val, null);
+                    }} required />
+
+                    <div style={{ position: 'absolute', right: '-25px', top: '50%', transform: 'translateY(-50%)' }}>
+                      {loadingCodigo && <Loader2 size={16} className="spin" color="var(--accent-color)" />}
+                      {!loadingCodigo && codigoMsg === 'Registrado' && <Check size={16} color="var(--warning)" />}
+                    </div>
+                  </div>
+                )}
+
+                <small style={{ color: codigoMsg === 'Código libre' ? 'var(--success)' : 'var(--text-muted)', marginTop: '5px', display: 'block', minHeight: '15px' }}>
+                  {codigoMsg === 'Registrado' ? 'Código existente (asignando posesionario...)' : (
+                    formData.cod_catastral.replace(/\s/g, '').length !== (codigoMode === '19' ? 19 : 14) && formData.cod_catastral.length > 0
+                      ? `Faltan dígitos (${codigoMode === '19' ? '19' : '14'} obligatorios)`
+                      : codigoMsg
+                  )}
+                </small>
+
+                {(() => {
+                  const currentParr = (formData.cod_catastral || '').substring(4, 6);
+                  const terrParr = territorialInfo?.cod_parroquia;
+                  const terrNom = territorialInfo?.parroquia;
+                  if (currentParr && terrParr && currentParr !== terrParr && currentParr !== '  ' && currentParr.length === 2) {
+                    return (
+                      <div style={{
+                        marginTop: '6px',
+                        padding: '5px 8px',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        color: '#1e40af',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}>
+                        <span>ℹ️</span>
+                        <span><b>Opción 2:</b> Parroquia de la Clave: <b>{currentParr} ({currentParr === '51' ? 'Ricaurte' : currentParr === '50' ? 'Catarama' : currentParr})</b> | Ubicación en mapa: <b>{terrNom || 'Pijullo'} ({terrParr})</b></span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
-              <small style={{ color: codigoMsg === 'Código libre' ? 'var(--success)' : 'var(--text-muted)', marginTop: '5px', display: 'block', minHeight: '15px' }}>
-                {codigoMsg === 'Registrado' ? 'Código existente (asignando posesionario...)' : (formData.cod_catastral.replace(/\s/g, '').length !== 19 && formData.cod_catastral.length > 0 ? 'Faltan dígitos (19 obligatorios)' : codigoMsg)}
-              </small>
-            </div>
             )}
 
             <div className="predio-form-header">
@@ -824,7 +1346,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                   value={formData.parroquia || ''}
                   onChange={e => {
                     const val = e.target.value;
-                    let curr = formData.cod_catastral ? formData.cod_catastral.padEnd(19, ' ') : '                   ';
+                    let curr = formData.cod_catastral ? formData.cod_catastral.padEnd(14, ' ') : '              ';
                     const norm = val.trim().toLowerCase();
                     let parrCode = '';
                     if (norm.includes('catarama')) parrCode = '50';
@@ -834,7 +1356,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                     let newCod = curr;
                     if (parrCode) {
                       const prefix4 = curr.substring(0, 4).trim().length === 4 ? curr.substring(0, 4) : '1206';
-                      newCod = (prefix4 + parrCode + curr.substring(6)).padEnd(19, ' ').substring(0, 19);
+                      newCod = (prefix4 + parrCode + curr.substring(6)).padEnd(14, ' ').substring(0, 14);
                     }
                     setFormData({ ...formData, parroquia: val, cod_catastral: newCod });
                   }}
@@ -892,7 +1414,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                       style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#3b82f6', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 6px rgba(59, 130, 246, 0.35)' }}
                       title="Mover y ajustar los puntos del predio directamente sobre el mapa"
                     >
-                      <MousePointer2 size={15} /> 🖐️ Mover Puntos en el Mapa
+                      <MousePointer2 size={15} /> Editar puntos en el mapa
                     </button>
                   )}
                   {onStartDrawing && (
@@ -901,7 +1423,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                       onClick={onStartDrawing}
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--primary-glow)', color: 'var(--accent-color)', border: '1px solid var(--accent-color)', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
                     >
-                      <MousePointer2 size={16} /> Redibujar en el Mapa
+                      <MousePointer2 size={16} /> Volver a dibujar
                     </button>
                   )}
                 </div>
@@ -1069,7 +1591,7 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
                         style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', borderColor: '#3b82f6', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: '600' }}
                         title="Ajustar y arrastrar los vértices interactivamente en el mapa"
                       >
-                        <MousePointer2 size={14} /> 🖐️ Mover Puntos en el Mapa
+                        <MousePointer2 size={14} /> Editar puntos en el mapa
                       </button>
                     )}
                   </div>
@@ -1079,12 +1601,12 @@ export default function PredioForm({ onSubmit, onCancel, initialData, onStartDra
 
             <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
               {initialData && initialData.id && (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => {
                     const code = initialData.cod_catastral || initialData.id;
                     window.open(`/reporte/planimetrico/codigo/${code}`, '_blank');
-                  }} 
+                  }}
                   style={{ padding: '12px 20px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--accent-color)', color: 'var(--accent-color)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 'bold' }}>
                   <Printer size={18} /> Imprimir Planimetría
                 </button>

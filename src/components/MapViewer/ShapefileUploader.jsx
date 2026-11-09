@@ -2,15 +2,22 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { 
   UploadCloud, CheckCircle2, AlertCircle, Loader2, X, Eye, 
   ArrowRight, ArrowLeft, CheckSquare, Square, RefreshCw, Slash, AlertTriangle, Layers,
-  MapPin, Compass, Check, Printer
+  MapPin, Compass, Check, Printer, FileSpreadsheet, FileDown
 } from 'lucide-react';
 import { MapContainer, TileLayer, Polygon, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { API_URL } from '../../services/api';
 import shp from 'shpjs';
+import * as XLSX from 'xlsx';
+import shpwrite from '@mapbox/shp-write';
+import proj4 from 'proj4';
 import { showSuccess } from '../../utils/swal';
 import { AppContext } from '../../context/AppContext';
 import './ShapefileUploader.css';
+
+if (!proj4.defs('EPSG:32717')) {
+  proj4.defs('EPSG:32717', '+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs');
+}
 
 // Helper para ajustar automáticamente el zoom del mapa a los polígonos
 function MapBoundsUpdater({ bounds }) {
@@ -152,10 +159,99 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
 
   const [isDragOverBox, setIsDragOverBox] = useState(false);
 
+  const handleDownloadMassiveExcelTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        "Codigo Catastral": "1206500101001001001",
+        "Vertice": 1,
+        "Coordenada X (Este)": 667633.72,
+        "Coordenada Y (Norte)": 9825070.46,
+        "Colindantes": "Norte: Camino Público",
+        "Nombre Propietario": "Juan Pérez",
+        "Cedula": "1203456789",
+        "Sector": "El Edén"
+      },
+      {
+        "Codigo Catastral": "1206500101001001001",
+        "Vertice": 2,
+        "Coordenada X (Este)": 668254.63,
+        "Coordenada Y (Norte)": 9825240.77,
+        "Colindantes": "Este: Río Catarama",
+        "Nombre Propietario": "Juan Pérez",
+        "Cedula": "1203456789",
+        "Sector": "El Edén"
+      },
+      {
+        "Codigo Catastral": "1206500101001001001",
+        "Vertice": 3,
+        "Coordenada X (Este)": 668454.79,
+        "Coordenada Y (Norte)": 9824690.40,
+        "Colindantes": "Sur: Finca Santa Rosa",
+        "Nombre Propietario": "Juan Pérez",
+        "Cedula": "1203456789",
+        "Sector": "El Edén"
+      },
+      {
+        "Codigo Catastral": "1206500101001001001",
+        "Vertice": 4,
+        "Coordenada X (Este)": 667738.44,
+        "Coordenada Y (Norte)": 9824615.03,
+        "Colindantes": "Oeste: Propiedad Privada",
+        "Nombre Propietario": "Juan Pérez",
+        "Cedula": "1203456789",
+        "Sector": "El Edén"
+      },
+      {
+        "Codigo Catastral": "1206500101001002001",
+        "Vertice": 1,
+        "Coordenada X (Este)": 668500.00,
+        "Coordenada Y (Norte)": 9825500.00,
+        "Colindantes": "Norte: Lote 1",
+        "Nombre Propietario": "María Mendoza",
+        "Cedula": "1209876543",
+        "Sector": "El Edén"
+      },
+      {
+        "Codigo Catastral": "1206500101001002001",
+        "Vertice": 2,
+        "Coordenada X (Este)": 668900.00,
+        "Coordenada Y (Norte)": 9825600.00,
+        "Colindantes": "Este: Lote 3",
+        "Nombre Propietario": "María Mendoza",
+        "Cedula": "1209876543",
+        "Sector": "El Edén"
+      },
+      {
+        "Codigo Catastral": "1206500101001002001",
+        "Vertice": 3,
+        "Coordenada X (Este)": 669000.00,
+        "Coordenada Y (Norte)": 9825100.00,
+        "Colindantes": "Sur: Quebrada",
+        "Nombre Propietario": "María Mendoza",
+        "Cedula": "1209876543",
+        "Sector": "El Edén"
+      },
+      {
+        "Codigo Catastral": "1206500101001002001",
+        "Vertice": 4,
+        "Coordenada X (Este)": 668400.00,
+        "Coordenada Y (Norte)": 9825000.00,
+        "Colindantes": "Oeste: Río",
+        "Nombre Propietario": "María Mendoza",
+        "Cedula": "1209876543",
+        "Sector": "El Edén"
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Predios_Masivo");
+    XLSX.writeFile(wb, "Plantilla_Carga_Masiva_Predios.xlsx");
+  };
+
   const processSelectedFile = (selected) => {
     if (!selected) return;
     const name = selected.name.toLowerCase();
     const isZip = name.endsWith('.zip');
+    const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv');
 
     if (isZip) {
       setFile(selected);
@@ -285,9 +381,269 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       };
       reader.readAsArrayBuffer(selected);
       return;
+    } else if (isExcel) {
+      setFile(selected);
+      setUploadStatus(null);
+      setPreviewColumns([]);
+      setRenames({});
+      setIsParsing(true);
+      setParsedGeoJson(null);
+      setLimitePolygons([]);
+      setLimiteAssignments({});
+      setStep('config');
+      setAnalysisData(null);
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+          if (!rows || rows.length === 0) {
+            alert("El archivo Excel está vacío o no contiene filas con datos.");
+            setIsParsing(false);
+            return;
+          }
+
+          // Agrupar filas por Código Catastral
+          const prediosMap = new Map();
+
+          rows.forEach((row, rowIdx) => {
+            let cod = '';
+            let vertNum = rowIdx + 1;
+            let x = null;
+            let y = null;
+            let colindante = '';
+            let propietario = '';
+            let cedula = '';
+            let sector = '';
+
+            for (const [key, rawVal] of Object.entries(row)) {
+              if (rawVal === null || rawVal === undefined) continue;
+              const k = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              const strVal = String(rawVal).trim();
+
+              if (k.includes('cod') || k.includes('clave') || k === 'predio' || k.includes('codigo')) {
+                if (strVal) cod = strVal;
+              } else if (k.includes('vert') || k.includes('pto') || k === 'punto' || k === 'n°' || k === 'no' || k === 'n') {
+                const parsedNum = parseInt(strVal, 10);
+                if (!isNaN(parsedNum)) vertNum = parsedNum;
+              } else if (k.includes('este') || k === 'x' || k.includes('coord x') || k.includes('coordenada x')) {
+                const parsedX = parseFloat(strVal.replace(',', '.'));
+                if (!isNaN(parsedX)) x = parsedX;
+              } else if (k.includes('norte') || k === 'y' || k.includes('coord y') || k.includes('coordenada y')) {
+                const parsedY = parseFloat(strVal.replace(',', '.'));
+                if (!isNaN(parsedY)) y = parsedY;
+              } else if (k.includes('colind') || k.includes('lindero')) {
+                if (strVal) colindante = strVal;
+              } else if (k.includes('prop') || k.includes('nombre') || k.includes('posesion')) {
+                if (strVal) propietario = strVal;
+              } else if (k.includes('ced') || k.includes('ident') || k.includes('dni')) {
+                if (strVal) cedula = strVal;
+              } else if (k.includes('sec') || k.includes('barrio')) {
+                if (strVal) sector = strVal;
+              }
+            }
+
+            if (!cod) cod = 'PREDIO_1';
+
+            if (x !== null && y !== null) {
+              if (!prediosMap.has(cod)) {
+                prediosMap.set(cod, {
+                  codigo: cod,
+                  propietario,
+                  cedula,
+                  sector,
+                  vertices: []
+                });
+              }
+              const pObj = prediosMap.get(cod);
+              if (!pObj.propietario && propietario) pObj.propietario = propietario;
+              if (!pObj.cedula && cedula) pObj.cedula = cedula;
+              if (!pObj.sector && sector) pObj.sector = sector;
+
+              pObj.vertices.push({
+                order: vertNum,
+                x,
+                y,
+                colindante
+              });
+            }
+          });
+
+          if (prediosMap.size === 0) {
+            alert("No se encontraron coordenadas válidas (X Este e Y Norte) en el archivo Excel.");
+            setIsParsing(false);
+            return;
+          }
+
+          // Generar features WGS84 para el visor y UTM 17S para la exportación a shapefile
+          const wgsFeatures = [];
+          const utmFeatures = [];
+
+          prediosMap.forEach((pData) => {
+            pData.vertices.sort((a, b) => a.order - b.order);
+            if (pData.vertices.length < 3) return;
+
+            const wgsRing = [];
+            const utmRing = [];
+
+            pData.vertices.forEach(v => {
+              let lng = v.x;
+              let lat = v.y;
+              let utmX = v.x;
+              let utmY = v.y;
+
+              if (Math.abs(v.x) > 180 || Math.abs(v.y) > 90) {
+                // Es UTM 17S
+                try {
+                  const ll = proj4('EPSG:32717', 'EPSG:4326', [v.x, v.y]);
+                  lng = ll[0];
+                  lat = ll[1];
+                } catch (e) { }
+              } else {
+                // Ya es WGS84
+                try {
+                  const u = proj4('EPSG:4326', 'EPSG:32717', [v.x, v.y]);
+                  utmX = u[0];
+                  utmY = u[1];
+                } catch (e) { }
+              }
+
+              wgsRing.push([lng, lat]);
+              utmRing.push([utmX, utmY]);
+            });
+
+            // Cerrar polígonos
+            if (wgsRing[0][0] !== wgsRing[wgsRing.length - 1][0] || wgsRing[0][1] !== wgsRing[wgsRing.length - 1][1]) {
+              wgsRing.push([...wgsRing[0]]);
+            }
+            if (utmRing[0][0] !== utmRing[utmRing.length - 1][0] || utmRing[0][1] !== utmRing[utmRing.length - 1][1]) {
+              utmRing.push([...utmRing[0]]);
+            }
+
+            // Área en hectáreas (Gauss Shoelace en UTM)
+            let areaSum = 0;
+            for (let i = 0; i < utmRing.length - 1; i++) {
+              areaSum += (utmRing[i][0] * utmRing[i + 1][1]) - (utmRing[i + 1][0] * utmRing[i][1]);
+            }
+            const areaHa = Math.abs(areaSum) / 20000;
+            const colindantesStr = pData.vertices.map(v => v.colindante).filter(Boolean).join('; ');
+
+            wgsFeatures.push({
+              type: 'Feature',
+              properties: {
+                cod_catastral: pData.codigo,
+                CLAVE: pData.codigo,
+                COD_PREDIO: pData.codigo,
+                nombre_posesionario: pData.propietario || 'Sin registrar',
+                cedula: pData.cedula || '',
+                sector: pData.sector || '',
+                colindantes: colindantesStr,
+                num_vertices: pData.vertices.length,
+                area_ha: parseFloat(areaHa.toFixed(4))
+              },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [wgsRing]
+              }
+            });
+
+            utmFeatures.push({
+              type: 'Feature',
+              properties: {
+                cod_cat: String(pData.codigo).substring(0, 19),
+                clave: String(pData.codigo).substring(0, 19),
+                propiet: String(pData.propietario || '').substring(0, 50),
+                cedula: String(pData.cedula || '').substring(0, 15),
+                sector: String(pData.sector || '').substring(0, 30),
+                area_ha: parseFloat(areaHa.toFixed(4))
+              },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [utmRing]
+              }
+            });
+          });
+
+          if (wgsFeatures.length === 0) {
+            alert("No se pudieron construir polígonos válidos. Asegúrate de que cada predio tenga al menos 3 vértices.");
+            setIsParsing(false);
+            return;
+          }
+
+          const normalizedGeoJson = {
+            type: 'FeatureCollection',
+            features: wgsFeatures
+          };
+
+          const cols = [
+            { original: 'cod_catastral', sample: wgsFeatures[0].properties.cod_catastral },
+            { original: 'nombre_posesionario', sample: wgsFeatures[0].properties.nombre_posesionario },
+            { original: 'cedula', sample: wgsFeatures[0].properties.cedula },
+            { original: 'sector', sample: wgsFeatures[0].properties.sector },
+            { original: 'area_ha', sample: wgsFeatures[0].properties.area_ha },
+            { original: 'num_vertices', sample: wgsFeatures[0].properties.num_vertices }
+          ];
+
+          setPreviewColumns(cols);
+          setMapping({
+            cedula: 'cedula',
+            nombre_posesionario: 'nombre_posesionario',
+            cod_catastral: 'cod_catastral',
+            fecha_adjudicacion: '',
+            numero_tramite: '',
+            institucion: '',
+            sector: 'sector'
+          });
+          setParsedGeoJson(normalizedGeoJson);
+
+          // Convertir automáticamente a Shapefile ZIP en memoria para compatibilidad total con backend
+          const prj32717 = 'PROJCS["WGS_1984_UTM_Zone_17S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",-81.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]';
+          const shpOptions = {
+            outputType: 'blob',
+            compression: 'STORE',
+            prj: prj32717,
+            types: {
+              polygon: 'predios',
+              multipolygon: 'predios'
+            }
+          };
+
+          const utmFC = {
+            type: 'FeatureCollection',
+            features: utmFeatures
+          };
+
+          const cleanBase = selected.name.replace(/\.[^/.]+$/, "");
+          Promise.resolve(shpwrite.zip(utmFC, shpOptions)).then(content => {
+            if (content && typeof content.generateAsync === 'function') return content.generateAsync({ type: 'blob' });
+            if (content && typeof content.generate === 'function') return content.generate({ type: 'blob' });
+            return content;
+          }).then(zipBlob => {
+            const finalBlob = zipBlob instanceof Blob ? zipBlob : new Blob([zipBlob], { type: 'application/zip' });
+            const zipFile = new File([finalBlob], `${cleanBase}_shp.zip`, { type: 'application/zip' });
+            setFile(zipFile);
+            setIsParsing(false);
+          }).catch(err => {
+            console.warn("Aviso generando shapefile en memoria:", err);
+            setIsParsing(false);
+          });
+
+        } catch (err) {
+          console.error("Error procesando Excel:", err);
+          alert("Error procesando el archivo Excel. Verifica que contenga columnas válidas de coordenadas.");
+          setIsParsing(false);
+        }
+      };
+      reader.readAsArrayBuffer(selected);
+      return;
     }
 
-    alert("Por favor selecciona un archivo .zip que contenga el shapefile.");
+    alert("Por favor selecciona un archivo .zip que contenga el shapefile o un archivo de Excel (.xlsx / .xls).");
     setFile(null);
     setPreviewColumns([]);
     setIsParsing(false);
@@ -618,14 +974,14 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
           {step === 'resolution' ? 'Comparativa y Selección de Predios' : 
            ((importType === 'limite_cantonal' || importType === 'limite_parroquial') && limitePolygons.length > 0)
             ? 'Previsualización y Asignación de Límites'
-            : 'Importar Shapefile de Polígonos'}
+            : 'Importar Polígonos (Shapefile o Excel Masivo)'}
         </h2>
         <p className="subtitle">
           {step === 'resolution' 
             ? 'Revisa los predios que coinciden en el mismo polígono (conflictos) y selecciona qué predios nuevos deseas crear en la base de datos.'
             : ((importType === 'limite_cantonal' || importType === 'limite_parroquial') && limitePolygons.length > 0)
             ? 'Verifica los polígonos detectados en el mapa y selecciona a qué cantón o parroquia DPA corresponde cada uno antes de guardarlo.'
-            : 'Sube un archivo .zip que contenga el shapefile (.shp, .shx, .dbf, .prj) para generar Predios, Posesionarios, Vértices y Linderos.'
+            : 'Sube un archivo .zip (Shapefile) o .xlsx (Excel con Código Catastral, Vértices y Coordenadas) para generar Predios, Posesionarios, Vértices y Linderos.'
           }
         </p>
 
@@ -684,6 +1040,32 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
               </div>
             )}
 
+            {/* BOTÓN DESCARGAR PLANTILLA EXCEL MASIVA */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+              <button
+                type="button"
+                onClick={handleDownloadMassiveExcelTemplate}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#f0fdf4',
+                  color: '#16a34a',
+                  border: '1.5px solid #86efac',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  transition: 'background 0.15s ease'
+                }}
+                title="Descargar plantilla de Excel con formato: Código Catastral, Vértice, X (Este), Y (Norte), Colindantes"
+              >
+                <FileSpreadsheet size={16} /> Descargar Plantilla Excel Masiva (.xlsx)
+              </button>
+            </div>
+
             {/* DRAG & DROP BOX */}
             <div 
               className="upload-box" 
@@ -710,12 +1092,12 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
             >
               <UploadCloud size={40} color={isDragOverBox ? "#2563eb" : (file ? "var(--primary)" : "gray")} style={{marginBottom: '10px', transition: 'transform 0.2s', transform: isDragOverBox ? 'scale(1.15)' : 'scale(1)'}} />
               <p style={{margin: 0, fontWeight: isDragOverBox ? 'bold' : 'normal', color: isDragOverBox ? '#2563eb' : 'inherit'}}>
-                {file ? file.name : (isDragOverBox ? "¡Suelta tu archivo ZIP aquí!" : "1. Arrastra o selecciona el archivo ZIP aquí")}
+                {file ? file.name : (isDragOverBox ? "¡Suelta tu archivo ZIP o Excel (.xlsx) aquí!" : "1. Arrastra o selecciona el archivo ZIP o Excel (.xlsx) aquí")}
               </p>
-              <input type="file" accept=".zip" onChange={handleFileChange} style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer'}} />
+              <input type="file" accept=".zip,.xlsx,.xls,.csv" onChange={handleFileChange} style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer'}} />
             </div>
 
-            {isParsing && <div style={{textAlign: 'center', margin: '20px 0'}}><Loader2 className="spin" size={24} /> Analizando Shapefile...</div>}
+            {isParsing && <div style={{textAlign: 'center', margin: '20px 0'}}><Loader2 className="spin" size={24} /> Analizando archivo (Shapefile / Excel)...</div>}
 
             {(importType === 'capa_adicional' || importType === 'limite_cantonal' || importType === 'limite_parroquial') && file && !isParsing && (
               <div className="form-group" style={{marginBottom: '20px', background: 'var(--bg-lighter)', padding: '15px', borderRadius: '8px'}}>
@@ -1440,7 +1822,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                 className="btn-secondary" 
                 onClick={() => {
                   if (parsedGeoJson) {
-                    onOpenAtlasWithoutDB(parsedGeoJson, nombreCapa || (file ? file.name.replace(/\.zip$/i, '') : 'Capa Temporal'));
+                    onOpenAtlasWithoutDB(parsedGeoJson, nombreCapa || (file ? file.name.replace(/\.(zip|xlsx|xls|csv)$/i, '') : 'Capa Temporal'));
                     onClose();
                   }
                 }} 
