@@ -180,6 +180,60 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
   // Analysis & Conflict state
   const [analysisData, setAnalysisData] = useState(null);
   const [conflictActions, setConflictActions] = useState({}); // { [temp_id]: 'reemplazar' | 'omitir' }
+  const [conflictOverrides, setConflictOverrides] = useState({}); // { [temp_id]: { codigo, propietario, cedula, sector } }
+
+  const transferField = (tempId, field, value) => {
+    setConflictOverrides(prev => ({
+      ...prev,
+      [tempId]: {
+        ...(prev[tempId] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const transferAllFields = (tempId, existing) => {
+    setConflictOverrides(prev => ({
+      ...prev,
+      [tempId]: {
+        ...(prev[tempId] || {}),
+        ...(existing.codigo && existing.codigo !== 'S/C' ? { codigo: cleanCadastralCode(existing.codigo) } : {}),
+        ...(existing.propietario && existing.propietario !== 'S/D' ? { propietario: existing.propietario } : {}),
+        ...(existing.cedula ? { cedula: existing.cedula } : {}),
+        ...(existing.sector ? { sector: existing.sector } : {}),
+        ...(existing.fecha_adjudicacion ? { fecha_adjudicacion: existing.fecha_adjudicacion } : {}),
+        ...(existing.numero_tramite ? { numero_tramite: existing.numero_tramite } : {})
+      }
+    }));
+  };
+
+  const transferAllMissingGlobal = () => {
+    if (!analysisData || !analysisData.conflictos) return;
+    const newOverrides = { ...conflictOverrides };
+    let count = 0;
+    analysisData.conflictos.forEach(conf => {
+      const ex = conf.existing;
+      const inc = conf.incoming;
+      const current = newOverrides[conf.temp_id] || {};
+      const upd = { ...current };
+
+      if (ex.cedula && !inc.cedula && !upd.cedula) {
+        upd.cedula = ex.cedula;
+        count++;
+      }
+      if (ex.codigo && ex.codigo !== 'S/C' && (!inc.codigo || inc.codigo === 'S/C') && !upd.codigo) {
+        upd.codigo = cleanCadastralCode(ex.codigo);
+        count++;
+      }
+      if (ex.sector && !inc.sector && !upd.sector) {
+        upd.sector = ex.sector;
+        count++;
+      }
+
+      newOverrides[conf.temp_id] = upd;
+    });
+    setConflictOverrides(newOverrides);
+  };
   const [selectedNewIds, setSelectedNewIds] = useState(new Set()); // Set of temp_ids to insert
   const [importProgress, setImportProgress] = useState({ percent: 0, current: 0, total: 0, message: '' });
 
@@ -900,6 +954,7 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
       empresa_id: empId,
       mapping: mapping,
       conflict_actions: conflictActions,
+      conflict_overrides: conflictOverrides,
       selected_new_ids: Array.from(selectedNewIds),
       fecha_creacion: fechaVigencia ? `${fechaVigencia}T00:00:00` : null,
       proyecto_id: activeProyecto?.id || null,
@@ -1652,6 +1707,17 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                     >
                       <Slash size={14} /> Omitir Todos
                     </button>
+                    <button 
+                      className="btn-secondary" 
+                      onClick={transferAllMissingGlobal} 
+                      title="Copia automáticamente cédulas, códigos y sectores existentes a los predios nuevos que no los tengan"
+                      style={{
+                        padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px',
+                        borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#059669', borderColor: '#10b981', fontWeight: 'bold'
+                      }}
+                    >
+                      <ArrowRight size={14} /> Copiar Cédulas y Datos a Todos los Nuevos
+                    </button>
                   </div>
                 </div>
 
@@ -1669,75 +1735,258 @@ export default function ShapefileUploader({ onClose, onSuccess, authToken, user,
                     <tbody>
                       {analysisData.conflictos.map((conf, idx) => {
                         const action = conflictActions[conf.temp_id] || 'reemplazar';
+                        const overrides = conflictOverrides[conf.temp_id] || {};
+                        const effectiveIncoming = {
+                          ...conf.incoming,
+                          ...overrides
+                        };
+                        const hasOverrides = Object.keys(overrides).length > 0;
+
                         return (
-                          <tr key={idx} style={{background: action === 'omitir' ? 'rgba(100, 116, 139, 0.08)' : 'inherit'}}>
+                          <tr key={idx} style={{background: action === 'omitir' ? 'rgba(100, 116, 139, 0.08)' : (hasOverrides ? 'rgba(16, 185, 129, 0.04)' : 'inherit')}}>
                             <td style={{padding: '8px', color: 'var(--text-muted)'}}>{idx + 1}</td>
-                            <td style={{padding: '8px'}}>
+                            
+                            {/* COLUMNA IZQUIERDA: PREDIO EXISTENTE */}
+                            <td style={{padding: '8px', borderRight: '1px dashed var(--card-border)'}}>
+                              {/* Código catastral existente + Copiar a derecha */}
                               <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
                                 <span style={{fontWeight: 'bold', color: 'var(--text-main)'}}>{cleanCadastralCode(conf.existing.codigo)}</span>
-                                <CopyButton text={cleanCadastralCode(conf.existing.codigo)} title="Copiar código existente" />
+                                <CopyButton text={cleanCadastralCode(conf.existing.codigo)} title="Copiar al portapapeles" />
+                                {conf.existing.codigo && conf.existing.codigo !== 'S/C' && cleanCadastralCode(effectiveIncoming.codigo) !== cleanCadastralCode(conf.existing.codigo) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => transferField(conf.temp_id, 'codigo', cleanCadastralCode(conf.existing.codigo))}
+                                    title="Copiar esta clave catastral al nuevo archivo ➔"
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: '2px', padding: '1px 6px',
+                                      fontSize: '0.67rem', background: '#3b82f6', color: '#fff', border: 'none',
+                                      borderRadius: '4px', cursor: 'pointer', fontWeight: 600, marginLeft: '4px'
+                                    }}
+                                  >
+                                    Copiar clave ➔
+                                  </button>
+                                )}
                               </div>
-                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+
+                              {/* Propietario y Cédula existente + Copiar a derecha */}
+                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
                                 <span>{conf.existing.propietario}</span>
                                 <CopyButton text={conf.existing.propietario} title="Copiar nombre" />
+                                {conf.existing.propietario && conf.existing.propietario !== 'S/D' && effectiveIncoming.propietario !== conf.existing.propietario && (
+                                  <button
+                                    type="button"
+                                    onClick={() => transferField(conf.temp_id, 'propietario', conf.existing.propietario)}
+                                    title="Copiar este nombre al nuevo archivo ➔"
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: '2px', padding: '1px 5px',
+                                      fontSize: '0.65rem', background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb',
+                                      border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '3px', cursor: 'pointer', fontWeight: 600
+                                    }}
+                                  >
+                                    Nombre ➔
+                                  </button>
+                                )}
+                                
                                 {conf.existing.cedula && (
                                   <>
-                                    <span>({conf.existing.cedula})</span>
+                                    <span style={{fontWeight: 'bold', color: 'var(--text-main)'}}>({conf.existing.cedula})</span>
                                     <CopyButton text={conf.existing.cedula} title="Copiar cédula" />
+                                    {effectiveIncoming.cedula !== conf.existing.cedula && (
+                                      <button
+                                        type="button"
+                                        onClick={() => transferField(conf.temp_id, 'cedula', conf.existing.cedula)}
+                                        title="Copiar esta cédula existente al nuevo archivo (derecha) ➔"
+                                        style={{
+                                          display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px',
+                                          fontSize: '0.72rem', background: '#10b981', color: '#fff', border: 'none',
+                                          borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginLeft: '4px',
+                                          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                        }}
+                                      >
+                                        Copiar cédula ➔
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </div>
+
+                              {/* Sector existente */}
                               <div style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
                                 <span>Área: {conf.existing.area_ha} ha</span>
                                 {conf.existing.sector && (
                                   <>
                                     <span>| Sector: {conf.existing.sector}</span>
                                     <CopyButton text={conf.existing.sector} title="Copiar sector" />
+                                    {effectiveIncoming.sector !== conf.existing.sector && (
+                                      <button
+                                        type="button"
+                                        onClick={() => transferField(conf.temp_id, 'sector', conf.existing.sector)}
+                                        title="Copiar este sector al nuevo archivo ➔"
+                                        style={{
+                                          display: 'inline-flex', alignItems: 'center', gap: '2px', padding: '1px 5px',
+                                          fontSize: '0.65rem', background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb',
+                                          border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '3px', cursor: 'pointer', fontWeight: 600
+                                        }}
+                                      >
+                                        Sector ➔
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </div>
-                              <CopyAllButton 
-                                codigo={cleanCadastralCode(conf.existing.codigo)}
-                                propietario={conf.existing.propietario}
-                                cedula={conf.existing.cedula}
-                                sector={conf.existing.sector}
-                                area={conf.existing.area_ha}
-                                title="Copiar todos los datos del predio existente"
-                              />
+
+                              {/* Acciones de fila: Copiar todo a la derecha */}
+                              <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '5px', flexWrap: 'wrap'}}>
+                                <button
+                                  type="button"
+                                  onClick={() => transferAllFields(conf.temp_id, conf.existing)}
+                                  title="Copiar cédula, clave, nombre y sector existentes al nuevo archivo"
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px',
+                                    fontSize: '0.72rem', background: 'rgba(37, 99, 235, 0.12)', color: '#2563eb',
+                                    border: '1px solid rgba(37, 99, 235, 0.35)', borderRadius: '4px', cursor: 'pointer',
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  <ArrowRight size={12} /> Copiar todo a la derecha
+                                </button>
+                                <CopyAllButton 
+                                  codigo={cleanCadastralCode(conf.existing.codigo)}
+                                  propietario={conf.existing.propietario}
+                                  cedula={conf.existing.cedula}
+                                  sector={conf.existing.sector}
+                                  area={conf.existing.area_ha}
+                                  title="Copiar al portapapeles"
+                                />
+                              </div>
                             </td>
+
+                            {/* COLUMNA DERECHA: PREDIO NUEVO EN ARCHIVO (CON VALORES EFECTIVOS) */}
                             <td style={{padding: '8px'}}>
+                              {/* Clave catastral nueva */}
                               <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
-                                <span style={{fontWeight: 'bold', color: 'var(--primary)'}}>{cleanCadastralCode(conf.incoming.codigo)}</span>
-                                <CopyButton text={cleanCadastralCode(conf.incoming.codigo)} title="Copiar código nuevo" />
-                              </div>
-                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
-                                <span>{conf.incoming.propietario}</span>
-                                <CopyButton text={conf.incoming.propietario} title="Copiar nombre" />
-                                {conf.incoming.cedula && (
-                                  <>
-                                    <span>({conf.incoming.cedula})</span>
-                                    <CopyButton text={conf.incoming.cedula} title="Copiar cédula" />
-                                  </>
+                                <span style={{
+                                  fontWeight: 'bold', 
+                                  color: overrides.codigo ? '#10b981' : 'var(--primary)'
+                                }}>
+                                  {cleanCadastralCode(effectiveIncoming.codigo)}
+                                </span>
+                                <CopyButton text={cleanCadastralCode(effectiveIncoming.codigo)} title="Copiar código nuevo" />
+                                {overrides.codigo && (
+                                  <span style={{fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold'}}>
+                                    ✓ Copiado de existente
+                                  </span>
+                                )}
+                                {!overrides.codigo && effectiveIncoming.codigo === 'S/C' && conf.existing.codigo && conf.existing.codigo !== 'S/C' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => transferField(conf.temp_id, 'codigo', cleanCadastralCode(conf.existing.codigo))}
+                                    style={{
+                                      fontSize: '0.68rem', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb',
+                                      border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer'
+                                    }}
+                                    title="Usar la clave que ya tiene el sistema"
+                                  >
+                                    + Usar clave existente
+                                  </button>
                                 )}
                               </div>
+
+                              {/* Propietario y Cédula nueva */}
+                              <div style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                <span style={{color: overrides.propietario ? '#10b981' : 'inherit', fontWeight: overrides.propietario ? 'bold' : 'normal'}}>
+                                  {effectiveIncoming.propietario}
+                                </span>
+                                <CopyButton text={effectiveIncoming.propietario} title="Copiar nombre" />
+                                
+                                {effectiveIncoming.cedula ? (
+                                  <span style={{
+                                    fontWeight: 'bold',
+                                    color: overrides.cedula ? '#10b981' : 'inherit',
+                                    background: overrides.cedula ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                    padding: overrides.cedula ? '1px 5px' : 0,
+                                    borderRadius: '3px'
+                                  }}>
+                                    ({effectiveIncoming.cedula}) {overrides.cedula && '✓'}
+                                  </span>
+                                ) : (
+                                  conf.existing.cedula ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => transferField(conf.temp_id, 'cedula', conf.existing.cedula)}
+                                      style={{
+                                        fontSize: '0.7rem', background: '#dcfce7', color: '#15803d',
+                                        border: '1px solid #86efac', borderRadius: '4px', padding: '1px 6px',
+                                        cursor: 'pointer', fontWeight: 'bold'
+                                      }}
+                                      title="Copiar cédula del predio existente a este predio nuevo"
+                                    >
+                                      + Copiar cédula ({conf.existing.cedula}) aquí
+                                    </button>
+                                  ) : (
+                                    <span style={{fontSize: '0.72rem', color: '#f59e0b', fontStyle: 'italic'}}>(Sin cédula)</span>
+                                  )
+                                )}
+                                {effectiveIncoming.cedula && <CopyButton text={effectiveIncoming.cedula} title="Copiar cédula" />}
+                              </div>
+
+                              {/* Sector y Datos adicionales */}
                               <div style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
-                                <span>Área: {conf.incoming.area_ha} ha</span>
-                                {conf.incoming.fecha_adjudicacion ? ` | F. Adju: ${conf.incoming.fecha_adjudicacion}` : ''}
-                                {conf.incoming.numero_tramite ? ` | Trámite: ${conf.incoming.numero_tramite}` : ''}
-                                {conf.incoming.sector && (
-                                  <>
-                                    <span>| Sector: {conf.incoming.sector}</span>
-                                    <CopyButton text={conf.incoming.sector} title="Copiar sector" />
-                                  </>
+                                <span>Área: {effectiveIncoming.area_ha} ha</span>
+                                {effectiveIncoming.fecha_adjudicacion ? ` | F. Adju: ${effectiveIncoming.fecha_adjudicacion}` : ''}
+                                {effectiveIncoming.numero_tramite ? ` | Trámite: ${effectiveIncoming.numero_tramite}` : ''}
+                                {effectiveIncoming.sector ? (
+                                  <span style={{color: overrides.sector ? '#10b981' : 'inherit', fontWeight: overrides.sector ? 'bold' : 'normal'}}>
+                                    | Sector: {effectiveIncoming.sector} {overrides.sector && '✓'}
+                                  </span>
+                                ) : (
+                                  conf.existing.sector && (
+                                    <button
+                                      type="button"
+                                      onClick={() => transferField(conf.temp_id, 'sector', conf.existing.sector)}
+                                      style={{
+                                        fontSize: '0.68rem', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb',
+                                        border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer'
+                                      }}
+                                      title="Usar el sector que ya tiene el predio existente"
+                                    >
+                                      + Usar sector ({conf.existing.sector})
+                                    </button>
+                                  )
                                 )}
+                                {effectiveIncoming.sector && <CopyButton text={effectiveIncoming.sector} title="Copiar sector" />}
                               </div>
+
+                              {/* Deshacer cambios si esta fila tiene overrides */}
+                              {hasOverrides && (
+                                <div style={{marginTop: '4px'}}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConflictOverrides(prev => {
+                                        const next = { ...prev };
+                                        delete next[conf.temp_id];
+                                        return next;
+                                      });
+                                    }}
+                                    style={{
+                                      fontSize: '0.68rem', color: '#dc2626', background: 'none', border: 'none',
+                                      textDecoration: 'underline', cursor: 'pointer', padding: 0
+                                    }}
+                                    title="Restaurar los datos originales del archivo para este predio"
+                                  >
+                                    ↺ Deshacer cambios de esta fila
+                                  </button>
+                                </div>
+                              )}
+
                               <CopyAllButton 
-                                codigo={cleanCadastralCode(conf.incoming.codigo)}
-                                propietario={conf.incoming.propietario}
-                                cedula={conf.incoming.cedula}
-                                sector={conf.incoming.sector}
-                                area={conf.incoming.area_ha}
-                                title="Copiar todos los datos del predio nuevo"
+                                codigo={cleanCadastralCode(effectiveIncoming.codigo)}
+                                propietario={effectiveIncoming.propietario}
+                                cedula={effectiveIncoming.cedula}
+                                sector={effectiveIncoming.sector}
+                                area={effectiveIncoming.area_ha}
+                                title="Copiar todos los datos de este predio"
                               />
                             </td>
                             <td style={{padding: '8px', textAlign: 'center'}}>
